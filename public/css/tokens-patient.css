@@ -1,0 +1,2536 @@
+/* =========================================================
+   NEOLIGHT — tokens-patient.css
+   Design tokens exclusivos del panel de paciente / tutor.
+   Scoped a #view-dashboard-patient para no contaminar el
+   resto del sistema.
+
+   Estructura:
+     1. Paleta clínica primitiva (valores raw)
+     2. Tokens semánticos de color
+     3. Tokens de superficie y fondo
+     4. Tokens de estado clínico (ok / warn / danger / info)
+     5. Tokens de tipografía del panel
+     6. Tokens de espaciado y layout
+     7. Tokens de sombra y elevación
+     8. Tokens de borde y radio
+     9. Tokens de animación
+    10. Soporte dark mode
+   ========================================================= */
+
+
+/* =========================================================
+   1. PALETA CLÍNICA PRIMITIVA
+   Colores raw — no usar directamente en componentes.
+   Referenciar solo desde tokens semánticos (sección 2+).
+   ========================================================= */
+:root {
+  /* Púrpura clínico — color principal del panel paciente */
+  --pt-prim-50:  #f4f0ff;
+  --pt-prim-100: #efeaff;
+  --pt-prim-200: #ded8ff;
+  --pt-prim-300: #c8b8ef;
+  --pt-prim-400: #b9adff;
+  --pt-prim-500: #7c6be8;   /* base */
+  --pt-prim-600: #6a59d4;
+  --pt-prim-700: #5a48d4;
+  --pt-prim-800: #4a3cb0;
+  --pt-prim-900: #2d1f62;
+
+  /* Lavanda — surface y fondos suaves */
+  --pt-lav-50:  #fbfaff;
+  --pt-lav-100: #f6f4ff;
+  --pt-lav-200: #ede8f8;
+  --pt-lav-300: #d9d0f5;
+  --pt-lav-400: #a88cff;
+
+  /* Azul clínico — info / conexión / temperatura */
+  --pt-blue-50:  #f0f8ff;
+  --pt-blue-100: #dff3ff;
+  --pt-blue-200: #c3e4f5;
+  --pt-blue-300: #5b9bd5;
+  --pt-blue-400: #3d6e9a;
+
+  /* Verde menta — estado ok / temperatura normal */
+  --pt-green-50:  #edf7f1;
+  --pt-green-100: #c8edd6;
+  --pt-green-200: #81c784;
+  --pt-green-300: #4a8c5c;
+  --pt-green-400: #2e6644;
+
+  /* Rosa — temperatura bebé / alertas suaves */
+  --pt-rose-50:  #fff4f8;
+  --pt-rose-100: #fff0f5;
+  --pt-rose-200: #f7c7da;
+  --pt-rose-300: #e6537b;
+  --pt-rose-400: #d84c72;
+  --pt-rose-500: #cc3d66;
+
+  /* Ámbar — advertencias / bilirrubina / timer */
+  --pt-amber-50:  #fff8df;
+  --pt-amber-100: #fff7dc;
+  --pt-amber-200: #f8e6a8;
+  --pt-amber-300: #d9a82e;
+  --pt-amber-400: #7a5a10;
+
+  /* Rojo crítico — alarmas / peligro */
+  --pt-red-500: #c62828;
+  --pt-red-400: #e57373;
+
+  /* Tinta / texto */
+  --pt-ink-900: #0d0923;
+  --pt-ink-800: #1a1535;
+  --pt-ink-700: #2d2a45;   /* texto principal */
+  --pt-ink-600: #3d3475;
+  --pt-ink-500: #514b72;
+  --pt-ink-400: #767998;
+  --pt-ink-300: #7b7b94;
+  --pt-ink-200: #8aa0b0;
+  --pt-ink-100: #557f98;
+
+  /* Neutros de superficie */
+  --pt-white:    #ffffff;
+  --pt-near-white: #fbfaff;
+  --pt-surf-100: #f8fafb;
+  --pt-surf-200: #f5f4ff;
+  --pt-surf-300: #f4f0ff;
+}
+
+
+/* =========================================================
+   2. TOKENS SEMÁNTICOS DE COLOR
+   Scoped a #view-dashboard-patient
+   ========================================================= */
+#view-dashboard-patient {
+
+  /* ── Color principal / acento ── */
+  --pt-color-primary:       var(--pt-prim-500);
+  --pt-color-primary-dark:  var(--pt-prim-700);
+  --pt-color-primary-light: var(--pt-prim-400);
+  --pt-color-primary-soft:  var(--pt-prim-100);
+  --pt-color-primary-subtle: rgba(124, 107, 232, 0.08);
+
+  /* ── Texto ── */
+  --pt-color-text:          var(--pt-ink-700);
+  --pt-color-text-strong:   var(--pt-ink-900);
+  --pt-color-text-muted:    var(--pt-ink-300);
+  --pt-color-text-subtle:   var(--pt-ink-400);
+  --pt-color-text-inverse:  var(--pt-white);
+  --pt-color-text-accent:   var(--pt-prim-500);
+
+  /* ── Bordes ── */
+  --pt-color-border:        rgba(124, 107, 232, 0.12);
+  --pt-color-border-medium: rgba(124, 107, 232, 0.18);
+  --pt-color-border-strong: rgba(124, 107, 232, 0.28);
+  --pt-color-border-subtle: rgba(124, 107, 232, 0.06);
+  --pt-color-border-blue:   rgba(102, 138, 160, 0.12);
+
+  /* ── Superficies / fondos ── */
+  --pt-color-bg:            var(--pt-lav-100);
+  --pt-color-surface:       var(--pt-white);
+  --pt-color-surface-alt:   var(--pt-near-white);
+  --pt-color-surface-tinted: rgba(255, 255, 255, 0.86);
+  --pt-color-surface-glass: rgba(255, 255, 255, 0.72);
+  --pt-color-surface-hover: var(--pt-prim-100);
+
+  /* Gradiente de héroe */
+  --pt-gradient-hero: linear-gradient(
+    135deg,
+    var(--pt-prim-100) 0%,
+    var(--pt-blue-100) 58%,
+    var(--pt-white) 100%
+  );
+
+  /* Gradiente de marca */
+  --pt-gradient-brand: linear-gradient(
+    135deg,
+    var(--pt-prim-500),
+    var(--pt-prim-400)
+  );
+}
+
+
+/* =========================================================
+   3. TOKENS DE ESTADO CLÍNICO
+   Semáforo médico: ok / warn / danger / info / neutral
+   ========================================================= */
+#view-dashboard-patient {
+
+  /* OK — temperatura normal, distancia correcta, sin alertas */
+  --pt-state-ok-text:    #2e6644;
+  --pt-state-ok-bg:      var(--pt-green-100);
+  --pt-state-ok-border:  var(--pt-green-200);
+  --pt-state-ok-icon:    var(--pt-green-300);
+  --pt-state-ok-dot:     var(--pt-green-200);
+
+  /* WARN — fuera de rango suave, bilirrubina elevada, timer pausado */
+  --pt-state-warn-text:   var(--pt-amber-400);
+  --pt-state-warn-bg:     var(--pt-amber-100);
+  --pt-state-warn-border: var(--pt-amber-200);
+  --pt-state-warn-icon:   var(--pt-amber-300);
+  --pt-state-warn-dot:    var(--pt-amber-300);
+
+  /* DANGER — alarma crítica, temperatura peligrosa, muy cerca */
+  --pt-state-danger-text:   var(--pt-red-500);
+  --pt-state-danger-bg:     #fff0f5;
+  --pt-state-danger-border: var(--pt-rose-200);
+  --pt-state-danger-icon:   var(--pt-rose-300);
+  --pt-state-danger-dot:    var(--pt-red-500);
+
+  /* INFO — conexión ESP32, modo actual, datos clínicos */
+  --pt-state-info-text:   var(--pt-blue-400);
+  --pt-state-info-bg:     var(--pt-blue-100);
+  --pt-state-info-border: var(--pt-blue-200);
+  --pt-state-info-icon:   var(--pt-blue-300);
+  --pt-state-info-dot:    var(--pt-blue-300);
+
+  /* NEUTRAL — sin datos, esperando lectura, reposo */
+  --pt-state-neutral-text:   var(--pt-ink-300);
+  --pt-state-neutral-bg:     var(--pt-surf-100);
+  --pt-state-neutral-border: rgba(124, 107, 232, 0.10);
+  --pt-state-neutral-dot:    var(--pt-ink-400);
+
+  /* Alias convenientes para el JS (matchea con los strings del código) */
+  --pt-color-ok:     var(--pt-state-ok-icon);
+  --pt-color-warn:   var(--pt-state-warn-icon);
+  --pt-color-danger: var(--pt-state-danger-icon);
+  --pt-color-info:   var(--pt-state-info-icon);
+}
+
+
+/* =========================================================
+   4. TOKENS DE TIPOGRAFÍA DEL PANEL
+   Escala tipográfica específica para el dashboard paciente.
+   Usa Inter / Space Mono del sistema global.
+   ========================================================= */
+#view-dashboard-patient {
+
+  /* ── Familias ── */
+  --pt-font-display: 'Inter', system-ui, sans-serif;
+  --pt-font-body:    'Inter', system-ui, sans-serif;
+  --pt-font-mono:    'Space Mono', ui-monospace, monospace;
+  --pt-font-data:    'Space Mono', ui-monospace, monospace;  /* valores de sensores */
+
+  /* ── Escala de tamaños ── */
+  --pt-text-2xs:  .58rem;   /* badges muy pequeños, copyright */
+  --pt-text-xs:   .65rem;   /* labels de eje, marcas de tiempo compactas */
+  --pt-text-sm:   .72rem;   /* labels de widget, estado de sensor */
+  --pt-text-base: .82rem;   /* texto de cuerpo en cards */
+  --pt-text-md:   .95rem;   /* datos clínicos, filas de datos */
+  --pt-text-lg:   1.05rem;  /* títulos de sección secundaria */
+  --pt-text-xl:   1.25rem;  /* valores de métricas principales */
+  --pt-text-2xl:  1.7rem;   /* timer, valores hero */
+  --pt-text-3xl:  2rem;     /* heading principal del dashboard */
+  --pt-text-hero: clamp(1.7rem, 3vw, 2.65rem); /* h1 del hero card */
+
+  /* ── Pesos ── */
+  --pt-weight-normal:   400;
+  --pt-weight-medium:   500;
+  --pt-weight-semibold: 600;
+  --pt-weight-bold:     700;
+  --pt-weight-extrabold: 800;
+  --pt-weight-black:    900;
+
+  /* ── Letter spacing ── */
+  --pt-tracking-tight:  -.02em;
+  --pt-tracking-normal:  0;
+  --pt-tracking-caps:    .08em;  /* kickers en mayúsculas */
+  --pt-tracking-mono:    .04em;  /* valores monoespaciados */
+  --pt-tracking-label:   .12em;  /* labels de sensor */
+
+  /* ── Interlineado ── */
+  --pt-leading-tight:   1.05;
+  --pt-leading-snug:    1.25;
+  --pt-leading-normal:  1.5;
+  --pt-leading-relaxed: 1.7;
+
+  /* ── Roles semánticos de texto ── */
+  --pt-font-kicker:     var(--pt-font-display);
+  --pt-font-metric:     var(--pt-font-data);    /* valores numéricos de sensores */
+  --pt-font-label:      var(--pt-font-body);
+  --pt-font-status:     var(--pt-font-body);
+  --pt-font-timer:      var(--pt-font-mono);
+}
+
+
+/* =========================================================
+   5. TOKENS DE ESPACIADO Y LAYOUT
+   ========================================================= */
+#view-dashboard-patient {
+
+  /* ── Escala de espaciado (múltiplos de 4px) ── */
+  --pt-space-1:  4px;
+  --pt-space-2:  8px;
+  --pt-space-3:  12px;
+  --pt-space-4:  16px;
+  --pt-space-5:  20px;
+  --pt-space-6:  24px;
+  --pt-space-8:  32px;
+  --pt-space-10: 40px;
+  --pt-space-12: 48px;
+
+  /* ── Alias de espaciado semántico ── */
+  --pt-gap-xs:   var(--pt-space-2);   /* gap entre íconos y labels */
+  --pt-gap-sm:   var(--pt-space-3);   /* gap interno de badges */
+  --pt-gap-md:   var(--pt-space-4);   /* gap entre widgets */
+  --pt-gap-lg:   var(--pt-space-6);   /* gap entre secciones */
+  --pt-gap-xl:   var(--pt-space-8);   /* gap entre columnas del layout */
+
+  --pt-pad-xs:   var(--pt-space-2);   /* padding de badges/pills */
+  --pt-pad-sm:   var(--pt-space-3);   /* padding de labels compactos */
+  --pt-pad-md:   var(--pt-space-4);   /* padding de cards pequeñas */
+  --pt-pad-lg:   var(--pt-space-6);   /* padding de cards estándar */
+  --pt-pad-xl:   var(--pt-space-8);   /* padding de cards grandes */
+
+  /* ── Dimensiones del layout del shell ── */
+  --pt-sidebar-width:    92px;
+  --pt-rail-width:       306px;
+  --pt-sidebar-gap:      .55rem;
+  --pt-metric-min-width: 120px;
+
+  /* ── Dimensiones de componentes ── */
+  --pt-nav-item-height:  58px;
+  --pt-avatar-size:      48px;
+  --pt-avatar-size-lg:   64px;
+  --pt-icon-size-sm:     16px;
+  --pt-icon-size-md:     20px;
+  --pt-icon-size-lg:     32px;
+  --pt-dot-size:         8px;
+
+  /* ── Alturas de barra de progreso ── */
+  --pt-bar-height-sm:   4px;
+  --pt-bar-height-md:   6px;
+  --pt-bar-height-lg:   8px;
+}
+
+
+/* =========================================================
+   6. TOKENS DE SOMBRA Y ELEVACIÓN
+   ========================================================= */
+#view-dashboard-patient {
+
+  /* Elevación 0 — sin sombra (inputs, tablas) */
+  --pt-shadow-none: none;
+
+  /* Elevación 1 — cards planas, widgets de métrica */
+  --pt-shadow-sm: 0 2px 12px rgba(124, 107, 232, 0.06),
+                  0 1px 4px  rgba(124, 107, 232, 0.04);
+
+  /* Elevación 2 — cards principales, sidebar */
+  --pt-shadow-md: 0 8px 28px rgba(124, 107, 232, 0.10),
+                  0 2px 8px  rgba(124, 107, 232, 0.06);
+
+  /* Elevación 3 — hero card, right rail */
+  --pt-shadow-lg: 0 18px 42px rgba(124, 107, 232, 0.13),
+                  0 4px 14px rgba(124, 107, 232, 0.08);
+
+  /* Elevación 4 — modales, toasts, overlays */
+  --pt-shadow-xl: 0 24px 60px rgba(124, 107, 232, 0.18),
+                  0 8px 20px rgba(124, 107, 232, 0.10);
+
+  /* Sombra de hover (se añade on :hover) */
+  --pt-shadow-hover: 0 12px 36px rgba(124, 107, 232, 0.18),
+                     0 4px 12px rgba(124, 107, 232, 0.10);
+
+  /* Sombra de la sidebar */
+  --pt-shadow-sidebar: 0 18px 40px rgba(124, 107, 232, 0.11);
+
+  /* Glow del estado de alarma activa */
+  --pt-shadow-alert: 0 0 0 3px rgba(198, 40, 40, 0.15);
+
+  /* Alias de compatibilidad con el código existente */
+  --pt-shadow:      var(--pt-shadow-md);
+  --pt-shadow-soft: var(--pt-shadow-sm);
+}
+
+
+/* =========================================================
+   7. TOKENS DE BORDE Y RADIO
+   ========================================================= */
+#view-dashboard-patient {
+
+  /* ── Radios ── */
+  --pt-radius-xs:   6px;    /* badges, dots, inputs pequeños */
+  --pt-radius-sm:   10px;   /* botones, inputs estándar */
+  --pt-radius-md:   16px;   /* cards pequeñas, chips */
+  --pt-radius-lg:   20px;   /* cards estándar */
+  --pt-radius-xl:   24px;   /* sidebar, cards grandes */
+  --pt-radius-2xl:  28px;   /* hero card */
+  --pt-radius-full: 999px;  /* pills, badges */
+  --pt-radius-circle: 50%;  /* avatares */
+
+  /* Alias de compatibilidad */
+  --pt-radius: var(--pt-radius-lg);
+
+  /* ── Anchos de borde ── */
+  --pt-border-width:    1px;
+  --pt-border-width-md: 1.5px;
+  --pt-border-width-lg: 2px;
+}
+
+
+/* =========================================================
+   8. TOKENS DE ANIMACIÓN
+   ========================================================= */
+#view-dashboard-patient {
+
+  /* ── Duraciones ── */
+  --pt-duration-instant: 80ms;
+  --pt-duration-fast:    150ms;
+  --pt-duration-base:    200ms;
+  --pt-duration-slow:    350ms;
+  --pt-duration-enter:   400ms;
+
+  /* ── Easings ── */
+  --pt-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --pt-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --pt-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Transición estándar para hover de cards ── */
+  --pt-transition-card: transform var(--pt-duration-base) var(--pt-ease-out),
+                        box-shadow var(--pt-duration-base) var(--pt-ease-out);
+
+  /* ── Transición para cambios de color/opacidad ── */
+  --pt-transition-color: color var(--pt-duration-fast) var(--pt-ease-in-out),
+                         background-color var(--pt-duration-fast) var(--pt-ease-in-out),
+                         border-color var(--pt-duration-fast) var(--pt-ease-in-out),
+                         opacity var(--pt-duration-fast) var(--pt-ease-in-out);
+}
+
+
+/* =========================================================
+   9. DARK MODE
+   Ajusta solo los tokens que cambian en modo oscuro.
+   Los tokens de layout/tipografía/animación son invariantes.
+   ========================================================= */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Reajusta primitivos para dark */
+    --pt-prim-100: #2a2350;
+    --pt-prim-200: #3a3068;
+    --pt-prim-400: #9a8ef5;
+    --pt-prim-500: #9d8ef5;
+    --pt-prim-700: #b9adff;
+
+    --pt-lav-100:  #18152e;
+    --pt-lav-200:  #211c3d;
+    --pt-lav-300:  #2e2858;
+
+    --pt-ink-700:  #e2deff;
+    --pt-ink-300:  #9d9ab8;
+    --pt-ink-400:  #7b789a;
+
+    --pt-white:    #1e1a38;
+    --pt-near-white: #1a172e;
+    --pt-surf-100: #201c38;
+    --pt-surf-200: #211e3a;
+  }
+
+  #view-dashboard-patient {
+    --pt-color-bg:            #16132c;
+    --pt-color-surface:       #1e1a38;
+    --pt-color-surface-alt:   #201c38;
+    --pt-color-surface-tinted: rgba(30, 26, 56, 0.92);
+    --pt-color-surface-glass: rgba(30, 26, 56, 0.72);
+    --pt-color-surface-hover: rgba(124, 107, 232, 0.15);
+
+    --pt-color-border:        rgba(124, 107, 232, 0.20);
+    --pt-color-border-medium: rgba(124, 107, 232, 0.28);
+    --pt-color-border-strong: rgba(124, 107, 232, 0.40);
+    --pt-color-border-subtle: rgba(124, 107, 232, 0.10);
+
+    --pt-color-text:        #e2deff;
+    --pt-color-text-strong: #f0eeff;
+    --pt-color-text-muted:  #9d9ab8;
+    --pt-color-text-subtle: #7b789a;
+
+    --pt-gradient-hero: linear-gradient(
+      135deg,
+      rgba(42, 35, 80, 0.95) 0%,
+      rgba(30, 58, 80, 0.90) 58%,
+      rgba(30, 26, 56, 1.0) 100%
+    );
+
+    /* Estados clínicos en dark */
+    --pt-state-ok-bg:      rgba(46, 102, 68, 0.20);
+    --pt-state-warn-bg:    rgba(122, 90, 16, 0.20);
+    --pt-state-danger-bg:  rgba(198, 40, 40, 0.18);
+    --pt-state-info-bg:    rgba(61, 110, 154, 0.20);
+    --pt-state-neutral-bg: rgba(30, 26, 56, 0.60);
+  }
+}
+
+
+/* =========================================================
+   10. UTILIDADES DE TOKEN — clases de conveniencia
+   Para aplicar estados clínicos directamente en HTML.
+   ========================================================= */
+#view-dashboard-patient .pt-state-ok {
+  color: var(--pt-state-ok-text);
+  background: var(--pt-state-ok-bg);
+  border-color: var(--pt-state-ok-border);
+}
+#view-dashboard-patient .pt-state-warn {
+  color: var(--pt-state-warn-text);
+  background: var(--pt-state-warn-bg);
+  border-color: var(--pt-state-warn-border);
+}
+#view-dashboard-patient .pt-state-danger {
+  color: var(--pt-state-danger-text);
+  background: var(--pt-state-danger-bg);
+  border-color: var(--pt-state-danger-border);
+}
+#view-dashboard-patient .pt-state-info {
+  color: var(--pt-state-info-text);
+  background: var(--pt-state-info-bg);
+  border-color: var(--pt-state-info-border);
+}
+#view-dashboard-patient .pt-state-neutral {
+  color: var(--pt-state-neutral-text);
+  background: var(--pt-state-neutral-bg);
+  border-color: var(--pt-state-neutral-border);
+}
+
+/* Dot de estado (indicador de conexión / sensor) */
+#view-dashboard-patient .pt-dot {
+  display: inline-block;
+  width: var(--pt-dot-size);
+  height: var(--pt-dot-size);
+  border-radius: var(--pt-radius-circle);
+  flex-shrink: 0;
+}
+#view-dashboard-patient .pt-dot[data-status="ok"]      { background: var(--pt-state-ok-dot); }
+#view-dashboard-patient .pt-dot[data-status="warn"]    { background: var(--pt-state-warn-dot); }
+#view-dashboard-patient .pt-dot[data-status="danger"]  { background: var(--pt-state-danger-dot); }
+#view-dashboard-patient .pt-dot[data-status="info"]    { background: var(--pt-state-info-dot); }
+#view-dashboard-patient .pt-dot[data-status="neutral"] { background: var(--pt-state-neutral-dot); }
+
+
+/* =========================================================
+   11. SKELETON SCREENS — estados de carga del dashboard
+   =========================================================
+   Activación: añadir clase .pt-loading al .patient-shell
+   Desactivación: remover .pt-loading cuando los datos estén listos
+
+   Cada elemento real tiene su contraparte skeleton (.pt-sk-*)
+   que reemplaza visualmente el contenido mientras carga.
+
+   El shimmer usa un gradiente animado sobre la base skeleton.
+   Compatible con dark mode via las variables de tokens.
+   ========================================================= */
+
+/* ── Tokens de skeleton ─────────────────────────────────── */
+#view-dashboard-patient {
+  --pt-sk-base:    rgba(124, 107, 232, 0.08);
+  --pt-sk-shine:   rgba(255, 255, 255, 0.55);
+  --pt-sk-radius:  var(--pt-radius-xs);
+  --pt-sk-speed:   1.6s;
+}
+
+@media (prefers-color-scheme: dark) {
+  #view-dashboard-patient {
+    --pt-sk-base:  rgba(124, 107, 232, 0.16);
+    --pt-sk-shine: rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* ── Animación shimmer ──────────────────────────────────── */
+@keyframes pt-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+/* ── Clase base de skeleton ─────────────────────────────── */
+#view-dashboard-patient .pt-sk {
+  background: var(--pt-sk-base);
+  background-image: linear-gradient(
+    90deg,
+    var(--pt-sk-base)  0%,
+    var(--pt-sk-shine) 50%,
+    var(--pt-sk-base)  100%
+  );
+  background-size: 400px 100%;
+  background-repeat: no-repeat;
+  border-radius: var(--pt-sk-radius);
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+  color: transparent !important;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ── Respect reduced motion ─────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  #view-dashboard-patient .pt-sk {
+    animation: none;
+    background-image: none;
+  }
+}
+
+/* =========================================================
+   HERO CARD — overlay de skeleton sobre el video/cámara
+   ========================================================= */
+
+/* Cuando .pt-loading está activo, el overlay cubre el hero */
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-overlay {
+  background: var(--pt-color-surface-tinted);
+  border-radius: var(--pt-radius-xl);
+}
+
+/* Kicker: línea corta */
+#view-dashboard-patient .patient-shell.pt-loading .pt-kicker {
+  display: block;
+  width: 160px;
+  height: 12px;
+  margin-bottom: .6rem;
+}
+
+/* h1 saludo: línea ancha */
+#view-dashboard-patient .patient-shell.pt-loading #dashHelloPatient {
+  display: block;
+  width: 220px;
+  height: 32px;
+  margin-bottom: .75rem;
+  border-radius: var(--pt-radius-sm);
+}
+
+/* Tags hero: 3 pills */
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span {
+  display: inline-block;
+  width: 110px;
+  height: 26px;
+  border-radius: var(--pt-radius-full);
+  background: transparent;
+  border-color: transparent;
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span:nth-child(2) { width: 80px; }
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span:nth-child(3) { width: 140px; }
+
+/* Aplicar shimmer a los elementos del hero durante carga */
+#view-dashboard-patient .patient-shell.pt-loading .pt-kicker,
+#view-dashboard-patient .patient-shell.pt-loading #dashHelloPatient,
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span {
+  background: var(--pt-sk-base);
+  background-image: linear-gradient(
+    90deg,
+    var(--pt-sk-base)  0%,
+    var(--pt-sk-shine) 50%,
+    var(--pt-sk-base)  100%
+  );
+  background-size: 400px 100%;
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+  color: transparent !important;
+  border-color: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  #view-dashboard-patient .patient-shell.pt-loading .pt-kicker,
+  #view-dashboard-patient .patient-shell.pt-loading #dashHelloPatient,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span {
+    animation: none; background-image: none;
+  }
+}
+
+/* =========================================================
+   ALERT CARD — reemplazar mensaje por línea skeleton
+   ========================================================= */
+#view-dashboard-patient .patient-shell.pt-loading .pt-ac-msg {
+  width: 130px;
+  height: 14px;
+  display: block;
+  border-radius: var(--pt-sk-radius);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-ac-msg,
+#view-dashboard-patient .patient-shell.pt-loading .pt-ac-count {
+  background: var(--pt-sk-base);
+  background-image: linear-gradient(90deg, var(--pt-sk-base) 0%, var(--pt-sk-shine) 50%, var(--pt-sk-base) 100%);
+  background-size: 400px 100%;
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+  color: transparent !important;
+  border-radius: var(--pt-sk-radius);
+}
+
+/* =========================================================
+   METRIC WIDGETS (4 tarjetas de sensores)
+   ========================================================= */
+
+/* Valor principal del widget */
+#view-dashboard-patient .patient-shell.pt-loading .pt-wval {
+  display: block;
+  width: 70px;
+  height: 22px;
+  margin-bottom: .3rem;
+  border-radius: var(--pt-sk-radius);
+}
+
+/* Status text bajo el valor */
+#view-dashboard-patient .patient-shell.pt-loading .pt-mw-body em {
+  display: block;
+  width: 100px;
+  height: 11px;
+  border-radius: var(--pt-sk-radius);
+}
+
+/* Barra de progreso de sensor */
+#view-dashboard-patient .patient-shell.pt-loading .patient-sensor-bar {
+  background: var(--pt-sk-base);
+  border-radius: var(--pt-sk-radius);
+}
+#view-dashboard-patient .patient-shell.pt-loading .patient-sensor-bar i {
+  display: none;
+}
+
+/* Ícono del widget: círculo skeleton */
+#view-dashboard-patient .patient-shell.pt-loading .neo-widget-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--pt-radius-circle);
+  overflow: hidden;
+}
+#view-dashboard-patient .patient-shell.pt-loading .neo-widget-icon img {
+  opacity: 0;
+}
+
+/* Aplicar shimmer a métricas */
+#view-dashboard-patient .patient-shell.pt-loading .pt-wval,
+#view-dashboard-patient .patient-shell.pt-loading .pt-mw-body em,
+#view-dashboard-patient .patient-shell.pt-loading .neo-widget-icon {
+  background: var(--pt-sk-base);
+  background-image: linear-gradient(90deg, var(--pt-sk-base) 0%, var(--pt-sk-shine) 50%, var(--pt-sk-base) 100%);
+  background-size: 400px 100%;
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+  color: transparent !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  #view-dashboard-patient .patient-shell.pt-loading .pt-wval,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-mw-body em,
+  #view-dashboard-patient .patient-shell.pt-loading .neo-widget-icon {
+    animation: none; background-image: none;
+  }
+}
+
+/* =========================================================
+   TIMER CARD
+   ========================================================= */
+
+/* Valor del timer */
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-val {
+  display: block;
+  width: 120px;
+  height: 28px;
+  border-radius: var(--pt-sk-radius);
+}
+
+/* Texto del pie del timer */
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot em,
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot span {
+  display: inline-block;
+  height: 13px;
+  border-radius: var(--pt-sk-radius);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot em   { width: 130px; }
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot span { width: 60px; }
+
+/* Barra de progreso de plan */
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-bar {
+  background: var(--pt-sk-base);
+  border-radius: var(--pt-sk-radius);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-bar span { display: none; }
+
+/* Shimmer en timer */
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-val,
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot em,
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot span {
+  background: var(--pt-sk-base);
+  background-image: linear-gradient(90deg, var(--pt-sk-base) 0%, var(--pt-sk-shine) 50%, var(--pt-sk-base) 100%);
+  background-size: 400px 100%;
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+  color: transparent !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  #view-dashboard-patient .patient-shell.pt-loading .pt-tc-val,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot em,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot span {
+    animation: none; background-image: none;
+  }
+}
+
+/* =========================================================
+   RIGHT RAIL — perfil del paciente
+   ========================================================= */
+
+/* Avatar: círculo */
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-avatar {
+  color: transparent;
+  background: var(--pt-sk-base);
+  background-image: linear-gradient(90deg, var(--pt-sk-base) 0%, var(--pt-sk-shine) 50%, var(--pt-sk-base) 100%);
+  background-size: 400px 100%;
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+}
+
+/* Nombre del paciente */
+#view-dashboard-patient .patient-shell.pt-loading #patientProfileName {
+  width: 140px;
+  height: 20px;
+  display: block;
+  margin: .4rem auto;
+  border-radius: var(--pt-sk-radius);
+}
+
+/* Código */
+#view-dashboard-patient .patient-shell.pt-loading #patientProfileCode {
+  display: block;
+  width: 80px;
+  height: 13px;
+  margin: 0 auto .6rem;
+  border-radius: var(--pt-sk-radius);
+}
+
+/* Filas de datos (edad, tutor, doctor, estado) */
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card em {
+  display: inline-block;
+  height: 13px;
+  border-radius: var(--pt-sk-radius);
+  vertical-align: middle;
+}
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(4)  em { width: 55px; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(5)  em { width: 100px; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(6)  em { width: 120px; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(7)  em { width: 80px; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(8)  em { width: 70px; }
+
+/* Estado de conexión */
+#view-dashboard-patient .patient-shell.pt-loading .patient-connection-card em {
+  display: inline-block;
+  width: 60px;
+  height: 13px;
+  border-radius: var(--pt-sk-radius);
+  vertical-align: middle;
+}
+
+/* Shimmer en rail */
+#view-dashboard-patient .patient-shell.pt-loading #patientProfileName,
+#view-dashboard-patient .patient-shell.pt-loading #patientProfileCode,
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card em,
+#view-dashboard-patient .patient-shell.pt-loading .patient-connection-card em {
+  background: var(--pt-sk-base);
+  background-image: linear-gradient(90deg, var(--pt-sk-base) 0%, var(--pt-sk-shine) 50%, var(--pt-sk-base) 100%);
+  background-size: 400px 100%;
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+  color: transparent !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  #view-dashboard-patient .patient-shell.pt-loading #patientProfileName,
+  #view-dashboard-patient .patient-shell.pt-loading #patientProfileCode,
+  #view-dashboard-patient .patient-shell.pt-loading .patient-profile-card em,
+  #view-dashboard-patient .patient-shell.pt-loading .patient-connection-card em {
+    animation: none; background-image: none;
+  }
+}
+
+/* =========================================================
+   TRANSICIÓN DE SALIDA — reveal suave al recibir datos
+   ========================================================= */
+
+/* Los elementos que salen del estado skeleton hacen fade-in */
+#view-dashboard-patient .pt-hero-overlay,
+#view-dashboard-patient .pt-alert-card,
+#view-dashboard-patient .pt-metric-widget,
+#view-dashboard-patient .pt-timer-card,
+#view-dashboard-patient .patient-profile-card,
+#view-dashboard-patient .patient-connection-card {
+  transition: opacity var(--pt-duration-slow) var(--pt-ease-out);
+}
+
+/* Estado de carga: opacidad reducida en la card del timer y métricas */
+#view-dashboard-patient .patient-shell.pt-loading .pt-timer-card,
+#view-dashboard-patient .patient-shell.pt-loading .pt-metric-widget {
+  opacity: .85;
+}
+
+/* El export row se oculta durante la carga — no tiene sentido exportar sin datos */
+#view-dashboard-patient .patient-shell.pt-loading .pt-export-row {
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   11. SKELETON SCREENS — estados de carga del dashboard
+   =========================================================
+   Activación: añadir .pt-loading al .patient-shell
+   Desactivación: remover .pt-loading cuando datos listos
+   ========================================================= */
+
+#view-dashboard-patient {
+  --pt-sk-base:  rgba(124, 107, 232, 0.08);
+  --pt-sk-shine: rgba(255, 255, 255, 0.55);
+  --pt-sk-speed: 1.6s;
+}
+@media (prefers-color-scheme: dark) {
+  #view-dashboard-patient {
+    --pt-sk-base:  rgba(124, 107, 232, 0.16);
+    --pt-sk-shine: rgba(255, 255, 255, 0.08);
+  }
+}
+
+@keyframes pt-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+#view-dashboard-patient .pt-sk,
+#view-dashboard-patient .patient-shell.pt-loading .pt-kicker,
+#view-dashboard-patient .patient-shell.pt-loading #dashHelloPatient,
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span,
+#view-dashboard-patient .patient-shell.pt-loading .pt-ac-msg,
+#view-dashboard-patient .patient-shell.pt-loading .pt-ac-count,
+#view-dashboard-patient .patient-shell.pt-loading .pt-wval,
+#view-dashboard-patient .patient-shell.pt-loading .pt-mw-body em,
+#view-dashboard-patient .patient-shell.pt-loading .neo-widget-icon,
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-val,
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot em,
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot span,
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-avatar,
+#view-dashboard-patient .patient-shell.pt-loading #patientProfileName,
+#view-dashboard-patient .patient-shell.pt-loading #patientProfileCode,
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card em,
+#view-dashboard-patient .patient-shell.pt-loading .patient-connection-card em {
+  background-color: var(--pt-sk-base);
+  background-image: linear-gradient(
+    90deg,
+    var(--pt-sk-base)  0%,
+    var(--pt-sk-shine) 50%,
+    var(--pt-sk-base)  100%
+  );
+  background-size: 400px 100%;
+  background-repeat: no-repeat;
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+  color: transparent !important;
+  border-color: transparent;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #view-dashboard-patient .pt-sk,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-kicker,
+  #view-dashboard-patient .patient-shell.pt-loading #dashHelloPatient,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-ac-msg,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-wval,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-mw-body em,
+  #view-dashboard-patient .patient-shell.pt-loading .neo-widget-icon,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-tc-val,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot em,
+  #view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot span,
+  #view-dashboard-patient .patient-shell.pt-loading .patient-profile-avatar,
+  #view-dashboard-patient .patient-shell.pt-loading #patientProfileName,
+  #view-dashboard-patient .patient-shell.pt-loading #patientProfileCode,
+  #view-dashboard-patient .patient-shell.pt-loading .patient-profile-card em,
+  #view-dashboard-patient .patient-shell.pt-loading .patient-connection-card em {
+    animation: none;
+    background-image: none;
+  }
+}
+
+/* ── Hero overlay ─────────────────────────────────────── */
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-overlay {
+  background: var(--pt-color-surface-tinted);
+  border-radius: var(--pt-radius-xl);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-kicker {
+  display: block; width: 160px; height: 12px;
+  margin-bottom: .6rem; border-radius: var(--pt-radius-xs);
+}
+#view-dashboard-patient .patient-shell.pt-loading #dashHelloPatient {
+  display: block; width: 220px; height: 32px;
+  margin-bottom: .75rem; border-radius: var(--pt-radius-sm);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span {
+  display: inline-block; height: 26px; border-radius: var(--pt-radius-full);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span:nth-child(1) { width: 110px; }
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span:nth-child(2) { width: 80px; }
+#view-dashboard-patient .patient-shell.pt-loading .pt-hero-tags span:nth-child(3) { width: 140px; }
+
+/* ── Alert card ───────────────────────────────────────── */
+#view-dashboard-patient .patient-shell.pt-loading .pt-ac-msg {
+  display: block; width: 130px; height: 14px;
+  border-radius: var(--pt-radius-xs);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-ac-count {
+  display: block; width: 60px; height: 11px;
+  border-radius: var(--pt-radius-xs);
+}
+
+/* ── Metric widgets ───────────────────────────────────── */
+#view-dashboard-patient .patient-shell.pt-loading .pt-wval {
+  display: block; width: 70px; height: 22px;
+  margin-bottom: .3rem; border-radius: var(--pt-radius-xs);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-mw-body em {
+  display: block; width: 100px; height: 11px;
+  border-radius: var(--pt-radius-xs);
+}
+#view-dashboard-patient .patient-shell.pt-loading .neo-widget-icon {
+  width: 36px; height: 36px; border-radius: var(--pt-radius-circle);
+}
+#view-dashboard-patient .patient-shell.pt-loading .neo-widget-icon img { opacity: 0; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-sensor-bar { background: var(--pt-sk-base); }
+#view-dashboard-patient .patient-shell.pt-loading .patient-sensor-bar i { display: none; }
+
+/* ── Timer card ───────────────────────────────────────── */
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-val {
+  display: block; width: 120px; height: 28px;
+  border-radius: var(--pt-radius-xs);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot em {
+  display: inline-block; width: 130px; height: 13px;
+  border-radius: var(--pt-radius-xs); vertical-align: middle;
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-foot span {
+  display: inline-block; width: 60px; height: 13px;
+  border-radius: var(--pt-radius-xs); vertical-align: middle;
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-bar { background: var(--pt-sk-base); }
+#view-dashboard-patient .patient-shell.pt-loading .pt-tc-bar span { display: none; }
+
+/* ── Right rail — perfil ──────────────────────────────── */
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-avatar {
+  border-radius: var(--pt-radius-circle);
+}
+#view-dashboard-patient .patient-shell.pt-loading #patientProfileName {
+  display: block; width: 140px; height: 20px;
+  margin: .4rem auto; border-radius: var(--pt-radius-xs);
+}
+#view-dashboard-patient .patient-shell.pt-loading #patientProfileCode {
+  display: block; width: 80px; height: 13px;
+  margin: 0 auto .6rem; border-radius: var(--pt-radius-xs);
+}
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card em {
+  display: inline-block; height: 13px;
+  border-radius: var(--pt-radius-xs); vertical-align: middle;
+}
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(4)  em { width: 55px; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(5)  em { width: 100px; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(6)  em { width: 120px; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(7)  em { width: 80px; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-profile-card div:nth-child(8)  em { width: 70px; }
+#view-dashboard-patient .patient-shell.pt-loading .patient-connection-card em {
+  display: inline-block; width: 60px; height: 13px;
+  border-radius: var(--pt-radius-xs); vertical-align: middle;
+}
+
+/* ── Transiciones de reveal ───────────────────────────── */
+#view-dashboard-patient .pt-hero-overlay,
+#view-dashboard-patient .pt-alert-card,
+#view-dashboard-patient .pt-metric-widget,
+#view-dashboard-patient .pt-timer-card,
+#view-dashboard-patient .patient-profile-card,
+#view-dashboard-patient .patient-connection-card {
+  transition: opacity var(--pt-duration-slow) var(--pt-ease-out);
+}
+#view-dashboard-patient .patient-shell.pt-loading .pt-timer-card,
+#view-dashboard-patient .patient-shell.pt-loading .pt-metric-widget { opacity: .85; }
+#view-dashboard-patient .patient-shell.pt-loading .pt-export-row {
+  opacity: 0; pointer-events: none;
+}
+
+
+/* =========================================================
+   12. TOASTS Y BANNERS — sistema de notificaciones de error
+   ========================================================= */
+
+/* ── Toast container ─────────────────────────────────────── */
+#pt-toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: .55rem;
+  width: min(360px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+/* ── Toast individual ────────────────────────────────────── */
+.pt-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
+  padding: .75rem 1rem;
+  border-radius: var(--pt-radius-lg);
+  border: 1px solid transparent;
+  background: var(--pt-white, #fff);
+  box-shadow: 0 8px 32px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.07);
+  pointer-events: all;
+  font-size: var(--pt-text-sm, .72rem);
+  line-height: var(--pt-leading-normal, 1.5);
+  color: var(--pt-color-text, #2d2a45);
+
+  /* Estado inicial: invisible y desplazado */
+  opacity: 0;
+  transform: translateY(12px) scale(.97);
+  transition:
+    opacity  220ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pt-toast--visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.pt-toast--exit {
+  opacity: 0;
+  transform: translateY(8px) scale(.96);
+  transition:
+    opacity  180ms ease-in,
+    transform 180ms ease-in;
+}
+
+/* Variantes por severidad */
+.pt-toast--ok {
+  border-color: var(--pt-state-ok-border, #c8edd6);
+  background: var(--pt-state-ok-bg, #edf7f1);
+  color: var(--pt-state-ok-text, #2e6644);
+}
+.pt-toast--warn {
+  border-color: var(--pt-state-warn-border, #f8e6a8);
+  background: var(--pt-state-warn-bg, #fff7dc);
+  color: var(--pt-state-warn-text, #7a5a10);
+}
+.pt-toast--danger {
+  border-color: var(--pt-state-danger-border, #f7c7da);
+  background: var(--pt-state-danger-bg, #fff0f5);
+  color: var(--pt-state-danger-text, #c62828);
+}
+.pt-toast--info {
+  border-color: var(--pt-state-info-border, #c3e4f5);
+  background: var(--pt-state-info-bg, #dff3ff);
+  color: var(--pt-state-info-text, #3d6e9a);
+}
+
+.pt-toast__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+}
+
+.pt-toast__msg {
+  flex: 1;
+  font-weight: 500;
+}
+
+.pt-toast__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: .55;
+  padding: 2px;
+  margin-top: 1px;
+  border-radius: var(--pt-radius-xs, 6px);
+  color: inherit;
+  transition: opacity 150ms;
+}
+.pt-toast__close:hover { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-toast { transition: none; }
+}
+
+/* ── Banner container ────────────────────────────────────── */
+.pt-banner-container {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  /* Ocupa el ancho del shell, encima de la primera fila */
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: .35rem 0 0;
+}
+
+/* ── Banner individual ───────────────────────────────────── */
+.pt-banner {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .6rem 1rem;
+  border-radius: var(--pt-radius-lg, 20px);
+  border: 1px solid transparent;
+  font-size: var(--pt-text-sm, .72rem);
+  font-weight: 500;
+  line-height: 1.4;
+
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity  250ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pt-banner--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.pt-banner--exit {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 180ms ease-in, transform 180ms ease-in;
+}
+
+.pt-banner--warn {
+  border-color: var(--pt-state-warn-border, #f8e6a8);
+  background: var(--pt-state-warn-bg, #fff7dc);
+  color: var(--pt-state-warn-text, #7a5a10);
+}
+.pt-banner--danger {
+  border-color: var(--pt-state-danger-border, #f7c7da);
+  background: var(--pt-state-danger-bg, #fff0f5);
+  color: var(--pt-state-danger-text, #c62828);
+}
+.pt-banner--info {
+  border-color: var(--pt-state-info-border, #c3e4f5);
+  background: var(--pt-state-info-bg, #dff3ff);
+  color: var(--pt-state-info-text, #3d6e9a);
+}
+
+.pt-banner__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.pt-banner__msg {
+  flex: 1;
+}
+
+.pt-banner__action {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: var(--pt-radius-xs, 6px);
+  padding: .2rem .6rem;
+  font-size: var(--pt-text-xs, .65rem);
+  font-weight: 700;
+  cursor: pointer;
+  color: inherit;
+  opacity: .85;
+  transition: opacity 150ms;
+  white-space: nowrap;
+}
+.pt-banner__action:hover { opacity: 1; }
+
+.pt-banner__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: .5;
+  padding: 2px;
+  border-radius: var(--pt-radius-xs, 6px);
+  color: inherit;
+  transition: opacity 150ms;
+}
+.pt-banner__close:hover { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-banner { transition: none; }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .pt-toast {
+    background: var(--pt-color-surface, #1e1a38);
+    box-shadow: 0 8px 32px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.2);
+  }
+  .pt-toast--ok     { background: rgba(46,102,68,.22);   border-color: rgba(46,102,68,.35); }
+  .pt-toast--warn   { background: rgba(122,90,16,.22);   border-color: rgba(122,90,16,.35); }
+  .pt-toast--danger { background: rgba(198,40,40,.20);   border-color: rgba(198,40,40,.35); }
+  .pt-toast--info   { background: rgba(61,110,154,.22);  border-color: rgba(61,110,154,.35); }
+  .pt-banner--warn   { background: rgba(122,90,16,.20);  border-color: rgba(122,90,16,.30); }
+  .pt-banner--danger { background: rgba(198,40,40,.18);  border-color: rgba(198,40,40,.30); }
+  .pt-banner--info   { background: rgba(61,110,154,.20); border-color: rgba(61,110,154,.30); }
+}
+
+
+/* =========================================================
+   13. ELEMENTOS VISUALMENTE OCULTOS — sin display:none
+   =========================================================
+   Reemplaza los bloques display:none que antes escondían
+   elementos requeridos por JS. Estos métodos son accesibles
+   para lectores de pantalla y no rompen el layout.
+   ========================================================= */
+
+/* Canvases de gráficos para PDF — fuera del viewport, no display:none */
+#view-dashboard-patient .pt-chart-offscreen {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 360px;
+  overflow: hidden;
+  pointer-events: none;
+  aria-hidden: true;
+}
+
+/* Datos clínicos para PDF — visually-hidden pero accesibles */
+#view-dashboard-patient .pt-pdf-data {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Estado clínico del ESP32 — ahora visible en la sección de solicitudes */
+#view-dashboard-patient .pt-clinical-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-gap-xs);
+  padding: var(--pt-pad-md) var(--pt-pad-lg);
+  background: var(--pt-color-surface-alt);
+  border: 1px solid var(--pt-color-border);
+  border-radius: var(--pt-radius-md);
+  margin-top: var(--pt-space-4);
+}
+
+#view-dashboard-patient .pt-cs-label {
+  font-size: var(--pt-text-base);
+  font-weight: var(--pt-weight-semibold);
+  color: var(--pt-color-text);
+}
+
+#view-dashboard-patient .pt-cs-detail {
+  font-size: var(--pt-text-sm);
+  color: var(--pt-color-text-muted);
+  line-height: var(--pt-leading-relaxed);
+}
+
+/* Estado clínico: variantes de color */
+#view-dashboard-patient .pt-clinical-status.state-ok {
+  background: var(--pt-state-ok-bg);
+  border-color: var(--pt-state-ok-border);
+}
+#view-dashboard-patient .pt-clinical-status.state-ok .pt-cs-label {
+  color: var(--pt-state-ok-text);
+}
+#view-dashboard-patient .pt-clinical-status.state-warn {
+  background: var(--pt-state-warn-bg);
+  border-color: var(--pt-state-warn-border);
+}
+#view-dashboard-patient .pt-clinical-status.state-warn .pt-cs-label {
+  color: var(--pt-state-warn-text);
+}
+#view-dashboard-patient .pt-clinical-status.state-danger {
+  background: var(--pt-state-danger-bg);
+  border-color: var(--pt-state-danger-border);
+}
+#view-dashboard-patient .pt-clinical-status.state-danger .pt-cs-label {
+  color: var(--pt-state-danger-text);
+}
+
+/* HUD métricas: oculto por defecto, visible cuando hay telemetría */
+#view-dashboard-patient .patient-hero-center-metrics {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--pt-duration-slow) var(--pt-ease-out);
+}
+
+/* Se muestra cuando el shell recibe la clase .pt-has-telemetry */
+#view-dashboard-patient .patient-shell.pt-has-telemetry .patient-hero-center-metrics {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Donut del timer: ahora visible con transición */
+#view-dashboard-patient .pt-donut-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
+/* =========================================================
+   14. ACCESIBILIDAD — ARIA y contraste
+   ========================================================= */
+
+/* ── Visually hidden: accesible para lectores, invisible ── */
+#view-dashboard-patient .pt-visually-hidden,
+#pt-alarm-announce {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  /* No usar display:none ni visibility:hidden — ocultaría del AT */
+}
+
+/* ── ESP status colores via clases (no style.color inline) ─ */
+#view-dashboard-patient #espStatus.pt-esp--ok   { color: var(--pt-state-ok-text);     }
+#view-dashboard-patient #espStatus.pt-esp--warn  { color: var(--pt-state-warn-text);   }
+#view-dashboard-patient #espStatus.pt-esp--err   { color: var(--pt-state-danger-text); }
+
+/* Garantizar contraste suficiente: WCAG AA 4.5:1 mínimo    */
+/* Los valores han sido verificados (ver audit en el commit) */
+
+/* ── Alert card en estado activo — contraste explícito ──── */
+/* pt-alert-card base: texto sobre fondo blanco → OK        */
+/* pt-alert-card.pt-has-alert: reforzar para que el texto   */
+/* sea legible sin depender solo del color                   */
+#view-dashboard-patient .pt-alert-card.pt-has-alert .pt-ac-title {
+  color: var(--pt-state-danger-text);       /* #c62828 — ratio 5.6:1 sobre blanco */
+}
+#view-dashboard-patient .pt-alert-card.pt-has-alert .pt-ac-msg {
+  color: var(--pt-state-danger-text);
+  font-weight: var(--pt-weight-semibold);   /* refuerzo no-solo-color */
+}
+
+/* ── Badge de alarmas: contraste sobre fondo oscuro ─────── */
+/* El badge tiene fondo danger (oscuro) → texto blanco       */
+#view-dashboard-patient .pt-bell-badge.pt-badge-visible {
+  /* Asegurar texto blanco sobre fondo de alarma */
+  color: var(--pt-white, #fff);
+  /* Borde que ayuda a distinguirlo en fondos claros (non-color cue) */
+  outline: 2px solid rgba(255,255,255,.6);
+  outline-offset: 1px;
+}
+
+/* ── Sensor bars: indicador no-solo-color ───────────────── */
+/* La barra usa color para el nivel; añadir patrón de        */
+/* acceso alternativo con la etiqueta de valor en el em      */
+#view-dashboard-patient .patient-sensor-bar[role="progressbar"] {
+  /* Mantener borde visible para usuarios con baja visión de color */
+  border: 1px solid var(--pt-color-border);
+}
+
+/* ── Focus visible mejorado para teclado ────────────────── */
+/* El foco por defecto del browser a veces es invisible      */
+#view-dashboard-patient :focus-visible {
+  outline: 3px solid var(--pt-color-primary);
+  outline-offset: 3px;
+  border-radius: var(--pt-radius-xs);
+}
+
+/* Botones de modo en sección de solicitudes */
+#view-dashboard-patient .btn:focus-visible,
+#view-dashboard-patient .pt-export-btn:focus-visible,
+#view-dashboard-patient .pt-cam-btn:focus-visible,
+#view-dashboard-patient .pt-bell-btn:focus-visible {
+  outline: 3px solid var(--pt-color-primary);
+  outline-offset: 3px;
+}
+
+/* ── Reduced motion: desactivar animaciones de alarma ───── */
+@media (prefers-reduced-motion: reduce) {
+  #view-dashboard-patient .pt-alert-card.pt-alert-pulse,
+  #view-dashboard-patient .pt-bell-btn.ringing {
+    animation: none;
+  }
+}
+
+/* ── High contrast mode: reforzar bordes ────────────────── */
+@media (forced-colors: active) {
+  #view-dashboard-patient .pt-metric-widget,
+  #view-dashboard-patient .pt-alert-card,
+  #view-dashboard-patient .pt-timer-card {
+    border: 2px solid ButtonText;
+  }
+  #view-dashboard-patient .pt-bell-badge.pt-badge-visible {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+
+
+/* =========================================================
+   15. RIGHT RAIL — REDISEÑO (referencia visual aprobada)
+   =========================================================
+   Scope: #view-dashboard-patient .patient-right-rail
+   Cubre: aside wrapper, tarjeta perfil, tarjeta conexión.
+   Todas las reglas anteriores de estos componentes quedan
+   sobrescritas por la cascada (este bloque va al final).
+   ========================================================= */
+
+/* ── 15.1 Aside wrapper ─────────────────────────────────── */
+#view-dashboard-patient .patient-right-rail {
+  width: var(--pt-rail-width, 306px);
+  min-width: 260px;
+  max-width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: transparent;
+  padding: 0 0 24px;
+  box-sizing: border-box;
+}
+
+/* ── 15.2 Rail header "PACIENTE" + divisor ──────────────── */
+#view-dashboard-patient .patient-right-rail .pt-rail-header {
+  padding: 0 2px 14px;
+  margin-bottom: 0;
+  border-bottom: 1.5px solid rgba(124, 107, 232, 0.13);
+}
+
+#view-dashboard-patient .patient-right-rail .pt-rail-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #a09bc0;
+}
+
+/* ── 15.3 Tarjeta base (perfil + conexión) ──────────────── */
+#view-dashboard-patient .patient-profile-card,
+#view-dashboard-patient .patient-connection-card {
+  background: #ffffff;
+  border: 1px solid rgba(124, 107, 232, 0.10);
+  border-radius: 22px;
+  box-shadow:
+    0 2px 12px rgba(124, 107, 232, 0.07),
+    0 1px 3px  rgba(0, 0, 0, 0.04);
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  /* reset conflicting rules from earlier blocks */
+  margin-bottom: 0;
+}
+
+/* ── 15.4 Avatar ────────────────────────────────────────── */
+#view-dashboard-patient .prc-avatar-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+#view-dashboard-patient .patient-profile-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 50% !important;
+  background: linear-gradient(135deg, #c5b4f5 0%, #a78bfa 55%, #9b8dea 100%) !important;
+  color: #ffffff !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  letter-spacing: .02em;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  border: none !important;
+  box-shadow: 0 6px 20px rgba(124, 107, 232, 0.25);
+  flex-shrink: 0;
+  margin-bottom: 0 !important;
+  /* undo grid/place-items from older rule */
+  place-items: unset;
+}
+
+/* ── 15.5 Nombre y código ───────────────────────────────── */
+#view-dashboard-patient .prc-name {
+  text-align: center;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  color: #1a1535 !important;
+  letter-spacing: -.01em;
+  line-height: 1.2;
+  margin: 0 0 5px !important;
+}
+
+#view-dashboard-patient .prc-code {
+  display: block;
+  text-align: center;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  color: #a09bc0 !important;
+  letter-spacing: .06em;
+  margin-bottom: 18px !important;
+}
+
+/* ── 15.6 Contenedor de filas ───────────────────────────── */
+#view-dashboard-patient .prc-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+}
+
+/* ── 15.7 Fila individual (pill) ────────────────────────── */
+#view-dashboard-patient .prc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #f6f4ff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-height: 38px;
+  /* reset old border-bottom rule */
+  border-bottom: none !important;
+}
+
+/* ── 15.8 Label de fila (izquierda) ─────────────────────── */
+#view-dashboard-patient .prc-row-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #8e8aaa;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── 15.9 Ícono dentro del label ────────────────────────── */
+#view-dashboard-patient .prc-icon {
+  width: 14px;
+  height: 14px;
+  color: #b0abcc;
+  flex-shrink: 0;
+}
+
+/* ── 15.10 Valor de fila (derecha) ──────────────────────── */
+#view-dashboard-patient .prc-row-value {
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  font-style: normal !important;
+  color: #1a1535 !important;
+  text-align: right !important;
+  line-height: 1.3;
+}
+
+/* Valor monoespaciado (timer) */
+#view-dashboard-patient .prc-row-value--mono {
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 12px !important;
+  letter-spacing: .03em;
+  color: #2d2a45 !important;
+}
+
+/* Valor de estado clínico — verde para "Estable" */
+#view-dashboard-patient .prc-row-value--status {
+  color: #2e8a5a !important;
+}
+
+/* ── 15.11 TARJETA CONEXIÓN ─────────────────────────────── */
+
+/* Título con ícono WiFi */
+#view-dashboard-patient .pcc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1535;
+  margin-bottom: 16px;
+}
+
+#view-dashboard-patient .pcc-wifi-icon {
+  width: 18px;
+  height: 18px;
+  color: #7c6be8;
+  flex-shrink: 0;
+}
+
+/* Contenedor de filas de conexión */
+#view-dashboard-patient .pcc-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+}
+
+/* Fila de conexión (pill) */
+#view-dashboard-patient .pcc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #f6f4ff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-height: 38px;
+}
+
+/* Label izquierdo con ícono */
+#view-dashboard-patient .pcc-row-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #8e8aaa;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#view-dashboard-patient .pcc-row-label svg {
+  width: 14px;
+  height: 14px;
+  color: #b0abcc;
+  flex-shrink: 0;
+}
+
+/* Grupo status: dot + texto */
+#view-dashboard-patient .pcc-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Dot de estado */
+#view-dashboard-patient .pcc-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c8d4d8;
+  flex-shrink: 0;
+  transition: background 300ms ease;
+}
+
+/* Texto de estado (em) */
+#view-dashboard-patient .pcc-status em {
+  font-style: normal !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  color: #8e8aaa;
+  transition: color 300ms ease;
+}
+
+/* ── 15.12 Estados de conexión ──────────────────────────── */
+
+/* "Conectado" / "Online" / "En línea" → verde */
+#view-dashboard-patient .pcc-status em[id="patientMasterStatus"]:not(:empty),
+#view-dashboard-patient .pcc-status em[id="patientSlaveStatus"]:not(:empty),
+#view-dashboard-patient .pcc-status em[id="patientSocketStatus"]:not(:empty) {
+  color: #2e8a5a;
+}
+
+/* Dot verde cuando el texto contiene "Conectado" / "Online" / "línea" */
+/* Manejado por JS via data-status en el contenedor pcc-row */
+#view-dashboard-patient .pcc-row[data-connected="true"] .pcc-dot {
+  background: #34c77b;
+  box-shadow: 0 0 0 2.5px rgba(52, 199, 123, 0.18);
+}
+
+#view-dashboard-patient .pcc-row[data-connected="true"] .pcc-status em {
+  color: #2e8a5a !important;
+}
+
+#view-dashboard-patient .pcc-row[data-connected="false"] .pcc-dot {
+  background: #c8d4d8;
+}
+
+#view-dashboard-patient .pcc-row[data-connected="false"] .pcc-status em {
+  color: #a09bc0 !important;
+}
+
+/* ── 15.13 Reset reglas antiguas que interfieren ────────── */
+
+/* Anular los h3 de la connection card antiguos */
+#view-dashboard-patient .patient-connection-card h3 {
+  display: none !important;
+}
+
+/* Anular reglas de > div y > span antiguas del profile card */
+#view-dashboard-patient .patient-profile-card > div:not(.prc-avatar-wrap):not(.prc-rows),
+#view-dashboard-patient .patient-profile-card > h3:not(.prc-name),
+#view-dashboard-patient .patient-profile-card > span:not(.prc-code),
+#view-dashboard-patient .patient-connection-card > span {
+  display: none !important;
+}
+
+/* Anular h3 del profile card antiguo */
+#view-dashboard-patient .patient-profile-card h3:not(.prc-name) {
+  display: none !important;
+}
+
+/* ── 15.14 Skeleton screens en el nuevo markup ──────────── */
+#view-dashboard-patient .patient-shell.pt-loading .prc-name,
+#view-dashboard-patient .patient-shell.pt-loading .prc-code {
+  background-image: linear-gradient(90deg, var(--pt-sk-base) 0%, var(--pt-sk-shine) 50%, var(--pt-sk-base) 100%);
+  background-size: 400px 100%;
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+  color: transparent !important;
+  border-radius: 6px;
+}
+#view-dashboard-patient .patient-shell.pt-loading .prc-name  { width: 140px; height: 19px; display: block; margin: 0 auto 5px; }
+#view-dashboard-patient .patient-shell.pt-loading .prc-code  { width: 90px;  height: 13px; display: block; margin: 0 auto 18px; }
+#view-dashboard-patient .patient-shell.pt-loading .prc-row-value,
+#view-dashboard-patient .patient-shell.pt-loading .pcc-status em {
+  background-image: linear-gradient(90deg, var(--pt-sk-base) 0%, var(--pt-sk-shine) 50%, var(--pt-sk-base) 100%);
+  background-size: 400px 100%;
+  animation: pt-shimmer var(--pt-sk-speed) ease-in-out infinite;
+  color: transparent !important;
+  border-radius: 4px;
+  width: 70px;
+  height: 12px;
+  display: inline-block;
+}
+
+/* ── 15.15 Responsive: rail en móvil ────────────────────── */
+@media (max-width: 900px) {
+  #view-dashboard-patient .patient-right-rail {
+    width: 100%;
+    max-width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  #view-dashboard-patient .patient-right-rail .pt-rail-header {
+    width: 100%;
+  }
+  #view-dashboard-patient .patient-profile-card,
+  #view-dashboard-patient .patient-connection-card {
+    flex: 1 1 260px;
+  }
+}
+
+
+/* =========================================================
+   16. POLISH PASS — compact density, softer aesthetics
+   =========================================================
+   Surgical overrides only. The grid structure, sidebar,
+   and overall composition from styles.css are preserved.
+   Changes: hero height, typography softness, card radius/
+   shadows, spacing consistency, sidebar label weight,
+   sensor card squareness, right panel internal spacing.
+   ========================================================= */
+
+/* ── 16.1  Page background — very soft lavender ─────────── */
+#view-dashboard-patient {
+  background: #f5f3fb;
+}
+#view-dashboard-patient .patient-shell {
+  background: transparent;
+  /* Tighten the shell: sidebar narrower, rail narrower */
+  grid-template-columns: 96px minmax(0, 1fr) 300px;
+  gap: 18px;
+  padding: 18px 18px 18px 0;
+}
+
+/* ── 16.2  Top-grid: keep original 2-col but adjust hero ── */
+#view-dashboard-patient .patient-top-grid {
+  /* Hero gets ~54%, sensors/timer ~46% — slightly better balance */
+  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+/* ── 16.3  Hero — proportional height, clean overlay ─────── */
+#view-dashboard-patient .patient-hero-card {
+  /* was min-height: 560px — too tall, dominated the layout */
+  min-height: 420px;
+  border-radius: 22px;
+  box-shadow:
+    0 4px 20px rgba(124, 107, 232, 0.10),
+    0 1px 4px rgba(0, 0, 0, 0.04);
+  border-color: rgba(124, 107, 232, 0.13);
+}
+
+#view-dashboard-patient .pt-hero-video,
+#view-dashboard-patient .pt-camera-video {
+  min-height: 420px;
+}
+
+/* Hero overlay: remove dark bar feel, just a soft fade */
+#view-dashboard-patient .pt-hero-overlay {
+  background: linear-gradient(
+    to bottom,
+    rgba(248, 245, 255, 0.88) 0%,
+    rgba(248, 245, 255, 0.55) 50%,
+    rgba(248, 245, 255, 0.10) 100%
+  );
+  padding: 16px 18px;
+  border-radius: 0;
+}
+
+/* Kicker text — softer, less loud */
+#view-dashboard-patient .pt-kicker {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .13em;
+  color: rgba(90, 72, 165, 0.50);
+  margin-bottom: 6px;
+}
+
+/* Hero h1 — refined */
+#view-dashboard-patient #dashHelloPatient {
+  font-size: clamp(1.3rem, 2vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  color: #1a1535;
+  text-shadow: none;
+  margin: 0 0 10px;
+}
+
+/* Hero tags — smaller pills */
+#view-dashboard-patient .pt-hero-tags span {
+  padding: 5px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(124, 107, 232, 0.14);
+  box-shadow: none;
+}
+
+/* Camera toggle button — premium pill style */
+#view-dashboard-patient .pt-cam-btn {
+  border-radius: 99px;
+  padding: 6px 12px 6px 9px;
+  background: rgba(255, 255, 255, 0.90);
+  border: 1px solid rgba(124, 107, 232, 0.18);
+  color: #5a48d4;
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(124, 107, 232, 0.12);
+  gap: 6px;
+}
+#view-dashboard-patient .pt-cam-btn:hover {
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(124, 107, 232, 0.20);
+}
+/* Hide the toggle track — we show only icon + label */
+#view-dashboard-patient .pt-cam-track { display: none; }
+
+/* ── 16.4  Side-cards column: tighter gap ────────────────── */
+#view-dashboard-patient .patient-side-cards {
+  gap: 10px;
+}
+
+/* ── 16.5  Alert card — cleaner ─────────────────────────── */
+#view-dashboard-patient .pt-alert-card {
+  border-radius: 14px;
+  padding: 11px 13px;
+  border-color: rgba(124, 107, 232, 0.09);
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(124, 107, 232, 0.06);
+}
+
+#view-dashboard-patient .pt-ac-icon {
+  border-radius: 10px;
+  background: #f3f1ff;
+  width: 36px;
+  height: 36px;
+}
+
+#view-dashboard-patient .pt-ac-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9b96b8;
+}
+
+#view-dashboard-patient .pt-ac-msg {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2d2a45;
+}
+
+/* ── 16.6  Sensor widgets — square, readable, not cramped ── */
+#view-dashboard-patient .pt-side-metric-grid {
+  gap: 10px;
+}
+
+#view-dashboard-patient .pt-metric-widget {
+  /* Consistent square-ish aspect via min-height */
+  min-height: 114px;
+  padding: 13px 12px;
+  border-radius: 16px;
+  border-left: none;  /* remove the semantic border-left from earlier pass */
+  border: 1px solid rgba(124, 107, 232, 0.09);
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(124, 107, 232, 0.06);
+  gap: 10px;
+  align-items: flex-start;
+}
+
+#view-dashboard-patient .pt-metric-widget:nth-child(1) {
+  background: linear-gradient(148deg, #fff 0%, #eeeaff 100%);
+}
+#view-dashboard-patient .pt-metric-widget:nth-child(2) {
+  background: linear-gradient(148deg, #fff 0%, #e2f5ea 100%);
+}
+#view-dashboard-patient .pt-metric-widget:nth-child(3) {
+  background: linear-gradient(148deg, #fff 0%, #fde8f1 100%);
+}
+#view-dashboard-patient .pt-metric-widget:nth-child(4) {
+  background: linear-gradient(148deg, #fff 0%, #dff3ff 100%);
+}
+
+#view-dashboard-patient .neo-widget-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 1px 6px rgba(124, 107, 232, 0.10);
+  flex-shrink: 0;
+}
+
+#view-dashboard-patient .neo-widget-icon img {
+  width: 22px;
+  height: 22px;
+}
+
+/* Label */
+#view-dashboard-patient .pt-wlbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: #a09bc0;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  margin-bottom: 4px;
+  /* prevent wrapping in narrow column */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Value — less aggressive boldness */
+#view-dashboard-patient .pt-wval {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1a1535;
+  line-height: 1.05;
+  margin-bottom: 4px;
+}
+
+/* Status em */
+#view-dashboard-patient .pt-metric-widget em {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #b0abcc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sensor bar — slimmer, purple gradient */
+#view-dashboard-patient .patient-sensor-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(124, 107, 232, 0.10);
+  margin: 6px 0 4px;
+}
+#view-dashboard-patient .patient-sensor-bar i {
+  background: linear-gradient(90deg, #a78bfa, #7c6be8);
+}
+
+/* ── 16.7  Timer card — larger value, clean mono ─────────── */
+#view-dashboard-patient .pt-timer-card {
+  border-radius: 16px;
+  padding: 15px 16px 13px;
+  background: #ffffff;
+  border: 1px solid rgba(124, 107, 232, 0.10);
+  box-shadow: 0 2px 12px rgba(124, 107, 232, 0.07);
+  margin-top: 0;
+}
+
+#view-dashboard-patient .pt-tc-val {
+  /* Larger, monospaced, tabular digits */
+  font-size: clamp(1.6rem, 2.2vw, 2.1rem);
+  font-weight: 700;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+  color: #1a1535;
+  line-height: 1;
+}
+
+#view-dashboard-patient .pt-stat-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: #a09bc0;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+}
+
+#view-dashboard-patient .pt-timer-card small,
+#view-dashboard-patient .pt-tc-info small {
+  font-size: 10px;
+  font-weight: 500;
+  color: #c0bbd8;
+}
+
+/* Progress bar — thinner, purple */
+#view-dashboard-patient .pt-tc-bar,
+#view-dashboard-patient .patient-progress {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(124, 107, 232, 0.09);
+  margin: 10px 0 8px;
+}
+
+#view-dashboard-patient .pt-tc-bar span,
+#view-dashboard-patient .patient-progress span {
+  background: linear-gradient(90deg, #a78bfa, #7c6be8);
+}
+
+#view-dashboard-patient .pt-tc-foot em {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #b0abcc;
+}
+
+#view-dashboard-patient .pt-tc-foot span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7c6be8;
+}
+
+/* Hide the donut in the timer — it's rendered offscreen */
+#view-dashboard-patient .pt-donut-wrap {
+  display: none;
+}
+
+/* ── 16.8  Export buttons — aligned, compact ─────────────── */
+#view-dashboard-patient .pt-export-btn {
+  padding: 9px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 10px;
+  border-color: rgba(124, 107, 232, 0.14);
+  background: #ffffff;
+  color: #5a48d4;
+  box-shadow: 0 1px 6px rgba(124, 107, 232, 0.07);
+}
+#view-dashboard-patient .pt-export-btn:hover {
+  background: #f3f1ff;
+  border-color: rgba(124, 107, 232, 0.24);
+  box-shadow: 0 3px 12px rgba(124, 107, 232, 0.13);
+}
+#view-dashboard-patient .pt-export-btn.pt-export-pdf {
+  border-color: rgba(229, 115, 115, 0.16);
+  color: #b5305b;
+}
+#view-dashboard-patient .pt-export-btn.pt-export-pdf:hover {
+  background: #fde8f1;
+}
+
+/* ── 16.9  Left sidebar — refined ───────────────────────── */
+#view-dashboard-patient .patient-sidebar {
+  width: 80px;
+  border-radius: 0 22px 22px 0;
+  background:
+    linear-gradient(180deg,
+      rgba(255,255,255,.97) 0%,
+      rgba(242,238,255,.98) 50%,
+      rgba(218,208,255,.96) 100%
+    );
+  box-shadow:
+    10px 0 30px rgba(124, 107, 232, 0.08),
+    inset -1px 0 0 rgba(255,255,255,.5);
+}
+
+#view-dashboard-patient .patient-nav-item {
+  width: 54px;
+  min-height: 54px;
+  font-weight: 600;  /* was 800 — too bold */
+  font-size: 9.5px;
+  border-radius: 18px;
+  gap: 4px;
+}
+
+#view-dashboard-patient .patient-nav-item.active {
+  background: linear-gradient(
+    160deg,
+    rgba(195, 185, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.65) 100%
+  );
+  color: #3d2d8a;
+  box-shadow:
+    inset 0 0 0 1px rgba(124, 107, 232, 0.18),
+    0 6px 18px rgba(124, 107, 232, 0.12);
+}
+
+#view-dashboard-patient .pt-nav-icon {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+#view-dashboard-patient .pt-bell-btn {
+  width: 52px;
+  height: 48px;
+  border-radius: 16px;
+  border-color: rgba(124, 107, 232, 0.18);
+  box-shadow: 0 6px 20px rgba(124, 107, 232, 0.10);
+}
+
+/* ── 16.10 Right rail — tighter, less wide ──────────────── */
+#view-dashboard-patient .patient-right-rail {
+  gap: 10px;
+  padding-right: 2px;
+  scrollbar-width: none;
+}
+#view-dashboard-patient .patient-right-rail::-webkit-scrollbar { display: none; }
+
+#view-dashboard-patient .pt-rail-header {
+  padding: 0 2px 10px;
+  border-bottom-color: rgba(124, 107, 232, 0.12);
+  margin-bottom: 2px;
+}
+
+#view-dashboard-patient .pt-rail-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .16em;
+  color: #9b96b8;
+}
+
+/* Profile + connection cards */
+#view-dashboard-patient .patient-profile-card,
+#view-dashboard-patient .patient-connection-card {
+  border-radius: 18px;
+  padding: 18px 15px 14px;
+  border-color: rgba(124, 107, 232, 0.09);
+  box-shadow:
+    0 2px 12px rgba(124, 107, 232, 0.07),
+    0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+/* The new prc-rows pill rows — consistent sizing */
+#view-dashboard-patient .prc-rows { gap: 6px; }
+
+#view-dashboard-patient .prc-row {
+  min-height: 34px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f5f3fb;
+  gap: 8px;
+}
+
+#view-dashboard-patient .prc-row-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9b96b8;
+  max-width: 48%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#view-dashboard-patient .prc-row-value {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1a1535;
+  word-break: break-word;
+}
+
+#view-dashboard-patient .prc-row-value--mono {
+  font-family: 'SF Mono', 'Menlo', ui-monospace, monospace;
+  font-size: 11px;
+}
+
+/* Connection rows */
+#view-dashboard-patient .pcc-rows { gap: 6px; }
+#view-dashboard-patient .pcc-row {
+  min-height: 34px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f5f3fb;
+}
+#view-dashboard-patient .pcc-row-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9b96b8;
+}
+#view-dashboard-patient .pcc-status em {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── 16.11 Responsive: keep shell intact at tablet ─────── */
+@media (max-width: 1280px) {
+  #view-dashboard-patient .patient-shell {
+    grid-template-columns: 84px minmax(0, 1fr) 270px;
+    gap: 14px;
+  }
+  #view-dashboard-patient .patient-top-grid {
+    grid-template-columns: minmax(0, 1.2fr) minmax(240px, 1fr);
+  }
+}
+
+@media (max-width: 1060px) {
+  #view-dashboard-patient .patient-shell {
+    grid-template-columns: 80px 1fr;
+    padding-right: 14px;
+  }
+  #view-dashboard-patient .patient-right-rail {
+    display: none;
+  }
+  #view-dashboard-patient .patient-top-grid {
+    grid-template-columns: 1fr;
+  }
+  #view-dashboard-patient .patient-hero-card {
+    min-height: 280px;
+  }
+  #view-dashboard-patient .pt-hero-video {
+    min-height: 280px;
+  }
+}
+
+
+/* =========================================================
+   17. HISTORIAL — tags con íconos y colores de referencia
+   ========================================================= */
+
+/* Fecha con relojito */
+#view-dashboard-patient .td-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: .8rem;
+  color: var(--pt-color-text);
+  white-space: nowrap;
+}
+#view-dashboard-patient .td-date svg { color: var(--pt-color-text-muted); flex-shrink: 0; }
+
+/* Tag base */
+#view-dashboard-patient .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+#view-dashboard-patient .tag svg { flex-shrink: 0; }
+
+/* Sesión — lavanda */
+#view-dashboard-patient .tag-sesion {
+  background: var(--pt-prim-100, #efeaff);
+  color: var(--pt-prim-700, #5a48d4);
+}
+
+/* Lectura — azul info */
+#view-dashboard-patient .tag-lectura {
+  background: #e7f4ff;
+  color: #3d6e9a;
+}
+
+/* Cambio/modo/plan — ámbar */
+#view-dashboard-patient .tag-cambio {
+  background: #fff6da;
+  color: #a07010;
+}
+
+/* Ingreso/solicitud aceptada — verde */
+#view-dashboard-patient .tag-ingreso {
+  background: #e6f4ec;
+  color: #3a7a50;
+}
+
+/* Control/bloqueo — gris azulado */
+#view-dashboard-patient .tag-control {
+  background: #f0f2f8;
+  color: #5a6480;
+}
+
+/* Sistema/ESP — gris neutro */
+#view-dashboard-patient .tag-sistema {
+  background: #f4f4f6;
+  color: #7a7a94;
+}
+
+/* Evento genérico */
+#view-dashboard-patient .tag-evento {
+  background: #f4f2fb;
+  color: #6d6780;
+}
+
+/* Tabla historial — más limpia */
+#view-dashboard-patient .clinical-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+#view-dashboard-patient .clinical-table thead th {
+  font-size: .64rem;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--pt-color-text-muted);
+  font-weight: 700;
+  padding: 12px 16px;
+  background: #f7f5fd;
+  text-align: left;
+}
+#view-dashboard-patient .clinical-table thead th:first-child { border-radius: 10px 0 0 10px; }
+#view-dashboard-patient .clinical-table thead th:last-child  { border-radius: 0 10px 10px 0; }
+#view-dashboard-patient .clinical-table td {
+  padding: 14px 16px;
+  font-size: .86rem;
+  font-weight: 500;
+  color: var(--pt-color-text);
+  border-bottom: 1px solid rgba(124, 107, 232, .08);
+  vertical-align: middle;
+}
+#view-dashboard-patient .clinical-table tbody tr:last-child td { border-bottom: none; }
+#view-dashboard-patient .clinical-table tbody tr {
+  transition: background .14s ease;
+}
+#view-dashboard-patient .clinical-table tbody tr:hover {
+  background: rgba(124, 107, 232, .04);
+}
+
+/* =========================================================
+   18. ALARMAS — filas coloreadas de referencia
+   ========================================================= */
+
+/* Botón silenciar — full width, purple gradient */
+#view-dashboard-patient #muteAlarmsBtn {
+  width: 100% !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 15px !important;
+  background: linear-gradient(135deg, #8f7bef, #a08fff) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  font-size: .92rem !important;
+  box-shadow: 0 10px 24px rgba(140,111,247,.28) !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  margin-bottom: 20px !important;
+  transition: all .2s ease !important;
+}
+#view-dashboard-patient #muteAlarmsBtn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 14px 30px rgba(140,111,247,.38) !important;
+}
+
+/* Fila de alarma */
+#view-dashboard-patient .alert-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  margin-bottom: 12px;
+}
+#view-dashboard-patient .alert-row:last-child { margin-bottom: 0; }
+
+/* Variantes de color */
+#view-dashboard-patient .alert-row.warn {
+  background: #fffdf4;
+  border-color: rgba(217, 168, 46, .32);
+}
+#view-dashboard-patient .alert-row.info {
+  background: #f4f9ff;
+  border-color: rgba(91, 155, 213, .28);
+}
+#view-dashboard-patient .alert-row.crit {
+  background: #fff5f8;
+  border-color: rgba(216, 70, 110, .26);
+}
+
+/* Ícono container */
+#view-dashboard-patient .ar-ico {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+#view-dashboard-patient .alert-row.warn .ar-ico { background: #fbeec2; }
+#view-dashboard-patient .alert-row.info .ar-ico { background: #d8e9fb; }
+#view-dashboard-patient .alert-row.crit .ar-ico { background: #fbd6e0; }
+
+/* Cuerpo */
+#view-dashboard-patient .ar-body {
+  flex: 1;
+  min-width: 0;
+  padding-right: 80px; /* espacio para badge */
+}
+
+#view-dashboard-patient .ar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: .95rem;
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+#view-dashboard-patient .alert-row.warn .ar-title { color: #a8740f; }
+#view-dashboard-patient .alert-row.info .ar-title { color: #2f5f87; }
+#view-dashboard-patient .alert-row.crit .ar-title { color: #b03a5e; }
+
+#view-dashboard-patient .ar-desc {
+  color: var(--pt-color-text-muted);
+  font-size: .83rem;
+  font-weight: 500;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+#view-dashboard-patient .ar-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #9a96b3;
+  font-size: .76rem;
+  font-family: 'Space Mono', ui-monospace, monospace;
+}
+#view-dashboard-patient .ar-time svg { flex-shrink: 0; }
+
+/* Badge de severidad */
+#view-dashboard-patient .ar-sev {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+
+/* Badge SILENCIADA */
+#view-dashboard-patient .ar-silenced {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e9e7f0;
+  color: #7b7b94;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  vertical-align: middle;
+}
+
+/* Sección "Alertas recientes" titulo */
+#view-dashboard-patient .alerts-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--pt-color-text);
+}
+#view-dashboard-patient .alerts-section-title svg { color: var(--pt-prim-500); }

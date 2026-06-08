@@ -1,0 +1,310 @@
+<!-- ======================================================
+       DASHBOARD DOCTOR — PREMIUM V1
+  ====================================================== -->
+  <main id="view-dashboard-doctor" class="view" aria-label="Dashboard Doctor">
+    <section class="doctor-premium-shell">
+
+      <!-- ═══ SIDEBAR ══════════════════════════════════════════ -->
+      <aside class="doctor-premium-sidebar">
+
+        <div class="dp-logo-wrap">
+          <img src="./img/logo.png" alt="NL" class="dp-logo-img" />
+        </div>
+
+        <nav class="dp-nav">
+          <button class="dp-nav-item dp-nav-active" title="Resumen" data-section-target="resumen">
+            <svg class="dp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span class="dp-nav-lbl">Resumen</span>
+          </button>
+          <button class="dp-nav-item" title="Pacientes" data-section-target="pacientes">
+            <svg class="dp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span class="dp-nav-lbl">Pacientes</span>
+          </button>
+          <button class="dp-nav-item" title="Solicitudes" data-section-target="solicitudes">
+            <svg class="dp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span class="dp-nav-lbl">Solicitudes</span>
+          </button>
+          <button class="dp-nav-item" title="Planes / Terapia" data-section-target="terapia">
+            <svg class="dp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+            <span class="dp-nav-lbl">Terapia</span>
+          </button>
+          <button class="dp-nav-item" title="Alertas" data-section-target="alertas">
+            <svg class="dp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span class="dp-nav-lbl">Alertas</span>
+          </button>
+          <button class="dp-nav-item" title="Reportes" data-section-target="reportes">
+            <svg class="dp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span class="dp-nav-lbl">Reportes</span>
+          </button>
+          <button class="dp-nav-item" title="Configuración" data-section-target="configuracion">
+            <svg class="dp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.4 1v.2a2 2 0 1 1-4 0V21a1.65 1.65 0 0 0-.4-1 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1-.4h-.2a2 2 0 1 1 0-4H3a1.65 1.65 0 0 0 1-.4 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .4-1v-.2a2 2 0 1 1 4 0V3a1.65 1.65 0 0 0 .4 1 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.25.39.6.74 1 1 .3.19.65.4 1 .4h.2a2 2 0 1 1 0 4H21a1.65 1.65 0 0 0-1 .4 1.65 1.65 0 0 0-.6 1z"/></svg>
+            <span class="dp-nav-lbl">Config</span>
+          </button>
+        </nav>
+
+        <div class="dp-nav-spacer"></div>
+
+        <div class="dp-sidebar-bottom">
+          <div class="dp-sys-pulse" title="Sistema activo"></div>
+          <button class="dp-nav-item dp-nav-logout" title="Cerrar sesión" onclick="document.getElementById('logoutBtn').click()">
+            <svg class="dp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span class="dp-nav-lbl">Salir</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- ═══ MAIN CONTENT ══════════════════════════════════════ -->
+      <div class="doctor-premium-main">
+
+        <!-- Header -->
+        <header class="doctor-premium-header">
+          <div class="dp-hero-copy">
+            <span class="dp-hero-kicker">NEOLIGHT Clinical Console</span>
+            <h2 id="dashHelloDoctor">Hola, Dr(a). —</h2>
+            <p>Monitoreo de fototerapia neonatal</p>
+            <div class="dp-hero-meta">
+              <span>Paciente seleccionado: <b id="doctorSelectedPatient">Sin selección</b></span>
+              <span>Modo actual: <b id="doctorCurrentMode">Sin datos</b></span>
+              <span class="dp-hero-status">Sistema conectado</span>
+            </div>
+          </div>
+          <div class="dp-hdr-right">
+            <div class="dp-search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" class="dp-search-ico"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="dashSearchDoctor" class="dp-search-inp" placeholder="Buscar paciente…" />
+            </div>
+            <button class="dp-report-btn" id="downloadDoctorPdfBtn" type="button">Descargar resumen PDF</button>
+          </div>
+        </header>
+
+        <section class="doctor-section active" data-section="resumen">
+          <!-- Resumen clínico -->
+          <div class="doc-overview-row">
+
+            <div class="doc-kpi-card">
+              <span class="doc-kpi-icon">P</span>
+              <div class="doc-kpi-num" id="kpiPatients">—</div>
+              <div class="doc-kpi-lbl">Pacientes asignados</div>
+            </div>
+
+            <div class="doc-kpi-card">
+              <span class="doc-kpi-icon">S</span>
+              <div class="doc-kpi-num" id="kpiRequests">—</div>
+              <div class="doc-kpi-lbl">Solicitudes pendientes</div>
+            </div>
+
+            <div class="doc-kpi-card">
+              <span class="doc-kpi-icon alert">A</span>
+              <div class="doc-kpi-num doc-kpi-alert" id="kpiAlerts">—</div>
+              <div class="doc-kpi-lbl">Alertas hoy</div>
+            </div>
+
+            <div class="doc-kpi-card">
+              <span class="doc-kpi-icon session">T</span>
+              <div class="doc-kpi-num doc-kpi-session" id="kpiActiveSessions">—</div>
+              <div class="doc-kpi-lbl">Sesiones activas</div>
+            </div>
+
+          </div><!-- /doc-overview-row -->
+
+          <div class="doc-analytics-row">
+            <div class="dp-panel doc-chart-panel">
+              <div class="dp-panel-hdr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                <span class="dp-panel-title">Análisis clínico</span>
+              </div>
+              <div class="doc-chart-grid">
+                <div class="doc-chart-card">
+                  <div class="doc-chart-title">Estados clínicos</div>
+                  <div id="chartPatientStates" class="doc-chart-body"><div class="doc-chart-empty">Sin datos suficientes</div></div>
+                </div>
+                <div class="doc-chart-card">
+                  <div class="doc-chart-title">Sesiones por modo</div>
+                  <div id="chartSessionModes" class="doc-chart-body"><div class="doc-chart-empty">Sin datos suficientes</div></div>
+                </div>
+                <div class="doc-chart-card">
+                  <div class="doc-chart-title">Alertas recientes</div>
+                  <div id="chartRecentAlerts" class="doc-chart-body"><div class="doc-chart-empty">Sin datos suficientes</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="doc-section-row">
+            <div class="dp-panel">
+              <div class="dp-panel-hdr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                <span class="dp-panel-title">Pacientes recientes</span>
+              </div>
+              <div id="doctorMiniPatients" class="doctor-mini-list"><div class="dp-empty">Sin pacientes recientes.</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="doctor-section" data-section="pacientes">
+          <div class="doc-section-row">
+            <div class="dp-panel dp-panel-patients">
+              <div class="dp-panel-hdr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                <span class="dp-panel-title">Pacientes asignados</span>
+              </div>
+              <div class="dp-panel-body">
+                <div class="doctor-report-note">Usa el buscador superior para filtrar pacientes por nombre o código.</div>
+              </div>
+              <div id="patientsList">
+                <div class="dp-empty">Sin pacientes asignados · Acepta solicitudes para ver fichas.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="doctor-section" data-section="solicitudes">
+          <div class="doc-section-row">
+            <div class="dp-panel">
+              <div class="dp-panel-hdr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span class="dp-panel-title">Solicitudes pendientes</span>
+              </div>
+              <div id="requestsList">
+                <div class="dp-empty">Sin solicitudes pendientes.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="doctor-section" data-section="terapia">
+          <div class="doc-work-row single">
+            <div class="dp-panel">
+              <div class="dp-panel-hdr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+                <span class="dp-panel-title">Planes activos</span>
+              </div>
+              <div id="doctorPlansSummary" class="doctor-mini-list"><div class="dp-empty">Sin datos de planes activos.</div></div>
+            </div>
+
+            <div class="dp-panel">
+              <div class="dp-panel-hdr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+                <span class="dp-panel-title">Plan de terapia estimado</span>
+              </div>
+              <div class="dp-panel-body">
+                <div class="dp-plan-grid">
+                  <div class="dp-fg">
+                    <label class="dp-lbl">TSB actual (mg/dL)</label>
+                    <input id="planTSB" class="dp-inp" placeholder="Ej: 18.5" type="number" step="0.1">
+                  </div>
+                  <div class="dp-fg">
+                    <label class="dp-lbl">Objetivo (mg/dL)</label>
+                    <input id="planGoal" class="dp-inp" placeholder="Ej: 12.0" type="number" step="0.1">
+                  </div>
+                  <div class="dp-fg">
+                    <label class="dp-lbl">Intensidad</label>
+                    <select id="planIntensity" class="dp-sel">
+                      <option value="std">Estándar (0.15 mg/dL·h)</option>
+                      <option value="int">Intensiva (0.30 mg/dL·h)</option>
+                    </select>
+                  </div>
+                  <div class="dp-fg">
+                    <label class="dp-lbl">Tasa descenso (mg/dL/h)</label>
+                    <input id="planRate" class="dp-inp" placeholder="Ej: 0.25" type="number" step="0.01">
+                  </div>
+                </div>
+                <div class="dp-res-row">
+                  <span class="dp-res-label">Tiempo estimado</span>
+                  <span class="dp-res-value" id="planResult">—</span>
+                </div>
+                <button class="dp-calc-btn" id="calcPlanBtn">Calcular tiempo estimado</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="doctor-section" data-section="alertas">
+          <div class="doc-work-row single">
+            <div class="dp-panel">
+              <div class="dp-panel-hdr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span class="dp-panel-title">Alertas recientes</span>
+              </div>
+              <div id="doctorAlertsList">
+                <div class="dp-empty">Sin alertas recientes.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="doctor-section" data-section="reportes">
+          <div class="doc-section-row">
+            <div class="dp-panel">
+              <div class="dp-panel-hdr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                <span class="dp-panel-title">Reportes</span>
+              </div>
+              <div class="dp-panel-body">
+                <div class="doctor-report-note">El resumen imprimible se genera con los datos cargados del dashboard doctor. Usa el botón superior para descargar o imprimir el PDF.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="doctor-section" data-section="configuracion">
+          <div class="doc-section-row">
+            <div class="dp-panel">
+              <div class="dp-panel-hdr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82"/></svg>
+                <span class="dp-panel-title">Configuración del sistema</span>
+              </div>
+              <div class="doctor-config-grid">
+                <div><span>ESP32</span><strong>Sistema activo</strong></div>
+                <div><span>MySQL</span><strong>Conexión por API</strong></div>
+                <div><span>Socket.IO</span><strong>Tiempo real habilitado</strong></div>
+                <div><span>Permisos</span><strong>Manual / automático / bloqueado</strong></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div><!-- /doctor-premium-main -->
+
+      <aside class="doctor-right-rail">
+        <div class="doctor-profile-card">
+          <div class="doctor-avatar" id="doctorProfileAvatar">DR</div>
+          <div class="doctor-profile-name" id="doctorProfileName">Dr(a). —</div>
+          <div class="doctor-profile-role" id="doctorProfileSpecialty">Especialidad no registrada</div>
+          <div class="doctor-profile-meta" id="doctorProfileLicense">Matrícula: —</div>
+          <div class="doctor-profile-meta">Rol: Personal médico</div>
+          <div class="doctor-profile-meta" id="doctorProfileCenter">Centro médico neonatal</div>
+        </div>
+
+        <div class="doctor-rail-card">
+          <div class="doctor-rail-title">Estado sistema</div>
+          <div class="doctor-status-list" id="doctorSystemStatus">
+            <span><b>MySQL</b><em>Sin datos</em></span>
+            <span><b>Socket.IO</b><em>Sin datos</em></span>
+            <span><b>ESP32 maestro</b><em>No configurado</em></span>
+            <span><b>ESP32 esclavo</b><em>No configurado</em></span>
+            <span><b>LEDs</b><em>Sin datos</em></span>
+            <span><b>Actuadores</b><em>Sin datos</em></span>
+          </div>
+        </div>
+
+        <div class="doctor-rail-card">
+          <div class="doctor-rail-title">Actividad reciente</div>
+          <div class="doctor-activity-list" id="doctorRecentActivity">
+            <div class="dp-empty">Sin actividad reciente.</div>
+          </div>
+        </div>
+
+        <div class="doctor-rail-card">
+          <div class="doctor-rail-title">Mini resumen</div>
+          <div class="doctor-mini-stats" id="doctorMiniSummary">
+            <span><b>—</b> Riesgo</span>
+            <span><b>—</b> Planes activos</span>
+            <span><b>—</b> Críticas</span>
+          </div>
+        </div>
+      </aside>
+
+    </section>
+    <section id="doctorPdfReport" class="doctor-pdf-report" aria-hidden="true"></section>
+  </main>

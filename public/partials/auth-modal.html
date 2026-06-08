@@ -1,0 +1,165 @@
+<!-- ======================================================
+       AUTH MODAL
+  ====================================================== -->
+  <div class="modal" id="authModal" aria-hidden="true">
+    <div class="modal-backdrop" id="authBackdrop"></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Autenticación">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title" id="authTitle">Iniciar sesión</div>
+          <div class="modal-sub"   id="authSub">Accede al sistema.</div>
+        </div>
+        <button class="modal-close" type="button" id="authCloseBtn" aria-label="Cerrar">✕</button>
+      </div>
+
+      <!-- LOGIN -->
+      <div id="loginView">
+        <div class="input-group"><label>Usuario</label><input id="usuario" class="input" placeholder="Ingresa tu usuario" autocomplete="username"></div>
+        <div class="input-group"><label>Contraseña</label>
+          <div class="input-wrapper">
+            <input id="contrasena" class="input" type="password" placeholder="••••••••" autocomplete="current-password">
+            <button type="button" class="eye-btn" data-target="contrasena">👁</button>
+          </div>
+        </div>
+        <div class="checkbox-group"><input type="checkbox" id="rememberMe"><label for="rememberMe">Recordar mi usuario</label></div>
+        <button class="btn btn-primary btn-full" id="loginBtn">Entrar</button>
+        <div class="switch-link"><span>¿No tienes cuenta?</span><button id="showRegister" type="button">Crear cuenta</button></div>
+        <div id="loginMsg" class="error" aria-live="polite"></div>
+      </div>
+
+      <!-- REGISTER CHOOSER -->
+      <div id="registerChooserView" style="display:none;">
+        <div class="input-group"><label>Tipo de cuenta</label>
+          <div class="input-wrapper select-wrapper">
+            <select id="regRole" class="select">
+              <option value="tutor">Tutor / Paciente</option>
+              <option value="doctor">Personal médico (requiere código)</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full"   id="goRegister">Continuar</button>
+        <button class="btn btn-secondary btn-full" id="backToLogin1">Volver</button>
+        <div id="chooserMsg" class="error" aria-live="polite"></div>
+      </div>
+
+      <!-- DOCTOR CODE -->
+      <div id="doctorCodeView" style="display:none;">
+        <div class="code-wrap">
+          <div class="code-title">Acceso del hospital</div>
+          <div class="code-sub">Ingresa el código (6 dígitos)</div>
+          <div class="dots" id="dots">
+            <div class="dot" data-i="0"></div><div class="dot" data-i="1"></div><div class="dot" data-i="2"></div>
+            <div class="dot" data-i="3"></div><div class="dot" data-i="4"></div><div class="dot" data-i="5"></div>
+          </div>
+          <div class="keypad" id="keypad">
+            <div class="key" data-k="1">1</div><div class="key" data-k="2">2</div><div class="key" data-k="3">3</div>
+            <div class="key" data-k="4">4</div><div class="key" data-k="5">5</div><div class="key" data-k="6">6</div>
+            <div class="key" data-k="7">7</div><div class="key" data-k="8">8</div><div class="key" data-k="9">9</div>
+            <div class="key alt" data-k="clear">C</div><div class="key" data-k="0">0</div><div class="key alt" data-k="back">←</div>
+          </div>
+          <button class="btn btn-primary btn-full"   id="verifyCodeBtn">Verificar</button>
+          <button class="btn btn-secondary btn-full" id="backToChooser">Volver</button>
+          <div id="codeMsg" class="error" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <!-- REGISTER TUTOR -->
+      <div id="registerTutorView" style="display:none;">
+        <div class="hint-box"><strong>A) Datos del paciente</strong><br><small>Ficha clínica inicial para revisión médica.</small></div>
+        <div class="input-group"><label>Doctor a cargo</label>
+          <div class="input-wrapper select-wrapper"><select id="regDoctorSelect" class="select"><option value="">Cargando doctores…</option></select></div>
+          <small class="muted" style="display:block;margin-top:.5rem;font-family:var(--font-body);">Tu solicitud quedará <b>pendiente</b> hasta que el doctor la acepte.</small>
+        </div>
+        <div class="input-group"><label>Nombre(s) del paciente</label><input id="regNombre" class="input" placeholder="Nombre del paciente"></div>
+        <div class="input-group"><label>Apellido paterno del paciente</label><input id="regApPat" class="input" placeholder="Apellido paterno"></div>
+        <div class="input-group"><label>Apellido materno del paciente</label><input id="regApMat" class="input" placeholder="Apellido materno"></div>
+        <div class="input-group"><label>Fecha de nacimiento</label><input id="regDob" class="input" type="date"></div>
+        <div class="input-group"><label>Género del paciente</label>
+          <div class="input-wrapper select-wrapper">
+            <select id="regGeneroPaciente" class="select">
+              <option value="no_especificado">No especificado</option>
+              <option value="femenino">Femenino</option>
+              <option value="masculino">Masculino</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid two">
+          <div class="input-group"><label>Peso nacimiento (g)</label><input id="regPesoNacimiento" class="input" type="number" step="1" placeholder="Ej: 3100"></div>
+          <div class="input-group"><label>Edad gestacional (sem)</label><input id="regEdadGestacional" class="input" type="number" step="0.1" placeholder="Ej: 38.5"></div>
+        </div>
+        <div class="input-group"><label>Fecha de ingreso</label><input id="regFechaIngreso" class="input" type="date"></div>
+        <div class="input-group"><label>Diagnóstico</label><input id="regDiagnostico" class="input" placeholder="Ej: Ictericia neonatal"></div>
+        <div class="input-group"><label>Observaciones</label><textarea id="regObservaciones" class="input textarea" rows="3" placeholder="Antecedentes, indicaciones o notas iniciales"></textarea></div>
+        <div class="form-grid three">
+          <div class="input-group"><label>Bilirrubina inicial</label><input id="regBiliInicial" class="input" type="number" step="0.01" placeholder="mg/dL"></div>
+          <div class="input-group"><label>Grupo sanguíneo</label>
+            <div class="input-wrapper select-wrapper"><select id="regGrupoSanguineo" class="select"><option value="">—</option><option>A</option><option>B</option><option>AB</option><option>O</option></select></div>
+          </div>
+          <div class="input-group"><label>Factor RH</label>
+            <div class="input-wrapper select-wrapper"><select id="regFactorRh" class="select"><option value="">—</option><option value="+">+</option><option value="-">-</option></select></div>
+          </div>
+        </div>
+
+        <div class="hint-box"><strong>B) Datos del tutor</strong><br><small>Cuenta responsable del seguimiento familiar.</small></div>
+        <div class="form-grid two">
+          <div class="input-group"><label>Nombre(s) tutor</label><input id="regTutorNombre" class="input" placeholder="Nombre del tutor"></div>
+          <div class="input-group"><label>Apellidos tutor</label><input id="regTutorApellidos" class="input" placeholder="Apellidos del tutor"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="input-group"><label>Género tutor</label>
+            <div class="input-wrapper select-wrapper">
+              <select id="regTutorGenero" class="select"><option value="no_especificado">No especificado</option><option value="femenino">Femenino</option><option value="masculino">Masculino</option><option value="otro">Otro</option></select>
+            </div>
+          </div>
+          <div class="input-group"><label>Parentesco</label><input id="regParentesco" class="input" placeholder="Madre, padre, tutor legal"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="input-group"><label>Teléfono tutor</label><input id="regTutorTelefono" class="input" placeholder="Ej: 70000000"></div>
+          <div class="input-group"><label>Correo tutor</label><input id="regTutorCorreo" class="input" type="email" placeholder="correo@familia.com"></div>
+        </div>
+        <div class="input-group"><label>Usuario tutor</label><input id="regUserInput" class="input" placeholder="Editable; se sugiere automáticamente"></div>
+        <div class="hint-box"><strong>Usuario sugerido:</strong> <span id="regUser">—</span><br><small>Puedes editarlo en el campo anterior.</small></div>
+        <div class="input-group"><label>Contraseña</label>
+          <div class="input-wrapper">
+            <input id="regPass" class="input" type="password" placeholder="Mínimo 5 caracteres">
+            <button type="button" class="eye-btn" data-target="regPass">👁</button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full"   id="registerTutorBtn">Crear cuenta</button>
+        <button class="btn btn-secondary btn-full" id="backToChooser2">Volver</button>
+        <div id="regMsg" class="error" aria-live="polite"></div>
+      </div>
+
+      <!-- REGISTER DOCTOR -->
+      <div id="registerDoctorView" style="display:none;">
+        <div class="hint-box"><strong>Paso 1: Datos personales</strong><br><small>Informacion de contacto del medico.</small></div>
+        <div class="input-group"><label>Nombre(s)</label><input id="docNombre" class="input" placeholder="Nombre"></div>
+        <div class="input-group"><label>Apellidos</label><input id="docApellidos" class="input" placeholder="Apellido(s)"></div>
+        <div class="input-group"><label>Genero</label>
+          <div class="input-wrapper select-wrapper">
+            <select id="docGenero" class="select">
+              <option value="">Selecciona genero</option>
+              <option value="femenino">Femenino</option>
+              <option value="masculino">Masculino</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-group"><label>Telefono</label><input id="docTelefono" class="input" placeholder="Ej: 70000000"></div>
+        <div class="input-group"><label>Correo</label><input id="docCorreo" class="input" type="email" placeholder="correo@hospital.com"></div>
+        <div class="hint-box"><strong>Paso 2: Datos profesionales</strong><br><small>Credenciales medicas y acceso.</small></div>
+        <div class="input-group"><label>Matrícula / ID profesional</label><input id="docMatricula" class="input" placeholder="Ej: MED-12345"></div>
+        <div class="input-group"><label>Especialidad</label><input id="docEspecialidad" class="input" placeholder="Ej: Neonatología"></div>
+        <div class="hint-box"><strong>Usuario sugerido:</strong> <span id="docUser">—</span><br><small>Se genera automáticamente</small></div>
+        <div class="input-group"><label>Contraseña</label>
+          <div class="input-wrapper">
+            <input id="docPass" class="input" type="password" placeholder="Mínimo 5 caracteres">
+            <button type="button" class="eye-btn" data-target="docPass">👁</button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full"   id="registerDoctorBtn">Crear cuenta (Doctor)</button>
+        <button class="btn btn-secondary btn-full" id="backToChooser3">Volver</button>
+        <div id="docMsg" class="error" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>

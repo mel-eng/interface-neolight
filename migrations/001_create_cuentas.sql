@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS cuentas (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  usuario VARCHAR(80) NOT NULL,
+  contrasena VARCHAR(255) NOT NULL,
+  rol ENUM('admin', 'doctor', 'tutor') NOT NULL,
+  nombre VARCHAR(120) NOT NULL,
+  apellidos VARCHAR(160) NOT NULL,
+  genero ENUM('masculino', 'femenino', 'otro') NOT NULL DEFAULT 'otro',
+  telefono VARCHAR(40) NULL,
+  correo VARCHAR(180) NULL,
+  matricula VARCHAR(80) NULL,
+  especialidad VARCHAR(140) NULL,
+  parentesco VARCHAR(80) NULL,
+  estado ENUM('activo', 'inactivo') NOT NULL DEFAULT 'activo',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_creacion TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_cuentas_usuario (usuario),
+  KEY idx_cuentas_rol_estado (rol, estado),
+  KEY idx_cuentas_nombre (apellidos, nombre)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

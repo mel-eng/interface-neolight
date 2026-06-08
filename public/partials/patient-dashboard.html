@@ -1,0 +1,498 @@
+<!-- ======================================================
+       DASHBOARD PACIENTE / TUTOR — PREMIUM SAAS v2
+  ====================================================== -->
+  <main id="view-dashboard-patient" class="view" aria-label="Dashboard Paciente">
+    <section class="patient-shell patient-shell-pediatric pt-loading" aria-busy="true">
+
+      <!-- ═══ SIDEBAR PEDIÁTRICA ════════════════════════════════ -->
+      <aside class="patient-sidebar pt-pediatric-sidebar" aria-label="Navegación del paciente">
+        <div class="pt-sidebar-bell">
+          <button class="pt-bell-btn" data-section-target="alarmas" title="Ver alertas" aria-label="Ver alertas activas">
+            <svg class="pt-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="pt-bell-badge" id="ptBellBadge"
+              aria-label="" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <nav class="patient-nav" aria-label="Secciones del panel del paciente">
+          <button class="patient-nav-item active" data-section-target="inicio" title="Inicio" type="button">
+            <svg class="pt-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            <span>Inicio</span>
+          </button>
+
+          <button class="patient-nav-item" data-section-target="solicitudes" title="Solicitudes" type="button">
+            <svg class="pt-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <span>Solicitudes</span>
+          </button>
+
+          <button class="patient-nav-item" data-section-target="historial" title="Historial" type="button">
+            <svg class="pt-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            <span>Historial</span>
+          </button>
+
+          <button class="patient-nav-item" data-section-target="alarmas" title="Alarmas" type="button">
+            <svg class="pt-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Alarmas</span>
+          </button>
+
+        </nav>
+
+        <div class="pt-sidebar-foot">
+          <div class="pt-esp-status" title="Estado ESP32">
+            <span class="esp-dot" id="espDot"></span>
+            <span id="espStatus" class="pt-esp-lbl">Conectando…</span>
+          </div>
+
+          <button class="patient-nav-item pt-sidebar-logout" id="patientSidebarLogout" title="Salir" type="button">
+            <svg class="pt-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            <span>Salir</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- ═══ MAIN CONTENT ════════════════════════════════════════ -->
+      <div class="patient-main">
+        <!-- ── INICIO ──────────────────────────────────────────── -->
+        <section class="patient-section active" data-section="inicio">
+
+          <!-- TOP GRID: hero (izquierda) + columna derecha alertas+métricas+timer -->
+          <div class="patient-top-grid">
+
+            <!-- Hero: video / camera -->
+            <div class="patient-hero-card" id="ptHeroMedia">
+              <video class="pt-hero-video" autoplay loop muted playsinline>
+                <source src="./img/neolight-hero.mp4" type="video/mp4">
+              </video>
+              <img class="pt-camera-video" id="ptCameraStream" alt="Stream ESP32-S3" />
+              <div class="pt-cam-error" id="ptCamError" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40" aria-hidden="true">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <span>Cámara no disponible</span>
+              </div>
+              <!-- Métricas HUD: visibles cuando hay telemetría activa -->
+              <div class="patient-hero-center-metrics" aria-label="Métricas en tiempo real">
+                <div class="pt-hcm-row"><span class="pt-hcm-lbl">DIST</span><b class="pt-hcm-val" id="hudDist"
+                  aria-live="polite" aria-atomic="true"
+                  aria-label="Distancia lámpara">— cm</b></div>
+                <div class="pt-hcm-divider"></div>
+                <div class="pt-hcm-row"><span class="pt-hcm-lbl">PWM</span><b class="pt-hcm-val" id="hudLux"
+                  aria-live="polite" aria-atomic="true"
+                  aria-label="Intensidad PWM">— %</b></div>
+              </div>
+              <div class="pt-hero-overlay">
+                <span class="pt-kicker">Seguimiento terapéutico · NEOLIGHT</span>
+                <h1 id="dashHelloPatient">Hola, —</h1>
+                <div class="pt-hero-tags">
+                  <span>Paciente: <b id="pacienteNombreTop">—</b></span>
+                  <span>Modo: <b id="pacModoActual">REPOSO</b></span>
+                  <span id="patientGeneralStatus">Sistema en observación</span>
+                </div>
+              </div>
+              <button class="pt-cam-btn" id="ptCamToggle" type="button" aria-pressed="false" title="Activar cámara ESP32-S3">
+                <svg class="pt-cam-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" aria-hidden="true">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+                <span class="pt-cam-lbl">Cámara</span>
+                <span class="pt-cam-track" aria-hidden="true"><span class="pt-cam-thumb"></span></span>
+              </button>
+            </div>
+
+            <!-- Columna derecha: alertas + 4 métricas (2x2) + timer -->
+            <div class="patient-side-cards">
+
+              <!-- Alerts card -->
+              <div class="pt-alert-card" id="ptAlertCard"
+                   role="status" aria-live="polite" aria-atomic="false"
+                   aria-label="Estado de alertas clínicas">
+                <div class="pt-ac-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                </div>
+                <div class="pt-ac-body">
+                  <div class="pt-ac-title">Alertas activas</div>
+                  <div class="pt-ac-msg" id="ptAlertMsg"
+                       aria-live="polite" aria-atomic="true">Sin alarmas activas</div>
+                  <span class="pt-ac-count" id="ptAlertCount" aria-hidden="true"></span>
+                </div>
+              </div>
+
+              <!-- Región de anuncio para alarmas críticas (assertive) -->
+              <div id="pt-alarm-announce" role="alert" aria-live="assertive"
+                   aria-atomic="true" class="pt-visually-hidden"></div>
+
+              <!-- 4 métricas en grid 2×2 -->
+              <div class="pt-side-metric-grid">
+                <div class="pt-metric-widget" role="group" aria-label="Intensidad LED">
+                  <div class="neo-widget-icon" aria-hidden="true"><img src="./img/foco.png" alt="Intensidad" /></div>
+                  <div class="pt-mw-body">
+                    <div class="pt-wlbl">Intensidad LED</div>
+                    <div class="pt-wval" id="patientLightLevel"
+                    aria-live="polite" aria-atomic="true"
+                    aria-label="Intensidad LED">—</div>
+                    <div class="patient-sensor-bar" role="progressbar"
+                    aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
+                    aria-label="Intensidad LED — nivel"><i id="patientLightBar" aria-hidden="true"></i></div>
+                    <em id="patientLightStatus" aria-live="polite" aria-atomic="true">Esperando LDR</em>
+                  </div>
+                </div>
+                <div class="pt-metric-widget" role="group" aria-label="Distancia lámpara">
+                  <div class="neo-widget-icon" aria-hidden="true"><img src="./img/distancia.png" alt="Distancia" /></div>
+                  <div class="pt-mw-body">
+                    <div class="pt-wlbl">Distancia lámpara</div>
+                    <div class="pt-wval" id="patientDistance"
+                    aria-live="polite" aria-atomic="true"
+                    aria-label="Distancia lámpara">—</div>
+                    <div class="patient-sensor-bar" role="progressbar"
+                    aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
+                    aria-label="Distancia lámpara — nivel"><i id="patientDistanceBar" aria-hidden="true"></i></div>
+                    <em id="patientDistanceStatus" aria-live="polite" aria-atomic="true">Esperando HC-SR04</em>
+                  </div>
+                </div>
+                <div class="pt-metric-widget" role="group" aria-label="Temperatura bebé">
+                  <div class="neo-widget-icon" aria-hidden="true"><img src="./img/temp_body.png" alt="Temp bebé" /></div>
+                  <div class="pt-mw-body">
+                    <div class="pt-wlbl">Temperatura bebé</div>
+                    <div class="pt-wval" id="patientBabyTemp"
+                    aria-live="polite" aria-atomic="true"
+                    aria-label="Temperatura bebé">—</div>
+                    <em id="patientBabyTempStatus" aria-live="polite" aria-atomic="true">Sin lectura</em>
+                  </div>
+                </div>
+                <div class="pt-metric-widget" role="group" aria-label="Temperatura ambiente">
+                  <div class="neo-widget-icon" aria-hidden="true"><img src="./img/temp_amb.png" alt="Ambiente" /></div>
+                  <div class="pt-mw-body">
+                    <div class="pt-wlbl">Temperatura ambiente</div>
+                    <div class="pt-wval" id="patientAmbientTemp"
+                    aria-live="polite" aria-atomic="true"
+                    aria-label="Temperatura ambiente">—</div>
+                    <em id="patientAmbientTempStatus" aria-live="polite" aria-atomic="true">Sin lectura</em>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Timer card -->
+              <div class="pt-timer-card" id="timerCard"
+                   role="timer" aria-label="Timer de sesión de terapia"
+                   aria-live="off">
+                <div class="pt-tc-head">
+                  <div class="neo-widget-icon"><img src="./img/reloj.png" alt="Tiempo" /></div>
+                  <div class="pt-tc-info">
+                    <div class="pt-stat-lbl">Tiempo en terapia</div>
+                    <div class="pt-tc-val" id="tiempoTerapia"
+                       aria-label="Tiempo de terapia transcurrido">00:00:00</div>
+                    <small>Toca para pausar</small>
+                  </div>
+                </div>
+                <div class="patient-progress pt-tc-bar"><span id="patientPlanProgressBar"></span></div>
+                <div class="pt-tc-foot">
+                  <em id="patientTherapyGoal">Tiempo objetivo pendiente</em>
+                  <span id="pacienteProgreso">—</span>
+                </div>
+                <div class="pt-donut-wrap">
+                  <div class="patient-donut" id="patientTherapyDonut"><span id="patientTherapyPct">0%</span></div>
+                </div>
+              </div>
+
+              <!-- Exportar -->
+              <div class="pt-export-row">
+                <button class="pt-export-btn" id="exportBtnTop" type="button">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Exportar a Excel
+                </button>
+                <button class="pt-export-btn pt-export-pdf" id="downloadPatientPdfBtnTop" type="button">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Reporte PDF
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Canvases para gráficos (visualmente ocultos, necesarios para PDF) -->
+          <!-- Se posicionan fuera de la vista con CSS, no con display:none -->
+          <div class="pt-chart-offscreen" aria-hidden="true">
+            <canvas id="patientLedChart" width="360" height="120"></canvas>
+            <canvas id="patientTempChart" width="360" height="120"></canvas>
+            <canvas id="patientDistanceChart" width="360" height="120"></canvas>
+            <div class="patient-donut large" id="patientProgressChart"><span id="patientProgressChartText">0%</span></div>
+          </div>
+          <!-- Datos clínicos para PDF: visually-hidden, legibles por lectores de pantalla -->
+          <dl class="pt-pdf-data" aria-label="Datos clínicos del paciente">
+            <dt>Nombre</dt><dd id="pacienteNombre">—</dd>
+            <dt>Edad</dt><dd id="pacienteEdad">—</dd>
+            <dt>Doctor</dt><dd id="pacienteDoctor">—</dd>
+            <dt>Tiempo acumulado</dt><dd id="patientHeroTime">00:00:00</dd>
+            <dt>Temperatura bebé</dt><dd id="tempBebe">—</dd>
+            <dt>Temperatura ambiente</dt><dd id="tempAmbiente">—</dd>
+            <dt>Altura actual</dt><dd id="cardAltura"><span id="pacAlturaActual">—</span></dd>
+          </dl>
+        </section>
+
+        <!-- ── SOLICITUDES ──────────────────────────────────────── -->
+        <section class="patient-section" data-section="solicitudes">
+          <div class="pt-section-hdr">
+            <h2>Modo de terapia</h2>
+            <p>Solicita cambios de modo al médico a cargo</p>
+          </div>
+
+          <div class="patient-two-col">
+            <div class="patient-card locked" id="cardModo">
+              <h3>Modo de terapia</h3>
+              <div class="patient-mode-row">
+                <span>Modo actual</span>
+                <span class="badge">REPOSO</span>
+              </div>
+              <div class="patient-mode-actions">
+                <button class="btn btn-primary" id="pacBtnReposo" data-modo="reposo">Reposo</button>
+                <button class="btn" id="pacBtnConvencional" data-modo="convencional">Convencional</button>
+                <button class="btn" id="pacBtnIntensivo" data-modo="intensivo">Intensivo</button>
+              </div>
+              <div class="patient-manual-controls" aria-label="Control manual de lampara">
+                <button class="manual-ctrl-btn" type="button" data-manual-move="up">Subir</button>
+                <button class="manual-ctrl-btn" type="button" data-manual-move="left">Izquierda</button>
+                <button class="manual-ctrl-btn stop" type="button" data-manual-move="stop">Detener</button>
+                <button class="manual-ctrl-btn" type="button" data-manual-move="right">Derecha</button>
+                <button class="manual-ctrl-btn" type="button" data-manual-move="down">Bajar</button>
+              </div>
+              <div class="control-overlay" id="modoOverlay">
+                <strong>Control bloqueado</strong>
+                <p>El modo solo puede modificarse cuando el médico habilita el control manual.</p>
+              </div>
+              <div id="pacModoMsg" class="feedback-msg" style="display:none;"></div>
+            </div>
+
+            <div class="patient-card">
+              <h3>Plan y datos clínicos</h3>
+              <div class="data-row"><span class="data-label">Plan activo</span><span class="data-value" id="pacientePlan">—</span></div>
+              <div class="data-row"><span class="data-label">Estado dispositivo</span><span class="data-value" id="pacienteDispositivo">—</span></div>
+              <div class="data-row"><span class="data-label">Permiso tutor</span><span class="data-value" id="pacientePermiso">—</span></div>
+              <div class="data-row"><span class="data-label">Género</span><span class="data-value" id="pacienteGenero">—</span></div>
+              <div class="data-row"><span class="data-label">Código clínico</span><span class="data-value" id="pacienteCodigo">—</span></div>
+              <div class="data-row"><span class="data-label">Diagnóstico</span><span class="data-value" id="pacienteDiagnostico">—</span></div>
+              <div class="data-row"><span class="data-label">Bilirrubina</span><span class="data-value" id="pacienteBilirrubina">—</span></div>
+              <div class="data-row"><span class="data-label">Peso nacimiento</span><span class="data-value" id="pacientePeso">—</span></div>
+              <div class="data-row"><span class="data-label">Edad gestacional</span><span class="data-value" id="pacienteGestacional">—</span></div>
+              <div class="data-row"><span class="data-label">Grupo / RH</span><span class="data-value" id="pacienteSangre">—</span></div>
+            </div>
+          </div>
+
+          <!-- Estado clínico integrado en la sección de solicitudes -->
+          <div class="pt-clinical-status" id="statusCard" role="status" aria-live="polite">
+            <span class="pt-cs-label" id="statusLabel">Sin datos</span>
+            <span class="pt-cs-detail" id="statusDetail">Esperando lecturas del sistema…</span>
+          </div>
+        </section>
+
+        <!-- ── HISTORIAL ────────────────────────────────────────── -->
+        <section class="patient-section" data-section="historial">
+          <div class="pt-section-hdr">
+            <h2>Historial de sesiones</h2>
+            <p>Registro de actividad terapéutica</p>
+          </div>
+          <div class="patient-card">
+            <div class="table-wrap">
+              <table class="clinical-table">
+                <thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th></tr></thead>
+                <tbody id="patientHistoryRows"><tr><td colspan="3">Sin datos</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── ALARMAS ──────────────────────────────────────────── -->
+        <section class="patient-section" data-section="alarmas">
+          <div class="pt-section-hdr">
+            <h2>Historial de alarmas</h2>
+            <p>Registro de alertas y notificaciones del sistema</p>
+          </div>
+          <div class="patient-card">
+            <button class="btn btn-primary btn-full" id="muteAlarmsBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+              Silenciar alarmas (5 min)
+            </button>
+            <div class="alerts-section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              Alertas recientes
+            </div>
+            <div id="patientAlarmsList">
+              <div class="alert-row info" style="justify-content:center;padding:28px;text-align:center">
+                <div style="color:var(--pt-color-text-muted);font-weight:600">Sin alarmas registradas</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── AYUDA ────────────────────────────────────────────── -->
+        <section class="patient-section" data-section="ayuda">
+          <div class="pt-section-hdr">
+            <h2>Reporte y ayuda</h2>
+          </div>
+          <div class="patient-card">
+            <button class="btn btn-primary btn-full" id="downloadPatientPdfBtn">Descargar reporte PDF</button>
+            <button class="btn btn-secondary btn-full" id="exportBtn">Exportar datos a Excel</button>
+            <button class="btn btn-secondary btn-full" id="saveExitBtn">Guardar sesión y salir</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- ═══ PANEL DERECHO — PACIENTE ════════════════════════════ -->
+      <aside class="patient-right-rail pt-right-panel">
+
+        <!-- Etiqueta de sección -->
+        <div class="pt-rail-header">
+          <span class="pt-rail-label">PACIENTE</span>
+        </div>
+
+        <!-- Tarjeta de perfil -->
+        <div class="patient-profile-card">
+
+          <!-- Avatar circular -->
+          <div class="prc-avatar-wrap">
+            <div class="patient-profile-avatar" id="patientProfileAvatar">BB</div>
+          </div>
+
+          <!-- Nombre y código -->
+          <h3 class="prc-name" id="patientProfileName">—</h3>
+          <span class="prc-code" id="patientProfileCode">NEO-0000-0000</span>
+
+          <!-- Filas de datos tipo pill -->
+          <div class="prc-rows">
+
+            <div class="prc-row">
+              <span class="prc-row-label">Edad</span>
+              <em class="prc-row-value" id="patientProfileAge">—</em>
+            </div>
+
+            <div class="prc-row">
+              <span class="prc-row-label">Tutor</span>
+              <em class="prc-row-value" id="patientTutorName">—</em>
+            </div>
+
+            <div class="prc-row prc-row--icon">
+              <span class="prc-row-label">
+                <svg class="prc-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <circle cx="10" cy="7" r="3.5"/>
+                  <path d="M3 17c0-3.314 3.134-6 7-6s7 2.686 7 6"/>
+                </svg>
+                Doctor
+              </span>
+              <em class="prc-row-value" id="patientDoctorName">—</em>
+            </div>
+
+            <div class="prc-row prc-row--icon">
+              <span class="prc-row-label">
+                <svg class="prc-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <polyline points="2.5,11.5 7,7 11,11 17.5,4.5"/>
+                </svg>
+                Estado clínico
+              </span>
+              <em class="prc-row-value prc-row-value--status" id="patientClinicalState">—</em>
+            </div>
+
+            <div class="prc-row prc-row--icon">
+              <span class="prc-row-label">
+                <svg class="prc-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <circle cx="10" cy="10" r="7.5"/>
+                  <polyline points="10,5 10,10 13,13"/>
+                </svg>
+                Terapia acumulada
+              </span>
+              <em class="prc-row-value prc-row-value--mono" id="patientTherapyAccumulated">00:00:00</em>
+            </div>
+
+          </div><!-- /prc-rows -->
+        </div><!-- /patient-profile-card -->
+
+        <!-- Tarjeta de conexión -->
+        <div class="patient-connection-card" role="region" aria-label="Estado de conexión del sistema">
+
+          <div class="pcc-title">
+            <svg class="pcc-wifi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M1.5 8.5a15 15 0 0 1 21 0"/>
+              <path d="M5 12.5a10 10 0 0 1 14 0"/>
+              <path d="M8.5 16.5a5 5 0 0 1 7 0"/>
+              <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+            Conexión
+          </div>
+
+          <div class="pcc-rows">
+
+            <div class="pcc-row">
+              <span class="pcc-row-label">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+                  <rect x="2" y="5" width="16" height="10" rx="2"/>
+                  <line x1="6" y1="9" x2="6" y2="11"/>
+                  <line x1="10" y1="8" x2="10" y2="12"/>
+                  <line x1="14" y1="9" x2="14" y2="11"/>
+                </svg>
+                ESP32 maestro
+              </span>
+              <span class="pcc-status">
+                <span class="pcc-dot" aria-hidden="true"></span>
+                <em id="patientMasterStatus" aria-live="polite" aria-atomic="true">Sin datos</em>
+              </span>
+            </div>
+
+            <div class="pcc-row">
+              <span class="pcc-row-label">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+                  <circle cx="10" cy="10" r="7"/>
+                  <circle cx="10" cy="10" r="3"/>
+                  <line x1="10" y1="3" x2="10" y2="1.5"/>
+                  <line x1="10" y1="17" x2="10" y2="18.5"/>
+                </svg>
+                ESP32 esclavo
+              </span>
+              <span class="pcc-status">
+                <span class="pcc-dot" aria-hidden="true"></span>
+                <em id="patientSlaveStatus">Sin datos</em>
+              </span>
+            </div>
+
+            <div class="pcc-row">
+              <span class="pcc-row-label">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+                  <path d="M3 7.5a9 9 0 0 1 14 0"/>
+                  <path d="M6 11a5 5 0 0 1 8 0"/>
+                  <circle cx="10" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+                </svg>
+                Socket.IO
+              </span>
+              <span class="pcc-status">
+                <span class="pcc-dot" aria-hidden="true"></span>
+                <em id="patientSocketStatus" aria-live="polite" aria-atomic="true">Conectando</em>
+              </span>
+            </div>
+
+          </div><!-- /pcc-rows -->
+        </div><!-- /patient-connection-card -->
+
+      </aside>
+    </section>
+    <section id="patientPdfReport" class="patient-pdf-report" aria-hidden="true"></section>
+  </main>
