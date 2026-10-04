@@ -7,6 +7,7 @@
 import { $, state, SESSION_KEY, LOGIN_KEY, setToken, getToken } from "./config.js";
 import { superuserCode, techAccess, techAccessStatus, verifyHospitalCode, fetchDoctors, registerDoctor, registerTutor, login, logoutRequest, fetchCurrentDoctorState, fetchCurrentTutorState, fetchCurrentSuperuserState } from "./api.js";
 import { createSignaturePad } from "./signature.js";
+import { primeVoice, playWelcome, stopVoice } from "./voice.js";
 
 // =========================================================
 // REFERENCIAS DOM
@@ -395,7 +396,8 @@ async function finishLogin(data, user = "") {
   closeAuthModal();
   // Importado dinámicamente para evitar dependencia circular
   const { enterFromSession } = await import("./main.js");
-  enterFromSession(snapshot);
+  await enterFromSession(snapshot);
+  playWelcome();
   return "";
 }
 
@@ -403,6 +405,7 @@ async function finishLogin(data, user = "") {
 async function doSuperuserCode() {
   const msg = $("codeMsg"); msg.textContent = "";
   if (codeBuf.length !== CODE_LEN) { msg.textContent = "Ingresa los 6 dígitos."; return; }
+  primeVoice();
   setButtonBusy("verifyCodeBtn", true, "Verificando...");
   try {
     const { ok, data } = codeMode === "tecnico" ? await techAccess(codeBuf) : await superuserCode(superuserTicket, codeBuf);
@@ -429,6 +432,7 @@ export async function doLogin() {
   const pass = ($("contrasena")?.value || "").trim();
   const msg  = $("loginMsg"); msg.textContent = "";
 
+  primeVoice();
   setButtonBusy("loginBtn", true, "Ingresando...");
 
   try {
@@ -457,6 +461,7 @@ export async function doLogin() {
 // LOGOUT
 // =========================================================
 export function doLogout(showMsg = false) {
+  stopVoice();
   state.currentUserId  = null;
   state.currentRole    = null;
   state.currentTutorId = null;

@@ -77,6 +77,9 @@ const CONFIG = {
   SUPERUSER_PASS:   process.env.SUPERUSER_PASS || '',
   SUPERUSER_CODE:   process.env.SUPERUSER_CODE || process.env.HOSPITAL_CODE || '152436',
   TECH_WINDOW_S:    Number(process.env.TECH_WINDOW_S) || 120,
+  ELEVENLABS_API_KEY:  process.env.ELEVENLABS_API_KEY  || '',
+  ELEVENLABS_VOICE_ID: process.env.ELEVENLABS_VOICE_ID || '',
+  ELEVENLABS_MODEL:    process.env.ELEVENLABS_MODEL    || 'eleven_multilingual_v2',
   ESP32_MASTER_URL: process.env.ESP32_MASTER_URL || null,
   CAMERA_STREAM_URL: process.env.CAMERA_STREAM_URL || process.env.CAM_STREAM_URL || 'http://192.168.4.50/stream',
   // Clave que el equipo envía en la cabecera x-device-key. Obligatoria en la nube.
@@ -1247,6 +1250,83 @@ app.post('/api/register', async (req, res) => {
     if (e?.code === 'ER_DUP_ENTRY') return res.status(409).json({ ok: false, error: 'usuario_ya_existe' });
     return sendDbError(res, e, 'REGISTER_ERROR');
   }
+});
+
+// ===================== SALUDO DE BIENVENIDA CON VOZ ========================
+//
+// El texto se arma aquí, con datos reales de la base, y se convierte en audio con
+// ElevenLabs. La clave de ElevenLabs vive solo en el servidor (variable
+// ELEVENLABS_API_KEY). Si no hay clave, o ElevenLabs falla o se quedó sin créditos,
+// se devuelve solo el texto y el navegador lo lee con su propia voz.
+
+const voiceCache = new Map();          // texto → audio (base64). Evita gastar créditos dos veces.
+const voiceLast  = new Map();          // cuenta → última vez que generó audio
+const plural = (n, uno, varios) => `${n === 1 ? 'un' + (uno.endsWith('a') || uno.startsWith('solicitud') ? 'a' : '') : n} ${n === 1 ? uno : varios}`;
+const firstWord = v => String(v || '').trim().split(/\s+/)[0] || '';
+
+async function buildWelcomeText(auth) {
+  const [[c]] = await pool.execute(`SELECT usuario, nombre, apellidos, genero FROM ${ACCOUNT_TABLE} WHERE id = ? LIMIT 1`, [auth.id]);
+  if (!c) return '';
+
+  if (auth.rol === 'doctor') {
+    const [[t]] = await pool.execute(
+      `SELECT COUNT(DISTINCT p.id) AS n FROM pacientes p
+       JOIN planes_terapia pl ON pl.paciente_id = p.id AND pl.estado = 'activo'
+       WHERE p.doctor_id = ? AND p.estado_registro = 'activo' AND p.doctor_request_status = 'accepted'`, [auth.id]);
+    const [[s]] = await pool.execute(`SELECT COUNT(*) AS n FROM doctor_requests WHERE doctor_id = ? AND status = 'pending'`, [auth.id]);
+    const enTerapia = Number(t.n), pendientes = Number(s.n);
+    const titulo = c.genero === 'femenino' ? 'Doctora' : 'Doctor';
+    const partes = [`Hola, ${titulo} ${firstWord(c.nombre)} ${firstWord(c.apellidos)}.`];
+    partes.push(enTerapia ? `Hoy tiene ${plural(enTerapia, 'paciente', 'pacientes')} en terapia` : 'Hoy no tiene pacientes en terapia');
+    partes[1] += pendientes ? ` y ${plural(pendientes, 'solicitud pendiente', 'solicitudes pendientes')}.` : ' y ninguna solicitud pendiente.';
+    partes.push('Revise su agenda.');
+    return partes.join(' ');
+  }
+
+  if (auth.rol === 'tutor') {
+    const [[p]] = await pool.execute(`SELECT id, nombre, genero FROM pacientes WHERE tutor_id = ? LIMIT 1`, [auth.id]);
+    if (!p) return '';
+    const plan = await getActivePlan(p.id);
+    const bienvenido = p.genero === 'femenino' ? 'Bienvenida' : 'Bienvenido';
+    const avance = plan
+      ? `Llevas el ${Math.min(100, Math.round(Number(plan.porcentaje_avance) || 0))} por ciento de tu terapia.`
+      : 'Tu doctor todavía no asignó tu plan de terapia.';
+    return `Hola, bebé ${firstWord(p.nombre)}. ${bienvenido} a tu sesión. ${avance}`;
+  }
+
+  const nombre = firstWord(c.usuario);
+  return `Hola, ${nombre.charAt(0).toUpperCase()}${nombre.slice(1)}. Acceso de superusuario concedido.`;
+}
+
+async function elevenLabsSpeech(text) {
+  const voice = CONFIG.ELEVENLABS_VOICE_ID;
+  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_64`, {
+    method: 'POST',
+    headers: { 'xi-api-key': CONFIG.ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+    body: JSON.stringify({ text, model_id: CONFIG.ELEVENLABS_MODEL }),
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!r.ok) throw new Error(`ElevenLabs respondió ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  return Buffer.from(await r.arrayBuffer()).toString('base64');
+}
+
+app.get('/api/voice/welcome', async (req, res) => {
+  try {
+    const text = await buildWelcomeText(req.auth);
+    if (!text) return res.json({ ok: true, text: '', audio: null });
+    let audio = voiceCache.get(text) || null;
+    const ready = CONFIG.ELEVENLABS_API_KEY && CONFIG.ELEVENLABS_VOICE_ID;
+    // Como mucho un audio nuevo cada 15 s por cuenta: protege los créditos.
+    if (!audio && ready && Date.now() - (voiceLast.get(req.auth.id) || 0) > 15_000) {
+      voiceLast.set(req.auth.id, Date.now());
+      try {
+        audio = await elevenLabsSpeech(text);
+        if (voiceCache.size >= 60) voiceCache.delete(voiceCache.keys().next().value);
+        voiceCache.set(text, audio);
+      } catch (e) { console.warn('[VOZ]', e.message); }
+    }
+    res.json({ ok: true, text, audio, source: audio ? 'elevenlabs' : 'navegador' });
+  } catch (e) { return sendServerError(res, e, 'VOICE_WELCOME'); }
 });
 
 // ===================== ACCESO DE SUPERUSUARIO ========================
