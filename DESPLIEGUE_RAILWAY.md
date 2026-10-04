@@ -50,3 +50,17 @@ La base nueva empieza vacía. Para tener superusuario: registrar una cuenta norm
 
 - Telemetría y comandos de la lámpara: el servidor ya está listo (ver `PROTOCOLO_EQUIPO.md`); falta actualizar el firmware del maestro.
 - Cámara: sigue siendo solo local.
+
+
+## Cuenta de superusuario
+
+En Railway → servicio de la interfaz → **Variables**, agrega:
+
+| Variable | Valor |
+|---|---|
+| `SUPERUSER_USER` | el usuario del superusuario |
+| `SUPERUSER_PASS` | su contraseña |
+
+Al arrancar, el servidor crea esa cuenta (o le actualiza la contraseña si la cambias ahí).
+Para entrar: usuario y contraseña, y después el código de seguridad de 6 dígitos
+(`SUPERUSER_CODE`; si no existe esa variable se usa `HOSPITAL_CODE`).

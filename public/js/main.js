@@ -142,6 +142,17 @@ async function init() {
   // Navegar a home
   navigate("home");
 
+  // El QR de la lámpara abre directo el teclado del acceso técnico.
+  const openTechIfAsked = async () => {
+    if (location.hash.toLowerCase() !== "#tecnico") return false;
+    const { openTechAccess } = await import("./auth.js");
+    if (state.currentRole) doLogout(false);
+    openTechAccess();
+    return true;
+  };
+  window.addEventListener("hashchange", openTechIfAsked);
+  if (await openTechIfAsked()) return;
+
   // Restaurar sesión desde localStorage
   await bootstrapFromStorage();
 }

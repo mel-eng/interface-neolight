@@ -73,6 +73,10 @@ const CONFIG = {
   DB_NAME:          DB.name,
   DB_PORT:          DB.port,
   HOSPITAL_CODE:    process.env.HOSPITAL_CODE    || '152436',
+  SUPERUSER_USER:   process.env.SUPERUSER_USER || '',
+  SUPERUSER_PASS:   process.env.SUPERUSER_PASS || '',
+  SUPERUSER_CODE:   process.env.SUPERUSER_CODE || process.env.HOSPITAL_CODE || '152436',
+  TECH_WINDOW_S:    Number(process.env.TECH_WINDOW_S) || 120,
   ESP32_MASTER_URL: process.env.ESP32_MASTER_URL || null,
   CAMERA_STREAM_URL: process.env.CAMERA_STREAM_URL || process.env.CAM_STREAM_URL || 'http://192.168.4.50/stream',
   // Clave que el equipo envía en la cabecera x-device-key. Obligatoria en la nube.
@@ -240,6 +244,7 @@ function sendServerError(res, e, context = 'SERVER_ERROR', safeMessage = 'No se 
 // ===================== APP / HTTP / SOCKET ========================
 
 const app    = express();
+app.set('trust proxy', 1);            // Railway pone un proxy delante: así se ve la IP real
 const server = http.createServer(app);
 const io     = new SocketIOServer(server, { cors: { origin: '*', methods: ['GET','POST','PUT'] } });
 
@@ -308,7 +313,8 @@ async function canAccessPatient(auth, patientId) {
 const PUBLIC_API = new Set([
   'POST /api/login', 'POST /api/register', 'POST /api/register-doctor',
   'POST /api/doctor/verify-code', 'GET /api/doctors', 'GET /api/health', 'GET /api/client-config',
-  'POST /api/esp32-data', 'POST /api/esp32/telemetry',          // el equipo usa su propia clave
+  'POST /api/esp32-data', 'POST /api/esp32/telemetry', 'POST /api/superuser-access/code',
+  'POST /api/tech-access', 'GET /api/tech-access/status',          // el equipo usa su propia clave
 ]);
 
 app.use(async (req, res, next) => {
@@ -389,6 +395,7 @@ async function initDB() {
   pool.on('connection', conn => conn.query(`SET time_zone = '${tz}'`));
   await pool.query('SELECT 1');
   await ensureSchemaCompatibility();
+  await ensureSuperuserAccount();
   console.log(`[DB] Conectado a "${DB_NAME}" en ${DB_HOST}:${DB_PORT} (hora ${tz})`);
 }
 
@@ -946,6 +953,7 @@ async function processEsp32Telemetry(body = {}) {
   if (!body || typeof body !== 'object')
     return { status: 400, payload: { ok: false, error: 'body_invalido' } };
 
+  noteTechFlag(body);
   const parsed = parseTelemetryPayload(body);
   const paciente_id = await resolveTelemetryPatientId(parsed.paciente_id);
 
@@ -1241,6 +1249,149 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
+// ===================== ACCESO DE SUPERUSUARIO ========================
+//
+// Hay dos puertas, y las dos terminan en el mismo teclado de 6 dígitos:
+//  1) Usuario y contraseña del superusuario  →  código de seguridad.
+//  2) Combinación en el panel de la lámpara (MODE, DERECHA, MODE): la pantalla
+//     muestra un QR fijo y el equipo avisa al servidor. Durante unos minutos el
+//     teclado acepta el código sin pedir usuario. Sin esa combinación el QR no
+//     sirve, aunque alguien le haya tomado una foto.
+
+const SU_TICKET_MS  = 3 * 60_000;      // tiempo para escribir el código después de la contraseña
+const SU_MAX_FAILS  = 5;
+const SU_LOCK_MS    = 5 * 60_000;
+const suTickets     = new Map();       // ticket → { cuentaId, until }
+const suFails       = new Map();       // ip → { n, until }
+let techWindowUntil = 0;               // hasta cuándo vale la puerta 2
+let techFlagPrev    = false;
+
+const sameCode = (a, b) => {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+};
+const suLockedFor = ip => {
+  const f = suFails.get(ip);
+  if (!f) return 0;
+  if (f.until && f.until > Date.now()) return Math.ceil((f.until - Date.now()) / 1000);
+  if (f.until) suFails.delete(ip);
+  return 0;
+};
+const suFail = ip => {
+  const f = suFails.get(ip) || { n: 0, until: 0 };
+  f.n += 1;
+  if (f.n >= SU_MAX_FAILS) { f.until = Date.now() + SU_LOCK_MS; f.n = 0; }
+  suFails.set(ip, f);
+  return f.until ? 0 : SU_MAX_FAILS - f.n;       // intentos que quedan
+};
+const techSecondsLeft = () => Math.max(0, Math.ceil((techWindowUntil - Date.now()) / 1000));
+
+// El maestro manda "tec": 1 mientras la pantalla muestra el QR. Solo cuenta el
+// momento en que aparece, así una bandera pegada no deja la puerta abierta.
+function noteTechFlag(body) {
+  const on = boolFromEsp(body?.tec ?? body?.acceso_tecnico) === true;
+  if (on && !techFlagPrev) {
+    if (CONFIG.DEVICE_KEY || CONFIG.ESP32_MASTER_URL) {
+      techWindowUntil = Date.now() + CONFIG.TECH_WINDOW_S * 1000;
+      console.log(`[ACCESO] Acceso técnico habilitado desde el panel por ${CONFIG.TECH_WINDOW_S} s.`);
+      logEvent({ tipo: 'acceso_tecnico', descripcion: 'Acceso técnico habilitado desde el panel de la lámpara' }).catch(() => {});
+    } else {
+      console.warn('[ACCESO] Se ignoró el acceso técnico: falta DEVICE_KEY, cualquiera podría fingir ser la lámpara.');
+    }
+  }
+  techFlagPrev = on;
+}
+
+async function ensureSuperuserAccount() {
+  const usuario = String(CONFIG.SUPERUSER_USER || '').trim();
+  const clave   = String(CONFIG.SUPERUSER_PASS || '');
+  if (!usuario || !clave) return;
+  const [rows] = await pool.execute(`SELECT id, contrasena, rol, estado FROM ${ACCOUNT_TABLE} WHERE usuario = ? LIMIT 1`, [usuario]);
+  if (!rows.length) {
+    await pool.execute(
+      `INSERT INTO ${ACCOUNT_TABLE} (usuario, contrasena, rol, nombre, apellidos) VALUES (?, ?, 'admin', 'Superusuario', 'NEOLIGHT')`,
+      [usuario, await bcrypt.hash(clave, 10)]
+    );
+    return console.log(`[ACCESO] Cuenta de superusuario "${usuario}" creada.`);
+  }
+  const c = rows[0];
+  const same = await bcrypt.compare(clave, c.contrasena).catch(() => false);
+  if (same && c.rol === 'admin' && c.estado === 'activo') return;
+  await pool.execute(`UPDATE ${ACCOUNT_TABLE} SET contrasena = ?, rol = 'admin', estado = 'activo' WHERE id = ?`,
+    [same ? c.contrasena : await bcrypt.hash(clave, 10), c.id]);
+  console.log(`[ACCESO] Cuenta de superusuario "${usuario}" actualizada.`);
+}
+
+async function superuserLoginPayload(cuentaId, via) {
+  const [rows] = await pool.execute(
+    `SELECT id, usuario, rol, nombre, apellidos, genero, telefono, correo, matricula, especialidad
+     FROM ${ACCOUNT_TABLE} WHERE id = ? AND rol = 'admin' AND estado = 'activo' LIMIT 1`, [cuentaId]);
+  if (!rows.length) return null;
+  const c = rows[0];
+  const token = await createLoginToken(c);
+  await logEvent({ cuenta_id: c.id, tipo: 'login', descripcion: `Login superusuario (${via})` }).catch(() => {});
+  return {
+    ok: true, role: 'superuser', token,
+    superuser: {
+      id: c.id, usuario: c.usuario, rol: c.rol, nombre: c.nombre, apellidos: c.apellidos,
+      genero: c.genero || '', telefono: c.telefono || '', correo: c.correo || '',
+      matricula: c.matricula || '', especialidad: c.especialidad || '',
+    },
+    paciente: null, last_session: null,
+  };
+}
+
+// Revisa el código y responde el error que corresponda. Devuelve true si es correcto.
+function checkSuperuserCode(req, res) {
+  const ip = req.ip || 'x';
+  const wait = suLockedFor(ip);
+  if (wait) {
+    res.status(429).json({ ok: false, error: 'demasiados_intentos', message: `Demasiados intentos. Espera ${Math.ceil(wait / 60)} min.` });
+    return false;
+  }
+  if (sameCode(req.body?.code || '', CONFIG.SUPERUSER_CODE)) { suFails.delete(ip); return true; }
+  const left = suFail(ip);
+  res.status(401).json({ ok: false, error: 'codigo_incorrecto',
+    message: left ? `Código incorrecto. Te queda${left === 1 ? "" : "n"} ${left} intento${left === 1 ? "" : "s"}.` : 'Demasiados intentos. Espera 5 min.' });
+  return false;
+}
+
+// Puerta 1, segundo paso: el código después de usuario y contraseña.
+app.post('/api/superuser-access/code', async (req, res) => {
+  try {
+    const key = String(req.body?.ticket || '');
+    const ticket = suTickets.get(key);
+    if (!ticket || ticket.until < Date.now()) {
+      suTickets.delete(key);
+      return res.status(401).json({ ok: false, error: 'paso_vencido', message: 'Se venció el tiempo. Ingresa tu usuario y contraseña otra vez.' });
+    }
+    if (!checkSuperuserCode(req, res)) return;
+    suTickets.delete(key);
+    const payload = await superuserLoginPayload(ticket.cuentaId, 'usuario y código');
+    if (!payload) return res.status(403).json({ ok: false, error: 'cuenta_inactiva' });
+    res.json(payload);
+  } catch (e) { return sendServerError(res, e, 'SUPERUSER_CODE'); }
+});
+
+// Puerta 2: ¿está habilitado el acceso desde el panel?
+app.get('/api/tech-access/status', (_req, res) => {
+  res.json({ ok: true, open: techSecondsLeft() > 0, seconds_left: techSecondsLeft(), lamp_online: espOnline });
+});
+
+app.post('/api/tech-access', async (req, res) => {
+  try {
+    if (!techSecondsLeft())
+      return res.status(403).json({ ok: false, error: 'acceso_no_habilitado',
+        message: 'Primero habilita el acceso en el panel de la lámpara: MODE, DERECHA, MODE.' });
+    if (!checkSuperuserCode(req, res)) return;
+    const [rows] = await pool.query(`SELECT id FROM ${ACCOUNT_TABLE} WHERE rol = 'admin' AND estado = 'activo' ORDER BY id ASC LIMIT 1`);
+    if (!rows.length) return res.status(503).json({ ok: false, error: 'sin_superusuario', message: 'Todavía no existe la cuenta de superusuario.' });
+    const payload = await superuserLoginPayload(rows[0].id, 'panel de la lámpara');
+    techWindowUntil = 0;                       // cada combinación sirve para un solo ingreso
+    res.json(payload);
+  } catch (e) { return sendServerError(res, e, 'TECH_ACCESS'); }
+});
+
 app.post('/api/login', async (req, res) => {
   try {
     const { usuario, contrasena } = req.body;
@@ -1260,21 +1411,16 @@ app.post('/api/login', async (req, res) => {
     const match = await bcrypt.compare(String(contrasena), c.contrasena);
     if (!match) return res.status(401).json({ ok: false, error: 'credenciales_invalidas' });
 
+    // El superusuario todavía no entra: falta el código de seguridad.
+    if (c.rol === 'admin') {
+      const ticket = crypto.randomBytes(24).toString('hex');
+      for (const [k, t] of suTickets) if (t.until < Date.now()) suTickets.delete(k);
+      suTickets.set(ticket, { cuentaId: c.id, until: Date.now() + SU_TICKET_MS });
+      return res.json({ ok: true, role: 'superuser', step: 'code', ticket });
+    }
+
     await logEvent({ cuenta_id: c.id, tipo: 'login', descripcion: `Login ${c.rol}` });
     const token = await createLoginToken(c);
-
-    if (c.rol === 'admin') {
-      return res.json({
-        ok: true, role: 'superuser', token,
-        superuser: {
-          id: c.id, usuario: c.usuario, rol: c.rol,
-          nombre: c.nombre, apellidos: c.apellidos,
-          genero: c.genero || '', telefono: c.telefono || '', correo: c.correo || '',
-          matricula: c.matricula || '', especialidad: c.especialidad || '',
-        },
-        paciente: null, last_session: null,
-      });
-    }
 
     if (c.rol === 'doctor') {
       return res.json({

@@ -23,6 +23,15 @@ async function req(url, opts = {}) {
 export const verifyHospitalCode = code =>
   req("/api/doctor/verify-code", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ code }) });
 
+export const superuserCode = (ticket, code) =>
+  req("/api/superuser-access/code", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ ticket, code }) });
+
+export const techAccess = code =>
+  req("/api/tech-access", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ code }) });
+
+export const techAccessStatus = () =>
+  req("/api/tech-access/status");
+
 export const fetchDoctors = () =>
   req("/api/doctors");
 

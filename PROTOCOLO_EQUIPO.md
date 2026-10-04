@@ -79,3 +79,27 @@ Las abre y las cierra el servidor según la telemetría:
 Si en el servidor se define `ESP32_MASTER_URL` (por ejemplo `http://192.168.4.1`), el
 servidor vuelve a consultar `/data` y a llamar `/modo` y `/mover` directamente, como antes.
 Para ese modo el maestro necesitaría además las rutas `/lock`, `/mute?s=` y `/beep`.
+
+
+## Acceso técnico desde el panel (QR)
+
+La combinación **MODE, DERECHA, MODE** en el panel hace que el esclavo muestre en su
+pantalla un QR fijo que apunta a:
+
+    https://neolight.up.railway.app/#tecnico
+
+El QR por sí solo no da acceso. Mientras el QR está en pantalla, el maestro agrega a su
+telemetría el campo `"tec": 1` (y `"tec": 0` el resto del tiempo). Cuando el servidor ve
+que `tec` pasa de 0 a 1, habilita el teclado del acceso técnico durante `TECH_WINDOW_S`
+segundos (120 por defecto). En ese tiempo, quien escriba el código de seguridad entra al
+panel de superusuario sin usuario ni contraseña.
+
+Reglas del servidor:
+
+- Solo cuenta el paso de 0 a 1: una bandera que se queda en 1 no mantiene la puerta abierta.
+- Cada combinación sirve para un solo ingreso.
+- Cinco códigos incorrectos bloquean el teclado 5 minutos.
+- En la nube el campo `tec` se ignora si no hay `DEVICE_KEY` configurada.
+
+Firmware pendiente: esclavo → detectar la combinación, dibujar el QR y avisar al maestro
+(por ejemplo con el mensaje `TEC`); maestro → enviar `"tec": 1` durante 2 minutos.

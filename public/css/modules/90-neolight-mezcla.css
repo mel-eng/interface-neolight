@@ -536,3 +536,8 @@ html body .btn-mini { letter-spacing:0 !important; }
 html body #view-dashboard-patient .pt-hero-tags span b { text-transform:none !important; }
 html body #view-dashboard-patient .patient-mode-row .badge { background:var(--nl-accent-soft) !important; color:var(--nl-lila-ink) !important; border:0 !important; border-radius:999px !important; padding:4px 12px !important; font-weight:800 !important; text-transform:none !important; letter-spacing:0 !important; font-size:.86rem !important; }
 html body #view-dashboard-patient .patient-mode-actions .btn { flex:1 1 130px; min-width:0; padding-inline:12px !important; }
+
+/* ---------- I. Acceso de superusuario (teclado de código) ---------- */
+html body .code-status{margin:0 0 14px!important;padding:10px 12px!important;border-radius:14px!important;font-size:.9rem!important;line-height:1.35!important;text-align:center!important;background:var(--nl-sun-soft)!important;color:var(--nl-sun-ink)!important;border:1px solid var(--nl-sun)!important}
+html body .code-status[data-state="open"]{background:var(--nl-ok-soft)!important;color:var(--nl-ok)!important;border-color:transparent!important}
+html body .code-status[hidden]{display:none!important}

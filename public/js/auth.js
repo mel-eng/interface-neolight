@@ -5,7 +5,7 @@
 // =========================================================
 
 import { $, state, SESSION_KEY, LOGIN_KEY, setToken, getToken } from "./config.js";
-import { verifyHospitalCode, fetchDoctors, registerDoctor, registerTutor, login, logoutRequest, fetchCurrentDoctorState, fetchCurrentTutorState, fetchCurrentSuperuserState } from "./api.js";
+import { superuserCode, techAccess, techAccessStatus, verifyHospitalCode, fetchDoctors, registerDoctor, registerTutor, login, logoutRequest, fetchCurrentDoctorState, fetchCurrentTutorState, fetchCurrentSuperuserState } from "./api.js";
 import { createSignaturePad } from "./signature.js";
 
 // =========================================================
@@ -86,6 +86,7 @@ export function closeAuthModal() {
   authModal.classList.remove("open");
   authModal.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
+  stopTechWatch();
   try { lastFocusEl?.focus?.(); } catch (_) {}
 }
 
@@ -112,6 +113,59 @@ let codeBuf = "";
 let verifiedCode = "";          // el servidor vuelve a comprobarlo al registrar
 let doctorSignaturePad = null;
 const CODE_LEN = 6;
+
+// El mismo teclado sirve para tres cosas:
+//  "doctor"    → código del hospital para registrar un doctor
+//  "superuser" → código de seguridad después del usuario y la contraseña
+//  "tecnico"   → acceso técnico abierto desde el panel de la lámpara (QR)
+let codeMode = "doctor";
+let superuserTicket = "";
+let techTimer = null;
+
+const CODE_TEXTS = {
+  doctor:    { head: "Código hospital",   headSub: "Verificación para personal médico.", title: "Acceso del hospital", sub: "Ingresa el código (6 dígitos)", ok: "Verificar" },
+  superuser: { head: "Código de seguridad", headSub: "Último paso para el superusuario.", title: "Superusuario", sub: "Ingresa el código de seguridad (6 dígitos)", ok: "Ingresar" },
+  tecnico:   { head: "Acceso técnico",    headSub: "Habilitado desde el panel de la lámpara.", title: "Acceso técnico", sub: "Ingresa el código de seguridad (6 dígitos)", ok: "Ingresar" },
+};
+
+function stopTechWatch() { if (techTimer) { clearInterval(techTimer); techTimer = null; } }
+
+async function refreshTechStatus() {
+  const box = $("codeStatus"); if (!box || codeMode !== "tecnico") return;
+  try {
+    const { data } = await techAccessStatus();
+    box.dataset.state = data?.open ? "open" : "closed";
+    box.textContent = data?.open
+      ? `Acceso habilitado. Te quedan ${data.seconds_left} s para ingresar el código.`
+      : data?.lamp_online
+        ? "Para habilitar el acceso presiona en el panel de la lámpara: MODE, DERECHA, MODE."
+        : "La lámpara no está conectada. Enciéndela y presiona en su panel: MODE, DERECHA, MODE.";
+  } catch (_) { box.dataset.state = "closed"; box.textContent = "Sin conexión con el servidor."; }
+}
+
+function openCodeView(mode) {
+  codeMode = mode;
+  codeBuf = ""; renderDots();
+  stopTechWatch();
+  showAuthView("doctorCodeView");
+  const t = CODE_TEXTS[mode];
+  setAuthHeader(t.head, t.headSub);
+  const set = (sel, text) => { const el = document.querySelector(sel); if (el) el.textContent = text; };
+  set("#doctorCodeView .code-title", t.title);
+  set("#doctorCodeView .code-sub", t.sub);
+  set("#verifyCodeBtn", t.ok);
+  set("#backToChooser", mode === "tecnico" ? "Cancelar" : "Volver");
+  const msg = $("codeMsg"); if (msg) msg.textContent = "";
+  const box = $("codeStatus");
+  if (box) { box.hidden = mode !== "tecnico"; box.textContent = ""; }
+  if (mode === "tecnico") { refreshTechStatus(); techTimer = setInterval(refreshTechStatus, 2000); }
+}
+
+/** Abre directamente el teclado del acceso técnico (a donde lleva el QR de la lámpara). */
+export function openTechAccess() {
+  openAuthModal("loginView");
+  openCodeView("tecnico");
+}
 
 function renderDots() {
   document.querySelectorAll("#dots .dot").forEach((d, i) =>
@@ -308,6 +362,68 @@ async function doRegisterDoctor() {
 // =========================================================
 // LOGIN
 // =========================================================
+// Guarda la sesión y entra al panel que corresponda. Devuelve un texto si algo falla.
+async function finishLogin(data, user = "") {
+  const resolvedRole = data.role === "superuser" || data.role === "admin"
+    ? "superuser"
+    : data.role === "doctor"
+      ? "doctor"
+      : data.role === "tutor"
+        ? "tutor"
+        : data.paciente ? "tutor" : (data.superuser ? "superuser" : (data.doctor ? "doctor" : null));
+  if (!resolvedRole) return "Respuesta inválida del servidor.";
+
+  const snapshot = {
+    paciente:     data.paciente     || null,
+    tutor:        data.tutor        || null,
+    doctor:       data.doctor       || null,
+    superuser:    data.superuser    || null,
+    last_session: data.last_session || null,
+    plan:         data.plan         || null,
+    session:      data.session      || null,
+    control:      data.control      || null,
+    dispositivo:  data.dispositivo  || null,
+    chosenRole:   resolvedRole,
+  };
+
+  setToken(data.token);
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot)); } catch (_) {}
+  if (user && $("rememberMe")?.checked) {
+    try { localStorage.setItem(LOGIN_KEY, JSON.stringify({ usuario: user })); } catch (_) {}
+  }
+
+  closeAuthModal();
+  // Importado dinámicamente para evitar dependencia circular
+  const { enterFromSession } = await import("./main.js");
+  enterFromSession(snapshot);
+  return "";
+}
+
+// Código del superusuario (después de la contraseña) o del acceso técnico (QR).
+async function doSuperuserCode() {
+  const msg = $("codeMsg"); msg.textContent = "";
+  if (codeBuf.length !== CODE_LEN) { msg.textContent = "Ingresa los 6 dígitos."; return; }
+  setButtonBusy("verifyCodeBtn", true, "Verificando...");
+  try {
+    const { ok, data } = codeMode === "tecnico" ? await techAccess(codeBuf) : await superuserCode(superuserTicket, codeBuf);
+    codeBuf = ""; renderDots();
+    if (!ok) {
+      msg.textContent = data?.message || "Código incorrecto.";
+      if (data?.error === "paso_vencido") { showAuthView("loginView"); $("loginMsg").textContent = data.message; }
+      return;
+    }
+    stopTechWatch();
+    if (codeMode === "tecnico") history.replaceState(null, "", location.pathname);
+    superuserTicket = ""; codeMode = "doctor";
+    const error = await finishLogin(data);
+    if (error) msg.textContent = error;
+  } catch (_) {
+    msg.textContent = "No se pudo conectar al servidor";
+  } finally {
+    setButtonBusy("verifyCodeBtn", false);
+  }
+}
+
 export async function doLogin() {
   const user = ($("usuario")?.value    || "").trim();
   const pass = ($("contrasena")?.value || "").trim();
@@ -327,38 +443,9 @@ export async function doLogin() {
       msg.textContent = friendlyError(data, "Credenciales inválidas.");
       return;
     }
-    const resolvedRole = data.role === "superuser" || data.role === "admin"
-      ? "superuser"
-      : data.role === "doctor"
-        ? "doctor"
-        : data.role === "tutor"
-          ? "tutor"
-          : data.paciente ? "tutor" : (data.superuser ? "superuser" : (data.doctor ? "doctor" : null));
-    if (!resolvedRole) { msg.textContent = "Respuesta inválida del servidor."; return; }
-
-    const snapshot = {
-      paciente:     data.paciente     || null,
-      tutor:        data.tutor        || null,
-      doctor:       data.doctor       || null,
-      superuser:    data.superuser    || null,
-      last_session: data.last_session || null,
-      plan:         data.plan         || null,
-      session:      data.session      || null,
-      control:      data.control      || null,
-      dispositivo:  data.dispositivo  || null,
-      chosenRole:   resolvedRole,
-    };
-
-    setToken(data.token);
-    try { localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot)); } catch (_) {}
-    if ($("rememberMe")?.checked) {
-      try { localStorage.setItem(LOGIN_KEY, JSON.stringify({ usuario: user })); } catch (_) {}
-    }
-
-    closeAuthModal();
-    // Importado dinámicamente para evitar dependencia circular
-    const { enterFromSession } = await import("./main.js");
-    enterFromSession(snapshot);
+    if (data.step === "code") { superuserTicket = data.ticket; openCodeView("superuser"); return; }
+    const error = await finishLogin(data, user);
+    if (error) msg.textContent = error;
   } catch (_) {
     msg.textContent = "No se pudo conectar al servidor";
   } finally {
@@ -466,7 +553,12 @@ export function initAuth() {
   authBackdrop?.addEventListener("click", closeAuthModal);
   authCloseBtn?.addEventListener("click", closeAuthModal);
   window.addEventListener("keydown", e => {
-    if (e.key === "Escape" && authModal?.classList.contains("open")) closeAuthModal();
+    if (!authModal?.classList.contains("open")) return;
+    if (e.key === "Escape") return closeAuthModal();
+    if ($("doctorCodeView")?.style.display !== "block") return;
+    if (/^\d$/.test(e.key)) codeKey(e.key);
+    else if (e.key === "Backspace") codeKey("back");
+    else if (e.key === "Enter") $("verifyCodeBtn")?.click();
   });
 
   // Keypad del código
@@ -474,6 +566,7 @@ export function initAuth() {
     btn.addEventListener("click", () => codeKey(btn.dataset.k))
   );
   $("verifyCodeBtn")?.addEventListener("click", async () => {
+    if (codeMode !== "doctor") return doSuperuserCode();
     const ok = await doVerifyCode();
     if (ok) { codeBuf = ""; renderDots(); showAuthView("registerDoctorView"); setTimeout(() => $("docNombre")?.focus(), 60); }
   });
@@ -481,7 +574,12 @@ export function initAuth() {
   // Navegación entre vistas del modal
   $("showRegister")?.addEventListener("click",  () => showAuthView("registerChooserView"));
   $("backToLogin1")?.addEventListener("click",  () => showAuthView("loginView"));
-  $("backToChooser")?.addEventListener("click", () => showAuthView("registerChooserView"));
+  $("backToChooser")?.addEventListener("click", () => {
+    const mode = codeMode;
+    stopTechWatch(); codeMode = "doctor"; superuserTicket = "";
+    if (mode === "tecnico") { history.replaceState(null, "", location.pathname); return closeAuthModal(); }
+    showAuthView(mode === "superuser" ? "loginView" : "registerChooserView");
+  });
   $("backToChooser2")?.addEventListener("click",() => showAuthView("registerChooserView"));
   $("backToChooser3")?.addEventListener("click",() => showAuthView("registerChooserView"));
 
@@ -489,7 +587,7 @@ export function initAuth() {
     const role = $("regRole")?.value || "tutor";
     const cm = $("chooserMsg"); if (cm) cm.textContent = "";
     if (role === "doctor") {
-      showAuthView("doctorCodeView"); codeBuf = ""; renderDots();
+      openCodeView("doctor");
     } else {
       showAuthView("registerTutorView");
       await loadDoctorsIntoSelect();
