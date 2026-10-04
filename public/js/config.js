@@ -113,3 +113,31 @@ export function formatDoctorDisplayName(doctor = {}, fallback = "Dr(a). -") {
   const name = `${doctor?.nombre || doctor?.doctor_nombre || ""} ${doctor?.apellidos || doctor?.doctor_apellidos || ""}`.trim();
   return name ? `${formatDoctorTitle(doctor)} ${name}` : fallback;
 }
+
+// =========================================================
+// ETIQUETAS LEGIBLES
+// La base guarda códigos (distancia_alta, en_sesion, finished...).
+// humanLabel los convierte en texto para mostrar a personas.
+// =========================================================
+const HUMAN_LABELS = {
+  distancia_baja: "Distancia muy corta", distancia_alta: "Distancia muy larga", distancia_fuera_rango: "Distancia fuera de rango",
+  temperatura_baja: "Temperatura baja", temperatura_alta: "Temperatura alta",
+  sensor_ultrasonico: "Falla del sensor de distancia", sensor_temperatura: "Falla del sensor de temperatura", sensor_fallo: "Falla de sensor",
+  irradiancia_baja: "Luz insuficiente", esp_desconectado: "Lámpara desconectada", esp32_desconectado: "Lámpara desconectada",
+  sesion_interrumpida: "Sesión interrumpida", modo_no_autorizado: "Modo no autorizado", otro: "Otra alerta",
+  critical: "Crítica", warning: "Aviso", info: "Informativa",
+  ok: "Estable", observacion: "En observación", riesgo: "En riesgo", alta: "De alta",
+  active: "En curso", paused: "En pausa", finished: "Finalizada", cancelled: "Cancelada",
+  online: "Conectado", offline: "Sin conexión", en_sesion: "En sesión", fallo: "Con falla",
+  reposo: "Reposo", convencional: "Convencional", intensivo: "Intensivo", automatico: "Automático",
+  pending: "Pendiente", accepted: "Aceptada", rejected: "Rechazada",
+};
+
+export function humanLabel(value, fallback = "—") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  const key = raw.toLowerCase();
+  if (HUMAN_LABELS[key]) return HUMAN_LABELS[key];
+  const text = raw.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

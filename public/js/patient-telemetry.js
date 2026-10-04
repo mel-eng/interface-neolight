@@ -66,9 +66,9 @@ export function clearPatientSensorCards(reason = "Sin terapia activa") {
 }
 
 export function renderPatientCharts() {
-  drawLineChart("patientLedChart", [sensorSeries.light], ["#7c6be8"], 0, 100);
-  drawLineChart("patientDistanceChart", [sensorSeries.distance], ["#b9adff"], 0, 60);
-  drawLineChart("patientTempChart", [sensorSeries.baby, sensorSeries.ambient], ["#f7a8c8", "#7c6be8"], 25, 40);
+  drawLineChart("patientLedChart", [sensorSeries.light], ["#e3b23c"], 0, 100);
+  drawLineChart("patientDistanceChart", [sensorSeries.distance], ["#6f9db3"], 0, 60);
+  drawLineChart("patientTempChart", [sensorSeries.baby, sensorSeries.ambient], ["#e88f7c", "#7a57d1"], 25, 40);
 }
 
 function updatePatientPWM(value) {
@@ -121,9 +121,9 @@ function drawLineChart(id, seriesList, colors, minY, maxY) {
   const width = canvas.width;
   const height = canvas.height;
   context.clearRect(0, 0, width, height);
-  context.fillStyle = "#fbfaff";
+  context.fillStyle = "#fbf6f1";
   context.fillRect(0, 0, width, height);
-  context.strokeStyle = "rgba(124,107,232,.12)";
+  context.strokeStyle = "rgba(122,87,209,.12)";
   context.lineWidth = 1;
 
   for (let index = 1; index < 4; index += 1) {
@@ -136,12 +136,12 @@ function drawLineChart(id, seriesList, colors, minY, maxY) {
 
   seriesList.forEach((series, seriesIndex) => {
     if (!series.length) {
-      context.fillStyle = "#7b7b94";
+      context.fillStyle = "#6a6377";
       context.font = "12px Inter, sans-serif";
       context.fillText("Sin datos suficientes", 18, height / 2);
       return;
     }
-    context.strokeStyle = colors[seriesIndex] || "#7c6be8";
+    context.strokeStyle = colors[seriesIndex] || "#7a57d1";
     context.lineWidth = 3;
     context.beginPath();
     series.forEach((value, valueIndex) => {

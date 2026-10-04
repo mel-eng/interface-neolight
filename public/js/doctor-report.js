@@ -154,8 +154,8 @@ function renderPdfCharts(patients = [], sessions = [], alarms = []) {
     ])}
     ${pdfBarChart("Alertas recientes", [
       ["Críticas", alertCounts.criticas],
-      ["Warning", alertCounts.warning],
-      ["Silenciadas", alertCounts.silenciadas],
+      ["Avisos", alertCounts.warning],
+      ["Resueltas", alertCounts.silenciadas],
     ])}
   </div>`;
 }

@@ -1,0 +1,64 @@
+/* =========================================================
+   NEOLIGHT — TOKENS DE DISEÑO (paleta "Mezcla": pastel suave + cielo y coral)
+   Única fuente de colores y tipografía de toda la interfaz.
+   Para cambiar un color en todo el sistema se edita SOLO aquí.
+   Cada color tiene dos formas:
+     var(--nl-accent)                 color sólido
+     rgb(var(--nl-accent-rgb) / .2)   el mismo color con transparencia
+   ========================================================= */
+
+@font-face {
+  font-family:'Nunito';
+  font-style:normal; font-display:swap; font-weight:200 1000;
+  src:url("../../fonts/nunito-latin-wght-normal.woff2") format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family:'Nunito';
+  font-style:normal; font-display:swap; font-weight:200 1000;
+  src:url("../../fonts/nunito-latin-ext-wght-normal.woff2") format("woff2");
+  unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+:root {
+  --nl-bg-rgb:252 247 243; --nl-bg:#fcf7f3;
+  --nl-surface-rgb:255 255 255; --nl-surface:#ffffff;
+  --nl-surface-2-rgb:251 246 241; --nl-surface-2:#fbf6f1;
+  --nl-line-rgb:238 228 224; --nl-line:#eee4e0;
+  --nl-ink-rgb:34 27 46; --nl-ink:#221b2e;
+  --nl-text-rgb:61 53 80; --nl-text:#3d3550;
+  --nl-muted-rgb:106 99 119; --nl-muted:#6a6377;
+  --nl-faint-rgb:163 156 174; --nl-faint:#a39cae;
+  --nl-accent-rgb:122 87 209; --nl-accent:#7a57d1;
+  --nl-accent-dark-rgb:95 63 184; --nl-accent-dark:#5f3fb8;
+  --nl-accent-soft-rgb:239 233 252; --nl-accent-soft:#efe9fc;
+  --nl-lila-rgb:230 222 251; --nl-lila:#e6defb;
+  --nl-lila-ink-rgb:85 58 174; --nl-lila-ink:#553aae;
+  --nl-coral-rgb:248 198 187; --nl-coral:#f8c6bb;
+  --nl-coral-soft-rgb:253 236 231; --nl-coral-soft:#fdece7;
+  --nl-coral-strong-rgb:232 143 124; --nl-coral-strong:#e88f7c;
+  --nl-coral-ink-rgb:122 38 23; --nl-coral-ink:#7a2617;
+  --nl-sky-rgb:207 224 232; --nl-sky:#cfe0e8;
+  --nl-sky-soft-rgb:233 241 245; --nl-sky-soft:#e9f1f5;
+  --nl-sky-strong-rgb:111 157 179; --nl-sky-strong:#6f9db3;
+  --nl-sky-ink-rgb:39 73 90; --nl-sky-ink:#27495a;
+  --nl-sun-rgb:254 240 192; --nl-sun:#fef0c0;
+  --nl-sun-soft-rgb:255 248 222; --nl-sun-soft:#fff8de;
+  --nl-sun-strong-rgb:227 178 60; --nl-sun-strong:#e3b23c;
+  --nl-sun-ink-rgb:122 86 0; --nl-sun-ink:#7a5600;
+  --nl-cream-rgb:243 217 195; --nl-cream:#f3d9c3;
+  --nl-cream-soft-rgb:250 238 227; --nl-cream-soft:#faeee3;
+  --nl-cream-ink-rgb:91 58 27; --nl-cream-ink:#5b3a1b;
+  --nl-ok-rgb:21 128 61; --nl-ok:#15803d;
+  --nl-ok-soft-rgb:220 252 231; --nl-ok-soft:#dcfce7;
+  --nl-warn-rgb:180 86 13; --nl-warn:#b4560d;
+  --nl-warn-soft-rgb:255 237 213; --nl-warn-soft:#ffedd5;
+  --nl-danger-rgb:192 21 42; --nl-danger:#c0152a;
+  --nl-danger-soft-rgb:253 224 227; --nl-danger-soft:#fde0e3;
+
+  /* Tipografía: una sola familia para todo */
+  --nl-font:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --nl-radius:18px;
+  --nl-radius-sm:12px;
+  --nl-shadow:0 6px 18px rgb(var(--nl-accent-rgb) / .07);
+}

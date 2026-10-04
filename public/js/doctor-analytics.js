@@ -3,7 +3,7 @@
 // Gráficos, distribución clínica y alertas del panel médico.
 // =========================================================
 
-import { $, escapeHtml, normalizeMode } from "./config.js";
+import { $, escapeHtml, normalizeMode, humanLabel } from "./config.js";
 
 export function renderDoctorCharts(patients = [], _requests = [], alerts = {}) {
   renderPatientStateChart(patients);
@@ -25,7 +25,7 @@ export function renderDoctorAlerts(alarms = []) {
     return `<div class="doc-alert-row">
       <span class="doc-alert-dot ${cssClass}"></span>
       <div>
-        <div class="doc-alert-title">${escapeHtml(alarm.tipo || "Alerta")} · ${escapeHtml(alarm.patientCode || "—")}</div>
+        <div class="doc-alert-title">${escapeHtml(humanLabel(alarm.tipo, "Alerta"))} · ${escapeHtml(alarm.patientCode || "—")}</div>
         <div class="doc-alert-sub">${escapeHtml(alarm.patientName || "Paciente")} · ${formatDate(alarm.created_at)}</div>
       </div>
     </div>`;
@@ -45,10 +45,10 @@ function renderPatientStateChart(patients = []) {
   if (!total) return renderChartEmpty(box);
 
   const rows = [
-    ["OK", counts.ok, "#79b88f"],
-    ["Observación", counts.observacion, "#e6c86e"],
-    ["Riesgo", counts.riesgo, "#e1849c"],
-    ["Alta", counts.alta, "#8db9e8"],
+    ["OK", counts.ok, "#5fae84"],
+    ["Observación", counts.observacion, "#e3b23c"],
+    ["Riesgo", counts.riesgo, "#e88f7c"],
+    ["Alta", counts.alta, "#6f9db3"],
   ];
   let offset = 25;
   const circles = rows.map(([, value, color]) => {
@@ -84,10 +84,10 @@ function renderSessionModeChart(sessions = []) {
   if (!max) return renderChartEmpty(box);
 
   const rows = [
-    ["Reposo", counts.reposo, "#b9c6d4"],
-    ["Conv.", counts.convencional, "#99b8dd"],
-    ["Intens.", counts.intensivo, "#b09af8"],
-    ["Auto", counts.automatico, "#8dd4bd"],
+    ["Reposo", counts.reposo, "#cfc8dc"],
+    ["Conv.", counts.convencional, "#6f9db3"],
+    ["Intens.", counts.intensivo, "#7a57d1"],
+    ["Auto", counts.automatico, "#e3b23c"],
   ];
   box.innerHTML = `<div class="doc-bars">${rows.map(([label, value, color]) => `
     <div class="doc-bar-item">
@@ -116,8 +116,8 @@ function renderAlertChart(alarms = [], summary = null) {
 
   box.innerHTML = `<div class="doc-alert-chips">
     <span class="doc-alert-chip critical"><b>${counts.criticas}</b> Críticas</span>
-    <span class="doc-alert-chip warning"><b>${counts.warning}</b> Warning</span>
-    <span class="doc-alert-chip muted"><b>${counts.silenciadas}</b> Silenciadas</span>
+    <span class="doc-alert-chip warning"><b>${counts.warning}</b> Avisos</span>
+    <span class="doc-alert-chip muted"><b>${counts.silenciadas}</b> Resueltas</span>
   </div>`;
 }
 

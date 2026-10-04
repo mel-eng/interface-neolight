@@ -3,7 +3,7 @@
 // Historial de sesiones, eventos y alarmas del paciente.
 // =========================================================
 
-import { $ } from "./config.js";
+import { $, humanLabel } from "./config.js";
 import { fetchAlarms, fetchEvents, fetchSessions } from "./api.js";
 
 export async function loadRecentAlarms(patientId) {
@@ -55,7 +55,7 @@ function renderHistoryRows(sessions = [], events = []) {
     ...sessions.slice(0, 5).map(session => ({
       date: session.fecha || session.created_at,
       type: "Sesión",
-      detail: `${session.modo_programado || "-"} · ${secondsLabel(session.duracion_s)} · ${session.status || "-"}`,
+      detail: `${humanLabel(session.modo_programado, "-")} · ${secondsLabel(session.duracion_s)} · ${humanLabel(session.status, "-")}`,
     })),
     ...events.slice(0, 5).map(event => ({
       date: event.created_at,
@@ -109,11 +109,11 @@ function renderPatientAlarms(alarms = []) {
 
   const html = alarms.slice(0, 5).map(alarm => {
     const [level, severityLabel] = severityInfo(alarm.severidad);
-    const silenced = alarm.silenciada ? `<span class="ar-silenced">SILENCIADA</span>` : "";
+    const silenced = alarm.silenciada ? `<span class="ar-silenced">Resuelta</span>` : "";
     return `<div class="alert-row ${level}">
       <div class="ar-ico">${triangleIcon}</div>
       <div class="ar-body">
-        <div class="ar-title">${escapeText(alarm.tipo || "Alarma")}${silenced}</div>
+        <div class="ar-title">${escapeText(humanLabel(alarm.tipo, "Alarma"))}${silenced}</div>
         <div class="ar-desc">${escapeText(alarm.mensaje || alarm.valor_medido || "")}</div>
         <div class="ar-time">${clockIcon}${formatDate(alarm.created_at)}</div>
       </div>

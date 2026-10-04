@@ -106,8 +106,8 @@ export function setESPStatus(text, kind) {
   const tag = $("espStatus"); if (!tag) return;
   tag.textContent = text;
   tag.style.color =
-    kind === "ok"   ? "#4a7c3f" :
-    kind === "warn" ? "#b87a2a" : "#c4462a";
+    kind === "ok"   ? "#15803d" :
+    kind === "warn" ? "#b4560d" : "#c0152a";
 }
 
 export function updateHUD(data) {
@@ -246,21 +246,21 @@ export function initSocket() {
     ioSocket = io(API_URL, { transports: ["websocket"], reconnection: true });
 
     ioSocket.on("connect",    () => {
-      setESPStatus("Online", "ok");
+      setESPStatus("Esperando…", "warn");
       if (identifiedDoctorId) socketIdentifyDoctor(identifiedDoctorId);
       if (identifiedSuperuserId) socketIdentifySuperuser(identifiedSuperuserId);
       if (identifiedPatientId) ioSocket.emit("patient:identify", { id: identifiedPatientId });
       if (identifiedPatientId || identifiedTutorId) socketIdentifyTutor(identifiedTutorId, identifiedPatientId);
     });
     ioSocket.on("disconnect", () => {
-      setESPStatus("Offline", "err");
+      setESPStatus("Sin servidor", "err");
       updateHUD({});
       updateTemps({});
       updateStatusCard(null);
     });
 
     ioSocket.on("lamp:port", st => {
-      setESPStatus(st?.open ? "Online" : "Sin conexión", st?.open ? "ok" : "warn");
+      setESPStatus(st?.open ? "Conectada" : "Sin conexión", st?.open ? "ok" : "warn");
       if (!st?.open) { updateHUD({}); updateTemps({}); }
       dispatchRealtimeEvent("esp32-status", st || {});
     });
@@ -270,14 +270,14 @@ export function initSocket() {
       if (payload?.temp_bebe != null || payload?.temp_ambiente != null) updateTemps(payload || {});
       if (payload?.estado) updateStatusCard(payload || {});
       if (payload?.alarms_muted != null) updateMuteButtonFromState(!!payload.alarms_muted);
-      setESPStatus("Online", "ok");
+      setESPStatus(payload?.esp32_connected === false ? "Sin conexión" : "Conectada", payload?.esp32_connected === false ? "warn" : "ok");
       dispatchRealtimeEvent("telemetry", payload || {});
     });
 
     ioSocket.on("temps",  payload => { updateTemps(payload || {}); dispatchRealtimeEvent("temps", payload || {}); });
     ioSocket.on("status", payload => { updateStatusCard(payload); dispatchRealtimeEvent("status", payload || {}); });
     ioSocket.on("esp32:status", payload => {
-      setESPStatus(payload?.connected ? "Online" : "Sin conexion", payload?.connected ? "ok" : "warn");
+      setESPStatus(payload?.connected ? "Conectada" : "Sin conexión", payload?.connected ? "ok" : "warn");
       dispatchRealtimeEvent("esp32-status", payload || {});
     });
 

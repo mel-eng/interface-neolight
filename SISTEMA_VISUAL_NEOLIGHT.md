@@ -1,27 +1,45 @@
-# Sistema visual NeoLight
+# Sistema visual NEOLIGHT — paleta "Mezcla"
 
-## Dirección
-**NeoLight Pop Editorial Clinical Minimal** combina una base clínica clara con acentos pop discretos. La interfaz evita degradados decorativos y conserva mucho espacio en blanco.
+Pastel suave + cielo y coral. Pensada para pediatría: cálida y con color, pero con las alarmas siempre distinguibles.
 
-## Paleta
-- Lilac `#A86FBC`: acción principal e identidad.
-- Hot Pink `#EF71C3`: acentos y acciones secundarias destacadas.
-- Cotton Candy `#F9BED4`: notas y detalles suaves.
-- Sky Blue `#82C5DF`: información y tecnología.
-- Dusty Blue `#668899`: texto técnico secundario.
-- Lavender Blush `#FEE1F5`: selección y navegación activa.
-- Ivory `#FFF8EE`: fondo general.
-- Soft Cream `#F3DCC8`: cinta y detalles cálidos.
-- Pop Ink `#171217`: títulos y contraste.
+## Dónde se cambia cada cosa
 
-## Tipografías
-- Anton: títulos de impacto.
-- Manrope: interfaz, párrafos, botones y formularios.
-- IBM Plex Mono: códigos, fechas y lecturas técnicas.
+| Qué | Archivo |
+|---|---|
+| Colores y tipografía de todo el sistema | `public/css/modules/00-tokens.css` |
+| Aspecto final de portada, acceso y los tres paneles | `public/css/modules/90-neolight-mezcla.css` |
+| Tipografía (Nunito, alojada en el proyecto) | `public/fonts/` |
+| Textos legibles de códigos de la base | `humanLabel` en `public/js/config.js` |
 
-## Reglas
-- Colores sólidos en botones y tarjetas.
-- Tapes, corazones y estrellas solo como microdetalles.
-- Sin degradados decorativos en componentes.
-- Estados clínicos conservan colores semánticos propios.
-- La página pública mantiene el video `neolight-hero.mp4`.
+Los módulos `00` a `40` conservan la estructura (tamaños, rejillas, estados), pero ya no contienen colores sueltos: todos apuntan a los tokens.
+
+## Colores
+
+| Uso | Token | Color |
+|---|---|---|
+| Fondo de página | `--nl-bg` | `#fcf7f3` |
+| Texto principal | `--nl-ink` | `#221b2e` |
+| Botones y acentos | `--nl-accent` | `#7a57d1` |
+| Lila (pacientes, tiempo) | `--nl-lila` | `#e6defb` |
+| Coral (solicitudes, temperatura) | `--nl-coral` | `#f8c6bb` |
+| Cielo (distancia, terapia) | `--nl-sky` | `#cfe0e8` |
+| Amarillo (luz, alertas del día) | `--nl-sun` | `#fef0c0` |
+| Crema (temperatura ambiente) | `--nl-cream` | `#f3d9c3` |
+
+## Colores de estado (no decorativos)
+
+| Estado | Token | Color |
+|---|---|---|
+| Correcto | `--nl-ok` | `#15803d` |
+| Aviso | `--nl-warn` | `#b4560d` |
+| Crítico | `--nl-danger` | `#c0152a` |
+
+Regla: el rosa, el coral y el amarillo decorativos nunca se usan para indicar una alarma. Las alarmas usan solo los tres colores de estado.
+
+## Transparencias
+
+Cada color tiene una versión `-rgb` para usarlo con transparencia:
+
+```css
+background: rgb(var(--nl-accent-rgb) / .15);
+```

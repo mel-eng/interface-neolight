@@ -1,4 +1,4 @@
-import { $, escapeHtml, loadClientConfig, state } from "./config.js";
+import { $, escapeHtml, loadClientConfig, state, humanLabel } from "./config.js";
 import { registerDoctor } from "./api.js";
 import {
   fetchSuperuserOverview,
@@ -256,7 +256,7 @@ function alertPresentation(alert) {
     luz_baja:"Lectura lumínica baja",
   };
   const raw = String(alert?.tipo || alert?.type || "Alerta técnica");
-  return { kind, label:labels[raw] || raw.replaceAll("_", " ") };
+  return { kind, label:labels[raw] || humanLabel(raw) };
 }
 
 function renderAlerts() {

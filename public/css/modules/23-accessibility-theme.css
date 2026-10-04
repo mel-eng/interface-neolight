@@ -66,7 +66,7 @@
 
 #view-dashboard-patient .pt-tc-val {
   font-size: 2rem;                  /* era 1.35rem */
-  font-family: var(--font-mono);
+  font-family:var(--nl-font);
   letter-spacing: var(--monoTrack);
   line-height: 1;
 }
@@ -121,7 +121,7 @@
 
 #view-dashboard-doctor .doc-kpi-card:hover {
   transform: scale(1.02);
-  box-shadow: 0 8px 28px rgba(0,0,0,.10);
+  box-shadow: 0 8px 28px rgb(var(--nl-ink-rgb) / 0.1);
 }
 
 #view-dashboard-doctor .doc-kpi-num {
@@ -159,7 +159,7 @@
 
 .btn-primary {
   background: var(--hazy-blue);    /* ya estaba, pero evitar overrides transparentes */
-  color: #fff !important;           /* contraste forzado */
+  color: var(--nl-surface) !important;           /* contraste forzado */
   border-color: var(--hazy-blue);
 }
 
@@ -265,15 +265,15 @@ body {
 
 .btn-primary {
   background: var(--hazy-blue) !important;
-  color: #fff !important;
+  color: var(--nl-surface) !important;
   border-color: var(--hazy-blue) !important;
   box-shadow: none !important;
 }
 
 .btn-primary:hover {
-  background: #8aa0b0 !important;
-  border-color: #8aa0b0 !important;
-  color: #fff !important;
+  background: var(--nl-faint) !important;
+  border-color: var(--nl-faint) !important;
+  color: var(--nl-surface) !important;
 }
 
 /* ── DOCTOR DASHBOARD ─────────────────────────────────────── */
@@ -303,7 +303,7 @@ body {
 }
 
 #view-dashboard-doctor .dp-nav-logout:hover {
-  background: rgba(192,90,90,.12) !important;
+  background: rgb(var(--nl-coral-strong-rgb) / 0.12) !important;
   color: var(--danger) !important;
 }
 
@@ -340,7 +340,7 @@ body {
 
 #view-dashboard-doctor .dp-hero-meta span,
 #view-dashboard-doctor .dp-hero-status {
-  background: rgba(159,177,193,.18) !important;
+  background: rgb(var(--nl-faint-rgb) / 0.18) !important;
   color: var(--ink) !important;
 }
 
@@ -392,7 +392,7 @@ body {
 #view-dashboard-doctor .dp-btn-ficha {
   background: var(--delicate-blue) !important;
   color: var(--hazy-blue) !important;
-  border-color: rgba(159,177,193,.40) !important;
+  border-color: rgb(var(--nl-faint-rgb) / 0.4) !important;
 }
 
 #view-dashboard-doctor .dp-btn-ficha:hover {
@@ -443,7 +443,7 @@ body {
 
 #view-dashboard-patient .pt-metric-widget {
   background: var(--warm-white) !important;
-  border: 1px solid rgba(200,216,207,.45) !important;
+  border: 1px solid rgb(var(--nl-ok-soft-rgb) / 0.45) !important;
   border-left: 3px solid var(--hazy-blue) !important;
 }
 
@@ -451,12 +451,12 @@ body {
 
 #view-dashboard-patient .pt-timer-card {
   background: var(--warm-white) !important;
-  border: 1px solid rgba(200,216,207,.45) !important;
+  border: 1px solid rgb(var(--nl-ok-soft-rgb) / 0.45) !important;
 }
 
 #view-dashboard-patient .pt-alert-card {
   background: var(--warm-white) !important;
-  border: 1px solid rgba(200,216,207,.45) !important;
+  border: 1px solid rgb(var(--nl-ok-soft-rgb) / 0.45) !important;
 }
 
 /* FIX CARDS: sensor cards anteriores → warm-white */
@@ -466,7 +466,7 @@ body {
 #view-dashboard-patient .patient-sensor-card:nth-child(3),
 #view-dashboard-patient .patient-sensor-card:nth-child(4) {
   background: var(--warm-white) !important;
-  border: 1px solid rgba(200,216,207,.38) !important;
+  border: 1px solid rgb(var(--nl-ok-soft-rgb) / 0.38) !important;
 }
 
 /* FIX GRADIENTE: chart card donut → warm-white */
@@ -495,7 +495,7 @@ body {
 
 #view-dashboard-patient .pt-wlbl  { font-size: .70rem;  letter-spacing: .12em; text-transform: uppercase; }
 
-#view-dashboard-patient .pt-tc-val { font-size: 2rem;   font-family: var(--font-mono); letter-spacing: var(--monoTrack); }
+#view-dashboard-patient .pt-tc-val { font-size: 2rem;   font-family:var(--nl-font); letter-spacing: var(--monoTrack); }
 
 #view-dashboard-doctor  .doc-kpi-num { font-size: 2.2rem; font-weight: 900; }
 
@@ -559,7 +559,7 @@ body {
 
 #view-dashboard-doctor .doc-kpi-card:hover {
   transform: scale(1.02) !important;
-  box-shadow: 0 8px 28px rgba(0,0,0,.08) !important;
+  box-shadow: 0 8px 28px rgb(var(--nl-ink-rgb) / 0.08) !important;
 }
 
 /* FIX STATUS CARD */
@@ -602,13 +602,13 @@ body {
 /* NEOLIGHT pastel bugfix accents */
 
 :root {
-  --neo-purple: #7c6be8;
-  --neo-lavender: #ded8ff;
-  --neo-soft-purple: #b9adff;
-  --neo-pink: #f7a8c8;
-  --neo-sky: #dff3ff;
-  --neo-mint: #c8edd6;
-  --neo-ink: #2d2a45;
+  --neo-purple: var(--nl-accent);
+  --neo-lavender: var(--nl-lila);
+  --neo-soft-purple: var(--nl-lila);
+  --neo-pink: var(--nl-coral);
+  --neo-sky: var(--nl-sky);
+  --neo-mint: var(--nl-ok-soft);
+  --neo-ink: var(--nl-text);
 }
 
 .select-wrapper::after {
@@ -620,19 +620,19 @@ body {
 .input,
 .select {
   color: var(--neo-ink) !important;
-  border-color: rgba(124,107,232,.24) !important;
-  background: linear-gradient(180deg, #fff, #fbfaff) !important;
+  border-color: rgb(var(--nl-accent-rgb) / 0.24) !important;
+  background: linear-gradient(180deg, var(--nl-surface), var(--nl-surface)) !important;
 }
 
 .input:focus,
 .select:focus {
   border-color: var(--neo-purple) !important;
-  box-shadow: 0 0 0 3px rgba(222,216,255,.75) !important;
+  box-shadow: 0 0 0 3px rgb(var(--nl-lila-rgb) / 0.75) !important;
 }
 
 .modal-panel {
-  border: 1px solid rgba(185,173,255,.38) !important;
-  box-shadow: 0 22px 60px rgba(124,107,232,.18) !important;
+  border: 1px solid rgb(var(--nl-lila-rgb) / 0.38) !important;
+  box-shadow: 0 22px 60px rgb(var(--nl-accent-rgb) / 0.18) !important;
 }
 
 .btn-primary,
@@ -640,17 +640,17 @@ body {
 #view-dashboard-doctor .dp-req-accept {
   background: linear-gradient(135deg, var(--neo-purple), var(--neo-soft-purple)) !important;
   border-color: transparent !important;
-  color: #fff !important;
+  color: var(--nl-surface) !important;
 }
 
 #view-dashboard-patient .patient-sidebar {
-  background: linear-gradient(180deg, #fbfaff 0%, var(--neo-lavender) 100%) !important;
-  border-right: 1px solid rgba(185,173,255,.42) !important;
+  background: linear-gradient(180deg, var(--nl-surface) 0%, var(--neo-lavender) 100%) !important;
+  border-right: 1px solid rgb(var(--nl-lila-rgb) / 0.42) !important;
 }
 
 #view-dashboard-patient .patient-nav-item.active,
 #view-dashboard-patient .patient-nav-item:hover {
-  background: rgba(222,216,255,.78) !important;
+  background: rgb(var(--nl-lila-rgb) / 0.78) !important;
   color: var(--neo-ink) !important;
 }
 
@@ -659,21 +659,21 @@ body {
 #view-dashboard-doctor .doc-kpi-card,
 #view-dashboard-doctor .dp-panel,
 #view-dashboard-doctor .doctor-rail-card {
-  border-color: rgba(185,173,255,.38) !important;
-  box-shadow: 0 10px 30px rgba(124,107,232,.08) !important;
+  border-color: rgb(var(--nl-lila-rgb) / 0.38) !important;
+  box-shadow: 0 10px 30px rgb(var(--nl-accent-rgb) / 0.08) !important;
 }
 
-#view-dashboard-patient .patient-sensor-card:nth-child(1) { background: linear-gradient(135deg, #fff, var(--neo-sky)) !important; }
+#view-dashboard-patient .patient-sensor-card:nth-child(1) { background: linear-gradient(135deg, var(--nl-surface), var(--neo-sky)) !important; }
 
-#view-dashboard-patient .patient-sensor-card:nth-child(2) { background: linear-gradient(135deg, #fff, var(--neo-lavender)) !important; }
+#view-dashboard-patient .patient-sensor-card:nth-child(2) { background: linear-gradient(135deg, var(--nl-surface), var(--neo-lavender)) !important; }
 
-#view-dashboard-patient .patient-sensor-card:nth-child(3) { background: linear-gradient(135deg, #fff, #ffe3ef) !important; }
+#view-dashboard-patient .patient-sensor-card:nth-child(3) { background: linear-gradient(135deg, var(--nl-surface), var(--nl-coral)) !important; }
 
-#view-dashboard-patient .patient-sensor-card:nth-child(4) { background: linear-gradient(135deg, #fff, var(--neo-mint)) !important; }
+#view-dashboard-patient .patient-sensor-card:nth-child(4) { background: linear-gradient(135deg, var(--nl-surface), var(--neo-mint)) !important; }
 
 .control-overlay {
-  background: rgba(222,216,255,.82) !important;
-  border: 1px solid rgba(185,173,255,.55) !important;
+  background: rgb(var(--nl-lila-rgb) / 0.82) !important;
+  border: 1px solid rgb(var(--nl-lila-rgb) / 0.55) !important;
 }
 
 .control-overlay strong {
@@ -682,8 +682,8 @@ body {
 
 .control-overlay-action,
 .manual-ctrl-btn {
-  border: 1px solid rgba(124,107,232,.28);
-  background: #fff;
+  border: 1px solid rgb(var(--nl-accent-rgb) / 0.28);
+  background: var(--nl-surface);
   color: var(--neo-purple);
   border-radius: 12px;
   padding: .62rem .9rem;
@@ -695,7 +695,7 @@ body {
 .control-overlay-action:hover,
 .manual-ctrl-btn:hover:not(:disabled) {
   background: var(--neo-lavender);
-  box-shadow: 0 8px 18px rgba(124,107,232,.18);
+  box-shadow: 0 8px 18px rgb(var(--nl-accent-rgb) / 0.18);
   transform: translateY(-1px);
 }
 
@@ -718,9 +718,9 @@ body {
 }
 
 .manual-ctrl-btn.stop {
-  background: #fff1f7;
-  color: #b84f7a;
-  border-color: rgba(247,168,200,.55);
+  background: var(--nl-coral-soft);
+  color: var(--nl-danger);
+  border-color: rgb(var(--nl-coral-rgb) / 0.55);
 }
 
 #view-dashboard-doctor .doctor-premium-sidebar {
@@ -743,7 +743,7 @@ body {
   align-items: baseline;
   gap: .5rem;
   padding: .52rem 0;
-  border-bottom: 1px solid rgba(124,107,232,.08);
+  border-bottom: 1px solid rgb(var(--nl-accent-rgb) / 0.08);
   font-size: .82rem;
 }
 
@@ -753,13 +753,13 @@ body {
 
 #view-dashboard-patient .patient-profile-card b {
   font-weight: 600;
-  color: var(--pt-text, #2d2a45);
+  color: var(--pt-text, var(--nl-text));
   flex-shrink: 0;
 }
 
 #view-dashboard-patient .patient-profile-card em {
   font-style: normal;
-  color: var(--pt-muted, #7b7b94);
+  color: var(--pt-muted, var(--nl-muted));
   text-align: right;
   font-size: .80rem;
 }
@@ -794,11 +794,11 @@ body {
   height: 8px !important;
   border-radius: 6px;
   margin: .6rem 0 .45rem;
-  background: rgba(124,107,232,.15);
+  background: rgb(var(--nl-accent-rgb) / 0.15);
 }
 
 #view-dashboard-patient .pt-tc-bar > span {
-  background: linear-gradient(90deg, var(--pt-purple, #7c6be8), #b9adff);
+  background: linear-gradient(90deg, var(--pt-purple, var(--nl-accent)), var(--nl-lila));
   border-radius: 6px;
   min-width: 3px;
 }

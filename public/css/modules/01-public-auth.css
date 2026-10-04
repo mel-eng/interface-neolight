@@ -6,45 +6,45 @@
    Scoped polish layer: keeps existing HTML, IDs and bindings.
    ========================================================= */
 :root {
-  --soft-white:#f7f9fb;
-  --cream:#eef3f6;
-  --warm-white:#ffffff;
-  --sandy:#d8e1e7;
-  --seafoam:#dbe9e6;
-  --sage:#a9c5bd;
-  --gossamer:#cde2dd;
-  --hazy-blue:#668aa0;
-  --delicate-blue:#d7e7ef;
-  --periwinkle:#d7dde8;
-  --dusty-rose:#e9c7c7;
-  --baby-pink:#f3dddd;
-  --pastel-yellow:#f2e6b8;
-  --muted-plum:#9a8f9b;
-  --ink:#1f2933;
-  --muted-ink:rgba(31,41,51,.64);
-  --line:rgba(31,41,51,.10);
-  --ok:#3f7f62;
-  --warn:#a07423;
-  --danger:#b84f55;
-  --accent:#668aa0;
-  --accent2:#dbe9e6;
+  --soft-white:var(--nl-surface);
+  --cream:var(--nl-surface-2);
+  --warm-white:var(--nl-surface);
+  --sandy:var(--nl-sky);
+  --seafoam:var(--nl-ok-soft);
+  --sage:var(--nl-faint);
+  --gossamer:var(--nl-ok-soft);
+  --hazy-blue:var(--nl-muted);
+  --delicate-blue:var(--nl-sky);
+  --periwinkle:var(--nl-sky);
+  --dusty-rose:var(--nl-coral);
+  --baby-pink:var(--nl-coral);
+  --pastel-yellow:var(--nl-sun);
+  --muted-plum:var(--nl-muted);
+  --ink:var(--nl-ink);
+  --muted-ink:rgb(var(--nl-ink-rgb) / 0.64);
+  --line:rgb(var(--nl-ink-rgb) / 0.1);
+  --ok:var(--nl-ok);
+  --warn:var(--nl-warn);
+  --danger:var(--nl-danger);
+  --accent:var(--nl-muted);
+  --accent2:var(--nl-ok-soft);
   --radius:12px;
   --radius2:8px;
-  --shadow:0 10px 30px rgba(31,41,51,.07), 0 1px 3px rgba(31,41,51,.05);
-  --shadow2:0 4px 16px rgba(31,41,51,.055);
-  --shadow3:0 18px 46px rgba(31,41,51,.10), 0 2px 8px rgba(31,41,51,.06);
-  --focus:0 0 0 3px rgba(102,138,160,.24);
+  --shadow:0 10px 30px rgb(var(--nl-ink-rgb) / 0.07), 0 1px 3px rgb(var(--nl-ink-rgb) / 0.05);
+  --shadow2:0 4px 16px rgb(var(--nl-ink-rgb) / 0.055);
+  --shadow3:0 18px 46px rgb(var(--nl-ink-rgb) / 0.1), 0 2px 8px rgb(var(--nl-ink-rgb) / 0.06);
+  --focus:0 0 0 3px rgb(var(--nl-muted-rgb) / 0.24);
 }
 body {
   background:
-    linear-gradient(180deg, rgba(255,255,255,.84), rgba(247,249,251,.96)),
-    radial-gradient(ellipse at 12% 0%, rgba(215,231,239,.42) 0%, transparent 44%),
-    radial-gradient(ellipse at 100% 100%, rgba(219,233,230,.38) 0%, transparent 48%),
+    linear-gradient(180deg, rgb(var(--nl-surface-rgb) / 0.84), rgb(var(--nl-surface-rgb) / 0.96)),
+    radial-gradient(ellipse at 12% 0%, rgb(var(--nl-sky-rgb) / 0.42) 0%, transparent 44%),
+    radial-gradient(ellipse at 100% 100%, rgb(var(--nl-ok-soft-rgb) / 0.38) 0%, transparent 48%),
     var(--soft-white);
 }
 .topbar {
-  background:rgba(255,255,255,.90);
-  border-bottom:1px solid rgba(102,138,160,.16);
+  background:rgb(var(--nl-surface-rgb) / 0.9);
+  border-bottom:1px solid rgb(var(--nl-muted-rgb) / 0.16);
 }
 .brand-mini .name,
 .dashboard-title,
@@ -83,18 +83,18 @@ body {
   box-shadow:none;
 }
 .btn-primary {
-  background:#557f98;
-  border-color:#557f98;
-  color:#fff;
+  background:var(--nl-sky-strong);
+  border-color:var(--nl-sky-strong);
+  color:var(--nl-surface);
 }
 .btn-primary:hover {
-  background:#466f86;
-  border-color:#466f86;
+  background:var(--nl-sky-ink);
+  border-color:var(--nl-sky-ink);
 }
 .btn-secondary,
 .btn-nav {
-  background:rgba(255,255,255,.76);
-  border-color:rgba(102,138,160,.24);
+  background:rgb(var(--nl-surface-rgb) / 0.76);
+  border-color:rgb(var(--nl-muted-rgb) / 0.24);
 }
 .card,
 .metric-card,
@@ -103,13 +103,13 @@ body {
 .story-card,
 .modal-panel,
 .hero-visual {
-  border-color:rgba(102,138,160,.16);
+  border-color:rgb(var(--nl-muted-rgb) / 0.16);
 }
 .card,
 .metric-card,
 .status-card,
 .kpi {
-  background:rgba(255,255,255,.94);
+  background:rgb(var(--nl-surface-rgb) / 0.94);
 }
 .card:hover,
 .metric-card:hover,
@@ -121,7 +121,7 @@ body {
 .metric-label,
 .kpi .k,
 .input-group label {
-  color:rgba(31,41,51,.58);
+  color:rgb(var(--nl-ink-rgb) / 0.58);
   letter-spacing:.10em;
 }
 .input-group {
@@ -129,23 +129,23 @@ body {
 }
 .input,
 .select {
-  background:#fbfdfe;
-  border-color:rgba(102,138,160,.22);
+  background:var(--nl-surface);
+  border-color:rgb(var(--nl-muted-rgb) / 0.22);
   padding:12px 14px;
 }
 .input:hover,
 .select:hover {
-  border-color:rgba(102,138,160,.42);
+  border-color:rgb(var(--nl-muted-rgb) / 0.42);
 }
 .input:focus,
 .select:focus,
 .dash-search:focus-within {
-  border-color:#668aa0;
+  border-color:var(--nl-muted);
   box-shadow:var(--focus);
 }
 .hint-box {
-  background:rgba(215,231,239,.24);
-  border:1px solid rgba(102,138,160,.18);
+  background:rgb(var(--nl-sky-rgb) / 0.24);
+  border:1px solid rgb(var(--nl-muted-rgb) / 0.18);
 }
 .error,
 .feedback-msg.danger {
@@ -160,11 +160,11 @@ body {
 .feedback-msg {
   padding:.7rem .8rem;
   border-radius:var(--radius2);
-  background:rgba(215,231,239,.22);
-  border:1px solid rgba(102,138,160,.14);
+  background:rgb(var(--nl-sky-rgb) / 0.22);
+  border:1px solid rgb(var(--nl-muted-rgb) / 0.14);
 }
 .item {
-  border-color:rgba(102,138,160,.14);
+  border-color:rgb(var(--nl-muted-rgb) / 0.14);
 }
 .item .s {
   line-height:1.45;
@@ -174,37 +174,37 @@ body {
   justify-content:flex-end;
 }
 .btn-accept {
-  background:#cde2dd;
-  border-color:#bdd7d0;
-  color:#23463d;
+  background:var(--nl-ok-soft);
+  border-color:var(--nl-ok-soft);
+  color:var(--nl-ink);
 }
 .btn-accept:hover {
-  background:#bdd7d0;
-  border-color:#abcac1;
+  background:var(--nl-ok-soft);
+  border-color:var(--nl-faint);
 }
 .btn-reject:hover {
-  background:rgba(233,199,199,.36);
+  background:rgb(var(--nl-coral-rgb) / 0.36);
 }
 .status-card.state-ok,
 .badge.ok {
-  background:rgba(63,127,98,.10);
-  border-color:rgba(63,127,98,.20);
+  background:rgb(var(--nl-ok-rgb) / 0.1);
+  border-color:rgb(var(--nl-ok-rgb) / 0.2);
 }
 .status-card.state-warn,
 .badge.warn {
-  background:rgba(160,116,35,.11);
-  border-color:rgba(160,116,35,.20);
+  background:rgb(var(--nl-warn-rgb) / 0.11);
+  border-color:rgb(var(--nl-warn-rgb) / 0.2);
 }
 .status-card.state-danger,
 .badge.bad {
-  background:rgba(184,79,85,.10);
-  border-color:rgba(184,79,85,.20);
+  background:rgb(var(--nl-danger-rgb) / 0.1);
+  border-color:rgb(var(--nl-danger-rgb) / 0.2);
 }
 .control-overlay {
-  background:rgba(255,255,255,.86);
+  background:rgb(var(--nl-surface-rgb) / 0.86);
 }
 .esp-status {
-  border-color:rgba(102,138,160,.18);
+  border-color:rgb(var(--nl-muted-rgb) / 0.18);
 }
 /* =========================================================
    CLINICAL CONSOLE EXTENSIONS
@@ -231,25 +231,25 @@ body {
   width:100%;
   height:10px;
   border-radius:999px;
-  background:rgba(102,138,160,.13);
+  background:rgb(var(--nl-muted-rgb) / 0.13);
   overflow:hidden;
   margin-top:14px;
-  border:1px solid rgba(102,138,160,.12);
+  border:1px solid rgb(var(--nl-muted-rgb) / 0.12);
 }
 .progress-track span {
   display:block;
   height:100%;
   width:0;
   border-radius:999px;
-  background:linear-gradient(90deg,#6f98ad,#8fc2bd);
+  background:linear-gradient(90deg,var(--nl-sky-strong),var(--nl-sky-strong));
   transition:width .28s ease;
 }
 .table-wrap {
   width:100%;
   overflow:auto;
-  border:1px solid rgba(102,138,160,.14);
+  border:1px solid rgb(var(--nl-muted-rgb) / 0.14);
   border-radius:var(--radius2);
-  background:#fff;
+  background:var(--nl-surface);
 }
 .clinical-table {
   width:100%;
@@ -261,7 +261,7 @@ body {
 .clinical-table td {
   padding:10px 12px;
   text-align:left;
-  border-bottom:1px solid rgba(102,138,160,.10);
+  border-bottom:1px solid rgb(var(--nl-muted-rgb) / 0.1);
   vertical-align:top;
   white-space:nowrap;
 }
@@ -270,8 +270,8 @@ body {
   font-size:.66rem;
   letter-spacing:.10em;
   text-transform:uppercase;
-  color:rgba(31,41,51,.58);
-  background:#f7fafc;
+  color:rgb(var(--nl-ink-rgb) / 0.58);
+  background:var(--nl-surface);
 }
 .clinical-table tr:last-child td {
   border-bottom:none;
@@ -290,8 +290,8 @@ body {
 }
 .clinical-layout > section,
 .clinical-layout > aside {
-  background:#fff;
-  border:1px solid rgba(102,138,160,.14);
+  background:var(--nl-surface);
+  border:1px solid rgb(var(--nl-muted-rgb) / 0.14);
   border-radius:var(--radius);
   padding:18px;
   box-shadow:var(--shadow2);
@@ -306,7 +306,7 @@ body {
   font-weight:800;
   letter-spacing:.12em;
   text-transform:uppercase;
-  color:rgba(31,41,51,.62);
+  color:rgb(var(--nl-ink-rgb) / 0.62);
   margin-bottom:10px;
 }
 .panel-title.spaced {

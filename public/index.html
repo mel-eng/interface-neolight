@@ -4,10 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NEOLIGHT - Fototerapia</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./css/styles.css">
+  <link rel="preload" href="./fonts/nunito-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 </head>
 <body>
   <!-- ======================================================
@@ -18,7 +16,7 @@
       <img src="./img/logo.png" alt="NEOLIGHT" />
       <div class="t">
         <div class="name">NEOLIGHT</div>
-        <div class="sub">Neonatal phototherapy system</div>
+        <div class="sub">Fototerapia neonatal</div>
       </div>
     </div>
     <nav class="nav-links" aria-label="Navegación principal" id="publicNav">
@@ -39,26 +37,18 @@
     <div class="page">
       <div class="hero">
         <div class="hero-left">
-          <div class="hero-kicker">NeoLight System <span aria-hidden="true">♡</span></div>
-          <h1 class="hero-title">Sistema de<br><span>Fototerapia</span><br>Automatizado</h1>
+          <div class="hero-kicker">NEOLIGHT · UNIVALLE</div>
+          <h1 class="hero-title">Sistema de <span>fototerapia</span> automatizado</h1>
           <p class="hero-sub">Control, monitoreo y trazabilidad en tiempo real para fototerapia neonatal.</p>
           <div class="hero-cta">
             <button class="btn btn-primary" id="heroLoginBtn" type="button">Iniciar sesión</button>
             <button class="btn btn-outline-pop" id="heroRegisterBtn" type="button">Registrarse</button>
           </div>
-          <div class="hero-note" aria-hidden="true">
-            <span class="hero-note-tape"></span>
-            <span>Tecnología que cuida lo más importante.</span>
-            <b>♡</b>
-          </div>
         </div>
         <div class="hero-visual">
-          <span class="hero-tape" aria-hidden="true"></span>
           <video autoplay muted loop playsinline aria-label="Demostración del sistema NeoLight">
             <source src="./img/neolight-hero.mp4" type="video/mp4">
           </video>
-          <span class="hero-play" aria-hidden="true">▶</span>
-          <span class="hero-doodle hero-doodle-star" aria-hidden="true">✦</span>
         </div>
       </div>
       <footer class="landing-footer">
@@ -127,6 +117,10 @@
   <main id="view-dashboard-patient" class="view" aria-label="Dashboard Paciente">
     <section class="patient-shell patient-shell-pediatric">
       <aside class="patient-sidebar pt-pediatric-sidebar" aria-label="Navegación del paciente">
+        <div class="nl-brand">
+          <img src="./img/logo.png" alt="" />
+          <div><b>NEOLIGHT</b><small>Panel familiar</small></div>
+        </div>
         <div class="pt-sidebar-bell">
           <button class="pt-bell-btn" data-section-target="alarmas" title="Ver alertas" aria-label="Ver alertas activas">
             <svg class="pt-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -437,10 +431,7 @@
           <div class="patient-card">
             <div class="alarm-actions-row">
               <button class="btn btn-primary btn-full" id="muteAlarmsBtn">Silenciar alarmas (5 min)</button>
-              <button class="btn btn-full fan-toggle-btn" id="fanToggleBtn" data-state="off">Ventilador OFF</button>
-              <button class="btn btn-full fan-auto-btn" id="fanAutoBtn">Auto</button>
             </div>
-            <div class="fan-status-line" id="fanStatusText">Ventilador: sin datos</div>
             <div class="list compact-list" id="patientAlarmsList">
               <div class="alert-row warn"><div class="ar-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="ar-body"><div class="ar-title">Temperatura ambiente elevada</div><div class="ar-desc">Se registró 26.2°C · Verificar climatización</div><div class="ar-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14" stroke-linecap="round" stroke-linejoin="round"/></svg>2026-06-04 09:15</div></div><span class="ar-sev">ADVERTENCIA</span></div><div class="alert-row info"><div class="ar-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="ar-body"><div class="ar-title">Cambio de modo programado</div><div class="ar-desc">Transición a modo reposo en 30 minutos</div><div class="ar-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14" stroke-linecap="round" stroke-linejoin="round"/></svg>2026-06-04 08:45</div></div><span class="ar-sev">INFO</span></div><div class="alert-row crit"><div class="ar-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="ar-body"><div class="ar-title">Distancia fuera de rango<span class="ar-silenced">SILENCIADA</span></div><div class="ar-desc">Distancia detectada: 52cm · Rango ideal: 25-40cm</div><div class="ar-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14" stroke-linecap="round" stroke-linejoin="round"/></svg>2026-06-04 07:30</div></div><span class="ar-sev">CRÍTICA</span></div>
             </div>
@@ -481,9 +472,9 @@
         <!-- Conexión -->
         <div class="patient-connection-card">
           <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M1.5 8.5a15 15 0 0 1 21 0"/><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>Conexión</h3>
-          <span><b><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="15" height="5" rx="1.5"/><rect x="2.5" y="11" width="15" height="5" rx="1.5"/><circle cx="6" cy="6.5" r=".8" fill="currentColor" stroke="none"/><circle cx="6" cy="13.5" r=".8" fill="currentColor" stroke="none"/></svg>ESP32 maestro</b><em id="patientMasterStatus">Sin datos</em></span>
-          <span><b><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="10" height="10" rx="2"/><path d="M8 2.5v2M12 2.5v2M8 15.5v2M12 15.5v2M2.5 8h2M2.5 12h2M15.5 8h2M15.5 12h2"/></svg>ESP32 esclavo</b><em id="patientSlaveStatus">Sin datos</em></span>
-          <span><b><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 7.5a9 9 0 0 1 14 0"/><path d="M6 11a5 5 0 0 1 8 0"/><circle cx="10" cy="14" r="1.1" fill="currentColor" stroke="none"/></svg>Socket.IO</b><em id="patientSocketStatus">Conectando</em></span>
+          <span><b><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="15" height="5" rx="1.5"/><rect x="2.5" y="11" width="15" height="5" rx="1.5"/><circle cx="6" cy="6.5" r=".8" fill="currentColor" stroke="none"/><circle cx="6" cy="13.5" r=".8" fill="currentColor" stroke="none"/></svg>Lámpara</b><em id="patientMasterStatus">Sin datos</em></span>
+          <span><b><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="10" height="10" rx="2"/><path d="M8 2.5v2M12 2.5v2M8 15.5v2M12 15.5v2M2.5 8h2M2.5 12h2M15.5 8h2M15.5 12h2"/></svg>Actuadores</b><em id="patientSlaveStatus">Sin datos</em></span>
+          <span><b><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 7.5a9 9 0 0 1 14 0"/><path d="M6 11a5 5 0 0 1 8 0"/><circle cx="10" cy="14" r="1.1" fill="currentColor" stroke="none"/></svg>Servidor</b><em id="patientSocketStatus">Conectando</em></span>
         </div>
 
         <!-- IDs ocultos requeridos por JS -->
@@ -509,8 +500,9 @@
 
       <aside class="doctor-premium-sidebar">
 
-        <div class="dp-logo-wrap">
-          <img src="./img/logo.png" alt="NL" class="dp-logo-img" />
+        <div class="dp-logo-wrap nl-brand">
+          <img src="./img/logo.png" alt="" class="dp-logo-img" />
+          <div><b>NEOLIGHT</b><small>Panel médico</small></div>
         </div>
 
         <nav class="dp-nav">
@@ -558,7 +550,7 @@
       <div class="doctor-premium-main">
 
         <!-- Header -->
-        <header class="doctor-premium-header">
+        <header class="doctor-premium-header nl-band">
           <div class="dp-hero-copy">
             <span class="dp-hero-kicker">NEOLIGHT Clinical Console</span>
             <h2 id="dashHelloDoctor">Hola, Dr(a). —</h2>
@@ -566,7 +558,7 @@
             <div class="dp-hero-meta">
               <span>Paciente seleccionado: <b id="doctorSelectedPatient">Sin selección</b></span>
               <span>Modo actual: <b id="doctorCurrentMode">Sin datos</b></span>
-              <span class="dp-hero-status">Sistema conectado</span>
+              <span class="dp-hero-status is-off" id="doctorLampStatus">Lámpara sin conexión</span>
             </div>
           </div>
           <div class="dp-hdr-right">
@@ -583,25 +575,25 @@
           <div class="doc-overview-row">
 
             <div class="doc-kpi-card">
-              <span class="doc-kpi-icon">P</span>
+              <span class="doc-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></svg></span>
               <div class="doc-kpi-num" id="kpiPatients">—</div>
               <div class="doc-kpi-lbl">Pacientes asignados</div>
             </div>
 
             <div class="doc-kpi-card">
-              <span class="doc-kpi-icon">S</span>
+              <span class="doc-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg></span>
               <div class="doc-kpi-num" id="kpiRequests">—</div>
               <div class="doc-kpi-lbl">Solicitudes pendientes</div>
             </div>
 
             <div class="doc-kpi-card">
-              <span class="doc-kpi-icon alert">A</span>
+              <span class="doc-kpi-icon alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg></span>
               <div class="doc-kpi-num doc-kpi-alert" id="kpiAlerts">—</div>
               <div class="doc-kpi-lbl">Alertas hoy</div>
             </div>
 
             <div class="doc-kpi-card">
-              <span class="doc-kpi-icon session">T</span>
+              <span class="doc-kpi-icon session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></span>
               <div class="doc-kpi-num doc-kpi-session" id="kpiActiveSessions">—</div>
               <div class="doc-kpi-lbl">Sesiones activas</div>
             </div>
@@ -778,14 +770,13 @@
         </div>
 
         <div class="doctor-rail-card">
-          <div class="doctor-rail-title">Estado sistema</div>
+          <div class="doctor-rail-title">Equipo</div>
           <div class="doctor-status-list" id="doctorSystemStatus">
-            <span><b>MySQL</b><em>Sin datos</em></span>
-            <span><b>Socket.IO</b><em>Sin datos</em></span>
-            <span><b>ESP32 maestro</b><em>No configurado</em></span>
-            <span><b>ESP32 esclavo</b><em>No configurado</em></span>
-            <span><b>LEDs</b><em>Sin datos</em></span>
-            <span><b>Actuadores</b><em>Sin datos</em></span>
+            <span><b>Lámpara</b><em class="is-bad">Sin conexión</em></span>
+            <span><b>Modo</b><em>—</em></span>
+            <span><b>Distancia</b><em>—</em></span>
+            <span><b>Intensidad LED</b><em>—</em></span>
+            <span><b>Temp. ambiente</b><em>—</em></span>
           </div>
         </div>
 

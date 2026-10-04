@@ -4,7 +4,7 @@
 // conexion ESP32, alarmas, exportacion y control de modo.
 // =========================================================
 
-import { $, state, STORAGE_KEY, normalizeMode, formatEdad, formatDoctorDisplayName, API_URL } from "./config.js";
+import { $, state, STORAGE_KEY, normalizeMode, formatEdad, formatDoctorDisplayName, API_URL, humanLabel } from "./config.js";
 import { fetchControl, fetchCurrentTutorState, tutorRequestMode, exportExcel } from "./api.js";
 import {
   socketEmitMute,
@@ -383,7 +383,7 @@ function renderPatientProfileRail(paciente, tutor, doctor) {
   setText("patientProfileAge", paciente?.dias_nacido != null ? formatEdad(paciente.dias_nacido) : "-");
   setText("patientTutorName", tutorName);
   setText("patientDoctorName", doctorName);
-  setText("patientClinicalState", paciente?.estado_clinico || paciente?.diagnostico || "-");
+  setText("patientClinicalState", humanLabel(paciente?.estado_clinico || paciente?.diagnostico, "-"));
 }
 
 function renderClinicalData(paciente, tutor, dispositivo, control) {
@@ -396,7 +396,7 @@ function renderClinicalData(paciente, tutor, dispositivo, control) {
   setText("pacienteGestacional", paciente?.edad_gestacional_sem != null ? `${Number(paciente.edad_gestacional_sem).toFixed(1)} sem` : "-");
   const sangre = [paciente?.grupo_sanguineo, paciente?.factor_rh].filter(Boolean).join(" ");
   setText("pacienteSangre", sangre || "-");
-  setText("pacienteDispositivo", dispositivo?.estado || (dispositivo?.esp_online ? "online" : "offline"));
+  setText("pacienteDispositivo", humanLabel(dispositivo?.estado || (dispositivo?.esp_online ? "online" : "offline")));
   setText("pacientePermiso", controlLabel(control));
 }
 
@@ -541,26 +541,27 @@ function bindSocketStatusUI() {
   if (!socket || _socketUiRef === socket) return;
 
   _socketUiRef = socket;
+  // Si el socket ya estaba conectado al enlazar, el evento "connect" no vuelve a dispararse.
+  if (socket.connected) setText("patientSocketStatus", "Conectado");
 
   socket.on("connect", () => {
-    setESP32State({ connected: true, label: "ESP32 online", kind: "ok" });
+    setESP32State({ connected: true, label: "Esperando…", kind: "warn" });
     setText("patientSocketStatus", "Conectado");
-    setText("patientMasterStatus", "Online");
   });
 
   socket.on("disconnect", () => {
-    setESP32State({ connected: false, portOpen: false, label: "ESP32 offline", kind: "err" });
-    setText("patientSocketStatus", "Desconectado");
-    setText("patientMasterStatus", "Offline");
+    setESP32State({ connected: false, portOpen: false, label: "Sin servidor", kind: "err" });
+    setText("patientSocketStatus", "Sin conexión");
+    setText("patientMasterStatus", "Sin conexión");
   });
 
   socket.on("lamp:port", st => {
     setESP32State({
       portOpen: !!st?.open,
-      label: st?.open ? "ESP32 conectado" : "ESP32 sin puerto",
+      label: st?.open ? "Conectada" : "Sin conexión",
       kind: st?.open ? "ok" : "warn",
     });
-    setText("patientMasterStatus", st?.open ? "Online" : "Offline");
+    setText("patientMasterStatus", st?.open ? "Conectada" : "Sin conexión");
     if (!st?.open) clearPatientSensorCards("ESP desconectado");
   });
 
@@ -577,8 +578,8 @@ function bindSocketStatusUI() {
       if (data?.temp_bebe != null || data?.temp_ambiente != null) updateTemps(data);
     }
     if (data?.estado) updateStatusCard(data);
-    setESP32State({ connected: true, portOpen: true, label: "ESP32 transmitiendo", kind: "ok" });
-    setText("patientMasterStatus", "Online");
+    setESP32State({ connected: true, portOpen: true, label: "Conectada", kind: "ok" });
+    setText("patientMasterStatus", "Conectada");
   });
 
   socket.on("temps", payload => {
@@ -589,7 +590,7 @@ function bindSocketStatusUI() {
     }
     updateTemps(data);
     applyPatientTelemetry(data);
-    setESP32State({ connected: true, label: "ESP32 transmitiendo", kind: "ok" });
+    setESP32State({ connected: true, label: "Conectada", kind: "ok" });
   });
 
   socket.on("status", payload => {
@@ -597,7 +598,7 @@ function bindSocketStatusUI() {
     if (payload?.esp32_connected == null) return;
     setESP32State({
       connected: !!payload.esp32_connected,
-      label: payload.esp32_connected ? "ESP32 online" : "ESP32 offline",
+      label: payload.esp32_connected ? "Conectada" : "Sin conexión",
       kind: payload.esp32_connected ? "ok" : "err",
     });
   });
@@ -607,8 +608,8 @@ function refreshESP32Status() {
   const socket = getSocket();
   setESP32State({
     connected: !!socket?.connected,
-    label: socket?.connected ? "ESP32 online" : "Conectando ESP32...",
-    kind: socket?.connected ? "ok" : "warn",
+    label: socket?.connected ? (dashboardState.esp32?.portOpen ? "Conectada" : "Esperando…") : "Conectando…",
+    kind: socket?.connected && dashboardState.esp32?.portOpen ? "ok" : "warn",
   });
 }
 
@@ -629,8 +630,8 @@ function renderESP32Status() {
   status.textContent = label;
   status.dataset.status = kind;
   status.style.color =
-    kind === "ok" ? "#4a7c3f" :
-    kind === "warn" ? "#b87a2a" : "#c4462a";
+    kind === "ok" ? "#15803d" :
+    kind === "warn" ? "#b4560d" : "#c0152a";
   status.title = kind === "ok"
     ? "Conexion activa con el ESP32"
     : kind === "warn"
