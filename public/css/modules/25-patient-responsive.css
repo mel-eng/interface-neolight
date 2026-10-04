@@ -1,0 +1,658 @@
+/* NEOLIGHT | Tablas, responsive y refinamientos finales
+   Archivo generado al modularizar styles.css sin alterar el orden de cascada. */
+
+#view-dashboard-patient .patient-profile-card b,
+#view-dashboard-patient .patient-connection-card b,
+#view-dashboard-patient .patient-mini-card b {
+  color: #5f5a77;
+  font-size: .80rem;
+  font-weight: 900;
+}
+
+#view-dashboard-patient .patient-profile-card em,
+#view-dashboard-patient .patient-connection-card em,
+#view-dashboard-patient .patient-mini-card em {
+  text-align: right;
+  color: var(--pt-ink);
+  font-style: normal;
+  font-weight: 800;
+  font-size: .80rem;
+}
+
+#view-dashboard-patient .patient-connection-card h3,
+#view-dashboard-patient .patient-mini-card h3 {
+  margin: 0 0 14px;
+  color: var(--pt-ink);
+  font-size: 1.1rem;
+}
+
+/* Secciones internas */
+
+#view-dashboard-patient .pt-section-hdr {
+  padding: 10px 0 20px;
+}
+
+#view-dashboard-patient .pt-section-hdr h2 {
+  margin: 0;
+  color: var(--pt-ink);
+  font-size: clamp(1.55rem, 2vw, 2.2rem);
+  letter-spacing: -.04em;
+}
+
+#view-dashboard-patient .pt-section-hdr p {
+  margin: 6px 0 0;
+  color: var(--pt-muted);
+  font-weight: 800;
+}
+
+#view-dashboard-patient .patient-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(340px, .9fr);
+  gap: 24px;
+  align-items: start;
+}
+
+#view-dashboard-patient .patient-card {
+  background: var(--pt-card);
+  border: 1px solid rgba(140,111,247,.14);
+  border-radius: 28px;
+  box-shadow: var(--pt-shadow-soft);
+  padding: 24px;
+}
+
+#view-dashboard-patient .patient-card h3 {
+  margin: 0 0 14px;
+  color: var(--pt-ink);
+  font-size: 1.15rem;
+}
+
+#view-dashboard-patient .patient-mode-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+  color: var(--pt-muted);
+  font-weight: 800;
+}
+
+#view-dashboard-patient .badge {
+  background: var(--pt-purple-soft);
+  color: var(--pt-purple-dark);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-weight: 900;
+}
+
+#view-dashboard-patient .patient-mode-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+#view-dashboard-patient .patient-mode-actions .btn,
+#view-dashboard-patient .manual-ctrl-btn {
+  border-radius: 14px;
+  border: 1px solid rgba(140,111,247,.18);
+  background: #fff;
+  color: var(--pt-purple-dark);
+  min-height: 52px;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(140,111,247,.06);
+}
+
+#view-dashboard-patient .patient-mode-actions .btn.active,
+#view-dashboard-patient .patient-mode-actions .btn.btn-primary {
+  background: linear-gradient(135deg, var(--pt-purple), #a88cff);
+  color: #fff;
+}
+
+#view-dashboard-patient .patient-manual-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+
+#view-dashboard-patient .manual-ctrl-btn[data-manual-move="up"],
+#view-dashboard-patient .manual-ctrl-btn[data-manual-move="down"] {
+  grid-column: 1 / -1;
+}
+
+#view-dashboard-patient .manual-ctrl-btn.stop {
+  background: #fff0f5;
+  color: #d83d6b;
+  border-color: rgba(216,61,107,.20);
+}
+
+#view-dashboard-patient .data-row {
+  padding: 13px 0;
+  border-bottom: 1px solid rgba(140,111,247,.10);
+}
+
+#view-dashboard-patient .data-label {
+  color: #746d90;
+  font-weight: 800;
+}
+
+#view-dashboard-patient .data-value {
+  color: var(--pt-ink);
+  font-weight: 900;
+}
+
+/* Tablas */
+
+#view-dashboard-patient .table-wrap {
+  border: 1px solid rgba(140,111,247,.13);
+  border-radius: 20px;
+  overflow: hidden;
+  background: #fff;
+}
+
+#view-dashboard-patient .clinical-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .95rem;
+}
+
+#view-dashboard-patient .clinical-table th {
+  background: #f6f1ff;
+  color: #81799f;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: .72rem;
+  padding: 14px 16px;
+}
+
+#view-dashboard-patient .clinical-table td {
+  padding: 15px 16px;
+  border-bottom: 1px solid rgba(140,111,247,.10);
+  color: #514b72;
+  font-weight: 700;
+}
+
+#view-dashboard-patient .clinical-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Botones reporte */
+
+#view-dashboard-patient #downloadPatientPdfBtn,
+#view-dashboard-patient #exportBtn {
+  min-height: 58px;
+  border-radius: 18px;
+  font-size: .92rem;
+  letter-spacing: .10em;
+}
+
+#view-dashboard-patient #downloadPatientPdfBtn {
+  background: linear-gradient(135deg, var(--pt-purple), #a88cff);
+  box-shadow: 0 12px 28px rgba(140,111,247,.24);
+}
+
+#view-dashboard-patient #exportBtn {
+  background: #fff;
+  color: var(--pt-ink);
+}
+
+/* Overlay bloqueo */
+
+#view-dashboard-patient .control-overlay {
+  background: rgba(255,255,255,.80);
+  backdrop-filter: blur(8px);
+  border-radius: inherit;
+}
+
+#view-dashboard-patient .control-overlay strong {
+  color: var(--pt-purple-dark);
+}
+
+/* Responsive, porque el mundo insiste en tener pantallas distintas */
+
+@media (max-width: 1320px) {
+  #view-dashboard-patient .patient-shell {
+    grid-template-columns: 108px minmax(0, 1fr);
+  }
+
+  #view-dashboard-patient .patient-right-rail {
+    position: relative;
+    top: auto;
+    grid-column: 2;
+    height: auto;
+    max-height: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  #view-dashboard-patient .pt-tabs-nav {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1080px) {
+  #view-dashboard-patient .patient-top-grid,
+  #view-dashboard-patient .patient-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  #view-dashboard-patient .patient-hero-card,
+  #view-dashboard-patient .pt-hero-video,
+  #view-dashboard-patient .pt-camera-video {
+    min-height: 460px;
+  }
+}
+
+@media (max-width: 780px) {
+  #view-dashboard-patient .patient-shell {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  #view-dashboard-patient .patient-sidebar {
+    position: sticky;
+    top: calc(var(--navH, 68px) + 8px);
+    width: 100%;
+    height: auto;
+    min-height: 84px;
+    border-radius: 26px;
+    flex-direction: row;
+    padding: 10px;
+    overflow-x: auto;
+  }
+
+  #view-dashboard-patient .patient-sidebar::before,
+  #view-dashboard-patient .patient-sidebar::after {
+    display: none;
+  }
+
+  #view-dashboard-patient .pt-sidebar-bell {
+    margin: 0;
+    width: auto;
+  }
+
+  #view-dashboard-patient .pt-bell-btn {
+    width: 74px;
+    height: 64px;
+  }
+
+  #view-dashboard-patient .patient-nav {
+    flex-direction: row;
+    width: auto;
+    flex: 1;
+    overflow-x: auto;
+  }
+
+  #view-dashboard-patient .patient-nav-item {
+    min-width: 74px;
+    min-height: 64px;
+  }
+
+  #view-dashboard-patient .pt-sidebar-foot {
+    width: auto;
+    flex-direction: row;
+    padding-bottom: 0;
+  }
+
+  #view-dashboard-patient .pt-esp-status {
+    display: none;
+  }
+
+  #view-dashboard-patient .patient-right-rail {
+    grid-column: 1;
+    display: block;
+  }
+
+  #view-dashboard-patient .pt-side-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #view-dashboard-patient .patient-hero-card,
+  #view-dashboard-patient .pt-hero-video,
+  #view-dashboard-patient .pt-camera-video {
+    min-height: 380px;
+  }
+
+  #view-dashboard-patient .pt-tc-val {
+    font-size: 2.05rem;
+  }
+}
+
+@media (max-width: 520px) {
+  #view-dashboard-patient .patient-shell {
+    padding: 10px;
+  }
+
+  #view-dashboard-patient .patient-mode-actions,
+  #view-dashboard-patient .patient-manual-controls {
+    grid-template-columns: 1fr;
+  }
+
+  #view-dashboard-patient .manual-ctrl-btn[data-manual-move="up"],
+  #view-dashboard-patient .manual-ctrl-btn[data-manual-move="down"] {
+    grid-column: auto;
+  }
+
+  #view-dashboard-patient .pt-hero-tags {
+    gap: 6px;
+  }
+
+  #view-dashboard-patient .pt-hero-tags span {
+    font-size: .68rem;
+    padding: 7px 9px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PATIENT DASHBOARD — CLEANUP & REFINEMENTS v3.3
+   Elimina decorativos, uniformiza tarjetas, mejora rail y hero
+══════════════════════════════════════════════════════════════ */
+
+/* ── Rail header (reemplaza tabs) ── */
+
+#view-dashboard-patient .pt-rail-header {
+  padding: 0 4px 18px;
+  margin-bottom: 4px;
+  border-bottom: 2px solid rgba(140,111,247,.10);
+}
+
+#view-dashboard-patient .pt-rail-label {
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--pt-purple-dark, #3d3475);
+}
+
+/* ── Quitar tabs nav si aún existe ── */
+
+#view-dashboard-patient .pt-tabs-nav {
+  display: none !important;
+}
+
+/* ── Sidebar: ocultar brand-mini decorativa ── */
+
+#view-dashboard-patient .pt-sidebar-brand-mini {
+  display: none !important;
+}
+
+/* ── Sidebar bell: reposicionar al tope con más limpieza ── */
+
+#view-dashboard-patient .pt-sidebar-bell {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: .25rem 0 .15rem;
+}
+
+/* ── Sidebar: logo superior más limpio ── */
+
+#view-dashboard-patient .patient-sidebar {
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 8px 32px rgba(124,107,232,.10), 0 0 0 1px rgba(140,111,247,.09);
+  border: none;
+}
+
+/* ── Hero video: fix object-fit para que no se vea mal ── */
+
+#view-dashboard-patient .patient-hero-card .pt-hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+  min-height: unset;
+  background: transparent;
+}
+
+/* ── Hero card: fondo limpio mientras carga el video ── */
+
+#view-dashboard-patient .patient-hero-card {
+  background: transparent !important;
+}
+
+/* ── 4 métricas: altura uniforme ── */
+
+#view-dashboard-patient .pt-metric-widget {
+  min-height: 140px;
+  align-items: flex-start;
+  padding: 18px;
+}
+
+#view-dashboard-patient .pt-side-metric-grid {
+  gap: 14px;
+}
+
+/* ── Gradientes sutiles de las métricas (sin decorativos) ── */
+
+#view-dashboard-patient .pt-metric-widget:nth-child(1) {
+  background: linear-gradient(140deg, #fdfcff 0%, #f4f0ff 100%);
+  border-color: rgba(140,111,247,.16);
+}
+
+#view-dashboard-patient .pt-metric-widget:nth-child(2) {
+  background: linear-gradient(140deg, #fcfdff 0%, #ecf5ff 100%);
+  border-color: rgba(111,164,247,.16);
+}
+
+#view-dashboard-patient .pt-metric-widget:nth-child(3) {
+  background: linear-gradient(140deg, #fffcfd 0%, #fff0f5 100%);
+  border-color: rgba(247,111,150,.16);
+}
+
+#view-dashboard-patient .pt-metric-widget:nth-child(4) {
+  background: linear-gradient(140deg, #fffdf8 0%, #fff8e8 100%);
+  border-color: rgba(220,160,60,.16);
+}
+
+/* ── Alert card: fondo limpio ── */
+
+#view-dashboard-patient .pt-alert-card {
+  background: linear-gradient(135deg, #fff 0%, #fff9fc 100%);
+}
+
+/* ── Timer: quitar radial decorativo del fondo ── */
+
+#view-dashboard-patient .pt-timer-card {
+  background: var(--pt-card, #fff);
+  border: 1px solid rgba(140,111,247,.14);
+}
+
+/* ── Botones Exportar / PDF en la sección inicio ── */
+
+#view-dashboard-patient .pt-export-row {
+  display: flex;
+  gap: 12px;
+}
+
+#view-dashboard-patient .pt-export-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 12px;
+  border-radius: 18px;
+  border: 1.5px solid rgba(140,111,247,.22);
+  background: rgba(255,255,255,.9);
+  color: var(--pt-purple-dark, #3d3475);
+  font-size: .80rem;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(140,111,247,.08);
+  transition: background .18s, box-shadow .18s, border-color .18s;
+}
+
+#view-dashboard-patient .pt-export-btn:hover {
+  background: #f0eaff;
+  border-color: rgba(140,111,247,.38);
+  box-shadow: 0 8px 22px rgba(140,111,247,.14);
+}
+
+#view-dashboard-patient .pt-export-btn.pt-export-pdf {
+  border-color: rgba(230,83,123,.22);
+  color: #b83060;
+}
+
+#view-dashboard-patient .pt-export-btn.pt-export-pdf:hover {
+  background: #fff0f5;
+  border-color: rgba(230,83,123,.38);
+  box-shadow: 0 8px 22px rgba(230,83,123,.12);
+}
+
+/* ── Profile card: sección limpia sin decorativos ── */
+
+#view-dashboard-patient .patient-profile-card {
+  padding-top: 22px;
+}
+
+/* =========================================================
+   NEOLIGHT realtime notification toasts
+   Solicitudes tipo "pim" sin refresh
+   ========================================================= */
+
+.neolight-toast-stack {
+  position: fixed;
+  right: 22px;
+  top: 22px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.neolight-toast {
+  min-width: 260px;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 13px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(139, 124, 214, .22);
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 18px 45px rgba(81, 70, 140, .18);
+  color: #493d72;
+  font: 600 14px/1.35 "Segoe UI", system-ui, sans-serif;
+  opacity: 0;
+  transform: translateY(-8px) scale(.98);
+  transition: opacity .22s ease, transform .22s ease;
+  backdrop-filter: blur(14px);
+}
+
+.neolight-toast.show { opacity: 1; transform: translateY(0) scale(1); }
+
+.neolight-toast--ok { border-color: rgba(95, 174, 138, .35); }
+
+.neolight-toast--warn { border-color: rgba(214, 158, 85, .38); }
+
+.neolight-toast--info,
+.neolight-toast--status { border-color: rgba(139, 124, 214, .32); }
+
+@media (max-width: 640px) {
+  .neolight-toast-stack { left: 16px; right: 16px; top: 16px; }
+  .neolight-toast { width: 100%; min-width: 0; }
+}
+
+/* ============================================================
+   NEOLIGHT FIX PACK 2026-06-11
+   Pantalla completa + cámara/hero estable
+   ============================================================ */
+
+#view-dashboard-patient.view.active {
+  min-height: calc(100vh - 74px);
+  overflow-x: hidden;
+}
+
+#view-dashboard-patient .patient-shell {
+  width: min(100%, 1720px) !important;
+  margin: 0 auto !important;
+  min-height: calc(100vh - 74px) !important;
+}
+
+#view-dashboard-patient .patient-main {
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+#view-dashboard-patient .patient-section[data-section="inicio"].active {
+  width: 100% !important;
+}
+
+#view-dashboard-patient .patient-top-grid {
+  grid-template-columns: minmax(360px, 520px) minmax(520px, 1fr) !important;
+  gap: clamp(18px, 1.4vw, 28px) !important;
+  max-width: 1280px !important;
+}
+
+#view-dashboard-patient .patient-hero-card {
+  aspect-ratio: 1 / 1 !important;
+  min-height: 360px !important;
+  max-height: 520px !important;
+  height: auto !important;
+}
+
+#view-dashboard-patient .pt-hero-video,
+#view-dashboard-patient .pt-camera-video,
+#view-dashboard-patient .patient-hero-card .pt-hero-video,
+#view-dashboard-patient .patient-hero-card .pt-camera-video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+}
+
+#view-dashboard-patient .pt-camera-video {
+  display: none;
+}
+
+#view-dashboard-patient .pt-cam-btn[aria-pressed="true"] {
+  background: rgba(136, 92, 246, .92) !important;
+  color: #fff !important;
+}
+
+#view-dashboard-patient .pt-cam-btn[aria-pressed="true"] .pt-cam-thumb {
+  transform: translateX(17px);
+}
+
+#view-dashboard-patient .pt-side-metric-grid {
+  grid-template-columns: repeat(2, minmax(230px, 1fr)) !important;
+}
+
+#view-dashboard-patient .pt-metric-widget,
+#view-dashboard-patient .pt-alert-card,
+#view-dashboard-patient .pt-export-row {
+  min-width: 0 !important;
+}
+
+#view-dashboard-patient .patient-profile-rail {
+  min-width: 280px !important;
+  max-width: 340px !important;
+}
+
+@media (min-width: 1500px) {
+  #view-dashboard-patient .patient-top-grid {
+    max-width: 1320px !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  #view-dashboard-patient .patient-top-grid {
+    grid-template-columns: 1fr !important;
+    max-width: 760px !important;
+  }
+  #view-dashboard-patient .pt-side-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 720px) {
+  #view-dashboard-patient .pt-side-metric-grid {
+    grid-template-columns: 1fr !important;
+  }
+  #view-dashboard-patient .patient-hero-card {
+    min-height: 300px !important;
+  }
+}

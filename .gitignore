@@ -1,0 +1,21 @@
+# Dependencias instalables
+node_modules/
+
+# Credenciales y configuración local
+.env
+.env.*
+!.env.example
+
+# Reportes generados
+reportes/
+*.log
+
+# Archivos temporales y respaldos
+*.bak
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/

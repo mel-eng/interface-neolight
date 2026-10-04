@@ -4,14 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NEOLIGHT - Fototerapia</title>
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
-
   <!-- ======================================================
        TOPBAR / NAV
   ====================================================== -->
@@ -23,19 +21,17 @@
         <div class="sub">Neonatal phototherapy system</div>
       </div>
     </div>
-
     <nav class="nav-links" aria-label="Navegación principal" id="publicNav">
       <button type="button" data-nav="home"     id="navHome">Inicio</button>
       <button type="button" data-nav="login"    id="navLogin">Iniciar sesión</button>
       <button type="button" data-nav="historia" id="navHistoria">Historia</button>
       <button type="button" data-nav="contacto" id="navContacto">Contacto</button>
     </nav>
-
     <div class="top-actions">
+      <button id="topLoginBtn" class="btn-nav btn-nav-primary" type="button">Iniciar sesión</button>
       <button id="logoutBtn" class="btn-nav" style="display:none;">Cerrar sesión</button>
     </div>
   </header>
-
   <!-- ======================================================
        HOME
   ====================================================== -->
@@ -43,21 +39,34 @@
     <div class="page">
       <div class="hero">
         <div class="hero-left">
-          <h1 class="hero-title">Sistema de<br>Fototerapia<br>Automatizado</h1>
+          <div class="hero-kicker">NeoLight System <span aria-hidden="true">♡</span></div>
+          <h1 class="hero-title">Sistema de<br><span>Fototerapia</span><br>Automatizado</h1>
           <p class="hero-sub">Control, monitoreo y trazabilidad en tiempo real para fototerapia neonatal.</p>
           <div class="hero-cta">
             <button class="btn btn-primary" id="heroLoginBtn" type="button">Iniciar sesión</button>
+            <button class="btn btn-outline-pop" id="heroRegisterBtn" type="button">Registrarse</button>
+          </div>
+          <div class="hero-note" aria-hidden="true">
+            <span class="hero-note-tape"></span>
+            <span>Tecnología que cuida lo más importante.</span>
+            <b>♡</b>
           </div>
         </div>
         <div class="hero-visual">
-          <video autoplay muted loop playsinline>
+          <span class="hero-tape" aria-hidden="true"></span>
+          <video autoplay muted loop playsinline aria-label="Demostración del sistema NeoLight">
             <source src="./img/neolight-hero.mp4" type="video/mp4">
           </video>
+          <span class="hero-play" aria-hidden="true">▶</span>
+          <span class="hero-doodle hero-doodle-star" aria-hidden="true">✦</span>
         </div>
       </div>
+      <footer class="landing-footer">
+        <span>© 2026 NeoLight System · UNIVALLE Santa Cruz</span>
+        <span class="landing-footer-mark" aria-hidden="true">✦</span>
+      </footer>
     </div>
   </main>
-
   <!-- ======================================================
        HISTORIA
   ====================================================== -->
@@ -78,7 +87,6 @@
       </div>
     </div>
   </main>
-
   <!-- ======================================================
        CONTACTO
   ====================================================== -->
@@ -113,14 +121,11 @@
       </div>
     </div>
   </main>
-
   <!-- ======================================================
        DASHBOARD PACIENTE / TUTOR — PREMIUM SAAS v2
   ====================================================== -->
   <main id="view-dashboard-patient" class="view" aria-label="Dashboard Paciente">
     <section class="patient-shell patient-shell-pediatric">
-
-      <!-- ═══ SIDEBAR PEDIÁTRICA ════════════════════════════════ -->
       <aside class="patient-sidebar pt-pediatric-sidebar" aria-label="Navegación del paciente">
         <div class="pt-sidebar-bell">
           <button class="pt-bell-btn" data-section-target="alarmas" title="Ver alertas" aria-label="Ver alertas activas">
@@ -131,7 +136,6 @@
             <span class="pt-bell-badge" id="ptBellBadge"></span>
           </button>
         </div>
-
         <nav class="patient-nav" aria-label="Secciones del panel del paciente">
           <button class="patient-nav-item active" data-section-target="inicio" title="Inicio" type="button">
             <svg class="pt-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -187,9 +191,7 @@
         </div>
       </aside>
 
-      <!-- ═══ MAIN CONTENT ════════════════════════════════════════ -->
       <div class="patient-main">
-        <!-- ── INICIO ──────────────────────────────────────────── -->
         <section class="patient-section active" data-section="inicio">
 
           <!-- TOP GRID: hero (izquierda) + columna derecha alertas+métricas+timer -->
@@ -340,7 +342,6 @@
           </div>
         </section>
 
-        <!-- ── SOLICITUDES ──────────────────────────────────────── -->
         <section class="patient-section" data-section="solicitudes">
           <div class="pt-section-hdr">
             <h2>Modo de terapia</h2>
@@ -415,7 +416,6 @@
           </div>
         </section>
 
-        <!-- ── HISTORIAL ────────────────────────────────────────── -->
         <section class="patient-section" data-section="historial">
           <div class="pt-section-hdr">
             <h2>Historial de sesiones</h2>
@@ -430,20 +430,23 @@
           </div>
         </section>
 
-        <!-- ── ALARMAS ──────────────────────────────────────────── -->
         <section class="patient-section" data-section="alarmas">
           <div class="pt-section-hdr">
             <h2>Historial de alarmas</h2>
           </div>
           <div class="patient-card">
-            <button class="btn btn-primary btn-full" id="muteAlarmsBtn">Silenciar alarmas (5 min)</button>
+            <div class="alarm-actions-row">
+              <button class="btn btn-primary btn-full" id="muteAlarmsBtn">Silenciar alarmas (5 min)</button>
+              <button class="btn btn-full fan-toggle-btn" id="fanToggleBtn" data-state="off">Ventilador OFF</button>
+              <button class="btn btn-full fan-auto-btn" id="fanAutoBtn">Auto</button>
+            </div>
+            <div class="fan-status-line" id="fanStatusText">Ventilador: sin datos</div>
             <div class="list compact-list" id="patientAlarmsList">
               <div class="alert-row warn"><div class="ar-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="ar-body"><div class="ar-title">Temperatura ambiente elevada</div><div class="ar-desc">Se registró 26.2°C · Verificar climatización</div><div class="ar-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14" stroke-linecap="round" stroke-linejoin="round"/></svg>2026-06-04 09:15</div></div><span class="ar-sev">ADVERTENCIA</span></div><div class="alert-row info"><div class="ar-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="ar-body"><div class="ar-title">Cambio de modo programado</div><div class="ar-desc">Transición a modo reposo en 30 minutos</div><div class="ar-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14" stroke-linecap="round" stroke-linejoin="round"/></svg>2026-06-04 08:45</div></div><span class="ar-sev">INFO</span></div><div class="alert-row crit"><div class="ar-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="ar-body"><div class="ar-title">Distancia fuera de rango<span class="ar-silenced">SILENCIADA</span></div><div class="ar-desc">Distancia detectada: 52cm · Rango ideal: 25-40cm</div><div class="ar-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14" stroke-linecap="round" stroke-linejoin="round"/></svg>2026-06-04 07:30</div></div><span class="ar-sev">CRÍTICA</span></div>
             </div>
           </div>
         </section>
 
-        <!-- ── AYUDA ────────────────────────────────────────────── -->
         <section class="patient-section" data-section="ayuda">
           <div class="pt-section-hdr">
             <h2>Reporte y ayuda</h2>
@@ -456,7 +459,6 @@
         </section>
       </div>
 
-      <!-- ═══ PANEL DERECHO — PACIENTE ════════════════════════════ -->
       <aside class="patient-right-rail pt-right-panel">
 
         <!-- Encabezado del rail -->
@@ -505,7 +507,6 @@
   <main id="view-dashboard-doctor" class="view" aria-label="Dashboard Doctor">
     <section class="doctor-premium-shell">
 
-      <!-- ═══ SIDEBAR ══════════════════════════════════════════ -->
       <aside class="doctor-premium-sidebar">
 
         <div class="dp-logo-wrap">
@@ -554,7 +555,6 @@
         </div>
       </aside>
 
-      <!-- ═══ MAIN CONTENT ══════════════════════════════════════ -->
       <div class="doctor-premium-main">
 
         <!-- Header -->
@@ -808,6 +808,13 @@
 
     </section>
     <section id="doctorPdfReport" class="doctor-pdf-report" aria-hidden="true"></section>
+  </main>
+
+  <!-- ======================================================
+       DASHBOARD SUPERUSUARIO
+  ====================================================== -->
+  <main id="view-dashboard-superuser" class="view" aria-label="Dashboard Superusuario">
+    <div id="superuserMount"></div>
   </main>
 
   <!-- ======================================================

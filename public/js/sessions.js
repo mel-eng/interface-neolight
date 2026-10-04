@@ -3,7 +3,7 @@
 // Maneja: timer de sesión, inicio, pausa, fin, guardado
 // =========================================================
 
-import { $, state, STORAGE_KEY } from "./config.js";
+import { $, state, STORAGE_KEY, normalizeMode } from "./config.js";
 import { startSession, pauseSession, finishSession, saveSessionLegacy } from "./api.js";
 
 // =========================================================
@@ -33,6 +33,54 @@ export function setActiveSessionId(id) { activeSessionId = id; }
 export function isRunning() { return running; }
 export function getAccMs()  { return running ? accMs + (Date.now() - startMs) : accMs; }
 
+function currentTherapyMode() {
+  const fromState = state.controlData?.modo_actual ?? state.controlData?.modo ?? state.controlData?.estado;
+  const fromDom = $("pacModoActual")?.textContent;
+  return normalizeMode(fromState) || normalizeMode(fromDom) || "reposo";
+}
+
+function isTherapyModeActive() {
+  return ["convencional", "intensivo", "automatico"].includes(currentTherapyMode());
+}
+
+function canToggleTimerByTherapy() {
+  return !!activeSessionId && isTherapyModeActive();
+}
+
+function setTimerHint(message = null) {
+  const card = $("timerCard");
+  const hint = card?.querySelector("small");
+  if (!hint) return;
+
+  if (message) {
+    hint.textContent = message;
+    return;
+  }
+
+  if (!activeSessionId) {
+    hint.textContent = "Inicia terapia para activar";
+  } else if (!isTherapyModeActive()) {
+    hint.textContent = "En reposo: cronómetro pausado";
+  } else {
+    hint.textContent = running ? "Toca para pausar" : "Toca para reanudar";
+  }
+}
+
+function pauseTimerLocalOnly() {
+  if (!running) return;
+  accMs += Date.now() - startMs;
+  running = false;
+  clearInterval(tick);
+  tick = null;
+  try { if (state.currentUserId) localStorage.setItem(STORAGE_KEY(state.currentUserId), String(accMs)); } catch (_) {}
+  draw();
+}
+
+function syncTimerWithTherapyState() {
+  if (!isTherapyModeActive()) pauseTimerLocalOnly();
+  setTimerHint();
+}
+
 /** Inicializa el timer con milisegundos ya acumulados */
 export function initTimer(initialMs = 0, sessionId = null) {
   if (running) { accMs += Date.now() - startMs; running = false; clearInterval(tick); tick = null; }
@@ -40,6 +88,7 @@ export function initTimer(initialMs = 0, sessionId = null) {
   startMs = null;
   activeSessionId = sessionId || null;
   draw();
+  setTimerHint();
 }
 
 /** Toggle play/pause del timer visual (no llama API) */
@@ -56,6 +105,7 @@ export function toggleTimer() {
     tick = setInterval(draw, 1000);
     draw();
   }
+  setTimerHint();
 }
 
 // =========================================================
@@ -110,6 +160,7 @@ export async function doFinishSession(motivo = "completada") {
   try {
     if (state.currentUserId) localStorage.setItem(STORAGE_KEY(state.currentUserId), "0");
   } catch (_) {}
+  setTimerHint();
   return durS;
 }
 
@@ -164,6 +215,59 @@ export function setupBeforeUnload() {
 export function initSessions() {
   if (sessionsBound) return;
   sessionsBound = true;
-  $("timerCard")?.addEventListener("click", toggleTimer);
+
+  $("timerCard")?.addEventListener("click", async () => {
+    const mode = currentTherapyMode();
+
+    // En REPOSO o sin modo terapéutico real, el cronómetro no arranca.
+    if (!isTherapyModeActive()) {
+      setTimerHint("No corre en modo reposo");
+      window.setTimeout(() => setTimerHint(), 1400);
+      return;
+    }
+
+    if (!state.currentUserId) {
+      setTimerHint("Paciente no identificado");
+      window.setTimeout(() => setTimerHint(), 1400);
+      return;
+    }
+
+    // Si ya existe sesión activa, tocar la tarjeta pausa/reanuda.
+    if (activeSessionId) {
+      toggleTimer();
+      return;
+    }
+
+    // Si el ESP ya está en CONVENCIONAL/INTENSIVO pero aún no hay sesión,
+    // crearla aquí. Antes se quedaba diciendo “Primero inicia terapia”,
+    // o sea, el reloj se volvió burócrata.
+    setTimerHint("Iniciando terapia...");
+    const id = await doStartSession(state.currentUserId, mode);
+    if (!id) {
+      setTimerHint("No se pudo iniciar la sesión");
+      window.setTimeout(() => setTimerHint(), 1600);
+      return;
+    }
+    setTimerHint();
+  });
+
+  ["neolight:telemetry", "neolight:control-updated", "neolight:lamp-command"].forEach(evt => {
+    window.addEventListener(evt, syncTimerWithTherapyState);
+  });
+
+  window.addEventListener("neolight:session-started", event => {
+    const payload = event.detail || {};
+    if (payload.sesion_id) activeSessionId = payload.sesion_id;
+    syncTimerWithTherapyState();
+  });
+
+  window.addEventListener("neolight:session-paused", syncTimerWithTherapyState);
+  window.addEventListener("neolight:session-finished", () => {
+    activeSessionId = null;
+    pauseTimerLocalOnly();
+    setTimerHint();
+  });
+
   setupBeforeUnload();
+  setTimerHint();
 }

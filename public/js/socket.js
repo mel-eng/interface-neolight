@@ -11,6 +11,7 @@ let alarmsMutedUI = false;
 let identifiedPatientId = null;
 let identifiedDoctorId = null;
 let identifiedTutorId = null;
+let identifiedSuperuserId = null;
 
 // =========================================================
 // ALARMAS PEDIÁTRICAS: sonido suave + campanita
@@ -50,7 +51,7 @@ function playPediatricAlarmSound() {
   } catch (_) {}
 }
 
-function animatePatientAlarmUI(payload = {}) {
+function animatePatientAlarmUI(payload = {}, opts = {}) {
   const bell = $("patientBell") || document.querySelector("#view-dashboard-patient .pt-bell-btn");
   const badge = $("ptBellBadge");
   const card = $("ptAlertCard");
@@ -76,7 +77,25 @@ function animatePatientAlarmUI(payload = {}) {
   if (msg) msg.textContent = `Alerta: ${alarmName}`;
   if (cnt) cnt.textContent = badge?.textContent || "1";
 
-  playPediatricAlarmSound();
+  if (opts.sound) playPediatricAlarmSound();
+}
+
+function shouldPlayAlarmSound(payload = {}) {
+  const sev = String(payload?.severidad || payload?.severity || "").toLowerCase();
+  const tipo = String(payload?.tipo || payload?.type || "").toLowerCase();
+  const valor = Number(payload?.valor ?? payload?.valor_medido ?? payload?.value);
+
+  if (sev === "critical") return true;
+
+  if (tipo === "temperatura_baja") {
+    return Number.isFinite(valor) ? valor < 34.8 : true;
+  }
+
+  if (tipo === "temperatura_alta") {
+    return Number.isFinite(valor) ? valor > 38.0 : true;
+  }
+
+  return false;
 }
 
 // =========================================================
@@ -157,6 +176,66 @@ function dispatchRealtimeEvent(name, detail) {
   window.dispatchEvent(new CustomEvent(`neolight:${name}`, { detail: detail || {} }));
 }
 
+
+// =========================================================
+// NOTIFICACIONES EN TIEMPO REAL (tipo Facebook, sin refresh)
+// =========================================================
+let notificationAudioCtx = null;
+let lastNotificationSoundAt = 0;
+
+export function playNotificationSound() {
+  const now = Date.now();
+  if (now - lastNotificationSoundAt < 900) return;
+  lastNotificationSoundAt = now;
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    notificationAudioCtx = notificationAudioCtx || new AudioContextClass();
+    const ctx = notificationAudioCtx;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(740, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(980, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.035, ctx.currentTime + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.25);
+  } catch (_) {}
+}
+
+export function showRealtimeToast(message, kind = "status") {
+  let stack = document.getElementById("neolightRealtimeToasts");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.id = "neolightRealtimeToasts";
+    stack.className = "neolight-toast-stack";
+    document.body.appendChild(stack);
+  }
+  const toast = document.createElement("div");
+  toast.className = `neolight-toast neolight-toast--${kind}`;
+  toast.textContent = message;
+  stack.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  window.setTimeout(() => {
+    toast.classList.remove("show");
+    window.setTimeout(() => toast.remove(), 250);
+  }, 4200);
+}
+
+function isPayloadForCurrentDoctor(payload = {}) {
+  return !!identifiedDoctorId && (!payload?.doctor_id || String(payload.doctor_id) === String(identifiedDoctorId));
+}
+
+function isPayloadForCurrentPatient(payload = {}) {
+  return !!identifiedPatientId && (!payload?.paciente_id || String(payload.paciente_id) === String(identifiedPatientId));
+}
+
 // =========================================================
 // INIT SOCKET
 // =========================================================
@@ -169,6 +248,7 @@ export function initSocket() {
     ioSocket.on("connect",    () => {
       setESPStatus("Online", "ok");
       if (identifiedDoctorId) socketIdentifyDoctor(identifiedDoctorId);
+      if (identifiedSuperuserId) socketIdentifySuperuser(identifiedSuperuserId);
       if (identifiedPatientId) ioSocket.emit("patient:identify", { id: identifiedPatientId });
       if (identifiedPatientId || identifiedTutorId) socketIdentifyTutor(identifiedTutorId, identifiedPatientId);
     });
@@ -203,16 +283,22 @@ export function initSocket() {
 
     ioSocket.on("alarm:new", payload => {
       console.warn("[ALARM]", payload?.tipo, payload?.severidad);
-      animatePatientAlarmUI(payload || {});
+      if (isPayloadForCurrentPatient(payload || {}) || isPayloadForCurrentDoctor(payload || {})) {
+        const sev = String(payload?.severidad || "").toLowerCase();
+        const shouldSound = shouldPlayAlarmSound(payload || {});
+        animatePatientAlarmUI(payload || {}, { sound: shouldSound });
+        const label = payload?.mensaje || payload?.tipo || "Alarma del sistema";
+        showRealtimeToast(`Alerta: ${label}`, sev === "critical" ? "danger" : "warn");
+      }
       dispatchRealtimeEvent("alarm-new", payload || {});
     });
 
     ioSocket.on("alarm", payload => {
-      animatePatientAlarmUI(payload || {});
+      animatePatientAlarmUI(payload || {}, { sound: shouldPlayAlarmSound(payload || {}) });
       dispatchRealtimeEvent("alarm-new", payload || {});
     });
     ioSocket.on("alarma", payload => {
-      animatePatientAlarmUI(payload || {});
+      animatePatientAlarmUI(payload || {}, { sound: shouldPlayAlarmSound(payload || {}) });
       dispatchRealtimeEvent("alarm-new", payload || {});
     });
     ioSocket.on("alarm:muted", payload => dispatchRealtimeEvent("alarm-muted", payload || {}));
@@ -220,11 +306,38 @@ export function initSocket() {
     ioSocket.on("session:paused",   payload => { console.log("[SESSION] paused",  payload); dispatchRealtimeEvent("session-paused", payload || {}); });
     ioSocket.on("session:finished", payload => { console.log("[SESSION] finished",payload); dispatchRealtimeEvent("session-finished", payload || {}); });
     ioSocket.on("plan:updated", payload => dispatchRealtimeEvent("plan-updated", payload || {}));
-    ioSocket.on("doctor-request:new", payload => dispatchRealtimeEvent("doctor-request-new", payload || {}));
-    ioSocket.on("doctor-request:resolved", payload => dispatchRealtimeEvent("doctor-request-resolved", payload || {}));
+    ioSocket.on("doctor-request:new", payload => {
+      if (isPayloadForCurrentDoctor(payload || {})) {
+        playNotificationSound();
+        showRealtimeToast("Nueva solicitud de paciente", "info");
+      }
+      dispatchRealtimeEvent("doctor-request-new", payload || {});
+    });
+    ioSocket.on("doctor-request:resolved", payload => {
+      if (isPayloadForCurrentPatient(payload || {})) {
+        playNotificationSound();
+        showRealtimeToast(payload?.status === "accepted" ? "Solicitud aceptada" : "Solicitud rechazada", payload?.status === "accepted" ? "ok" : "warn");
+      }
+      dispatchRealtimeEvent("doctor-request-resolved", payload || {});
+    });
     ioSocket.on("patient:registered", payload => dispatchRealtimeEvent("patient-registered", payload || {}));
-    ioSocket.on("mode-request:new", payload => dispatchRealtimeEvent("mode-request-new", payload || {}));
-    ioSocket.on("mode-request:resolved", payload => dispatchRealtimeEvent("mode-request-resolved", payload || {}));
+    ioSocket.on("mode-request:new", payload => {
+      if (isPayloadForCurrentDoctor(payload || {})) {
+        playNotificationSound();
+        const label = payload?.request_type === "manual_control" ? "control manual" : `modo ${payload?.mode || ""}`.trim();
+        showRealtimeToast(`Nueva solicitud de ${label}`, "info");
+      }
+      dispatchRealtimeEvent("mode-request-new", payload || {});
+    });
+    ioSocket.on("mode-request:resolved", payload => {
+      if (isPayloadForCurrentPatient(payload || {})) {
+        playNotificationSound();
+        const ok = payload?.status === "accepted";
+        const label = payload?.request_type === "manual_control" ? "control manual" : `modo ${payload?.mode || ""}`.trim();
+        showRealtimeToast(`${ok ? "Aprobado" : "Rechazado"}: ${label}`, ok ? "ok" : "warn");
+      }
+      dispatchRealtimeEvent("mode-request-resolved", payload || {});
+    });
     ioSocket.on("lamp:command", payload => dispatchRealtimeEvent("lamp-command", payload || {}));
 
     ioSocket.on("control:updated", payload => {
@@ -241,6 +354,7 @@ export function disconnectSocket() {
   identifiedPatientId = null;
   identifiedDoctorId = null;
   identifiedTutorId = null;
+  identifiedSuperuserId = null;
   if (ioSocket) { ioSocket.disconnect(); ioSocket = null; }
 }
 
@@ -284,4 +398,10 @@ export function socketIdentifyTutor(tutorId, pacienteId = identifiedPatientId) {
   identifiedPatientId = pacienteId ? String(pacienteId) : identifiedPatientId;
   if (!ioSocket?.connected || !identifiedPatientId) return;
   ioSocket.emit("client:identify", { role: "tutor", tutor_id: identifiedTutorId, paciente_id: identifiedPatientId });
+}
+
+export function socketIdentifySuperuser(superuserId) {
+  identifiedSuperuserId = superuserId ? String(superuserId) : null;
+  if (!ioSocket?.connected || !identifiedSuperuserId) return;
+  ioSocket.emit("client:identify", { role: "superuser", superuser_id: identifiedSuperuserId });
 }

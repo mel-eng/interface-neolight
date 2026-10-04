@@ -38,6 +38,9 @@ export const login = (usuario, contrasena) =>
 export const fetchCurrentDoctorState = doctorId =>
   req(`/api/auth/current?role=doctor`, { headers: { "x-doctor-id": String(doctorId || "") } });
 
+export const fetchCurrentSuperuserState = superuserId =>
+  req(`/api/auth/current?role=superuser`, { headers: { "x-superuser-id": String(superuserId || "") } });
+
 export const fetchCurrentTutorState = tutorId =>
   req(`/api/auth/current?role=tutor`, { headers: { "x-tutor-id": String(tutorId || "") } });
 

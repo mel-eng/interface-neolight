@@ -1,0 +1,811 @@
+/* NEOLIGHT | Accesibilidad, tipografía y normalización de paleta
+   Archivo generado al modularizar styles.css sin alterar el orden de cascada. */
+
+/* =============================================================
+   NEOLIGHT — UI/UX POLISH PASS  (fixes 1–14)
+   Todos los selectores son aditivos. No se eliminan clases ni IDs.
+   Comentado por sección para fácil auditoría.
+   ============================================================= */
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 1 · Cards del dashboard paciente: más espacio interno,
+           border-left semántico en metric widgets, min-height
+   ────────────────────────────────────────────────────────────── */
+
+#view-dashboard-patient .pt-metric-widget {
+  padding: 1.4rem 1.3rem;           /* era .88rem .82rem */
+  border-left: 3px solid var(--hazy-blue);
+  min-height: 108px;
+  align-items: center;              /* icono centrado verticalmente */
+}
+
+#view-dashboard-patient .pt-timer-card {
+  padding: 1.4rem 1.4rem;           /* era .95rem 1rem */
+}
+
+#view-dashboard-patient .pt-alert-card {
+  padding: 1.3rem 1.4rem;           /* era .95rem 1rem */
+  min-height: 90px;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 2 · Grid de métricas: gap 16px, 2 columnas en 768–1100px
+   ────────────────────────────────────────────────────────────── */
+
+#view-dashboard-patient .patient-metric-grid {
+  gap: 1rem;                        /* 16px, era .85rem */
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+  #view-dashboard-patient .patient-metric-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 3 · Tipografía: valores, etiquetas y timer
+   ────────────────────────────────────────────────────────────── */
+
+/* Valores de sensores más legibles */
+
+#view-dashboard-patient .pt-wval {
+  font-size: 1.7rem;                /* era 1.25rem */
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* Etiquetas en uppercase con tracking correcto */
+
+#view-dashboard-patient .pt-wlbl {
+  font-size: .70rem;                /* era .66rem */
+  letter-spacing: .12em;           /* era .06em */
+  text-transform: uppercase;       /* ya estaba, reforzar */
+}
+
+/* Timer: mínimo 2rem y fuente mono */
+
+#view-dashboard-patient .pt-tc-val {
+  font-size: 2rem;                  /* era 1.35rem */
+  font-family: var(--font-mono);
+  letter-spacing: var(--monoTrack);
+  line-height: 1;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 4 · Sidebar paciente: touch target mínimo 48px
+            (ancho sigue controlado por el grid column)
+   ────────────────────────────────────────────────────────────── */
+
+#view-dashboard-patient .patient-nav-item {
+  min-height: 48px;                 /* era 58px — ajustar si era menor en otros resets */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Bell button en sidebar: mismo touch target */
+
+#view-dashboard-patient .pt-bell-btn {
+  min-width: 48px;
+  min-height: 48px;
+  cursor: pointer;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 5 · Panel derecho: tabs más legibles, separadores perfil
+   ────────────────────────────────────────────────────────────── */
+
+#view-dashboard-patient .pt-tab {
+  font-size: .72rem;                /* era .63rem — los textos ya no se cortan */
+  padding: .5rem .75rem;            /* era .68rem .25rem */
+}
+
+/* Separadores entre filas del perfil */
+
+#view-dashboard-patient .patient-profile-card > div {
+  border-bottom: 1px solid var(--line);
+}
+
+#view-dashboard-patient .patient-profile-card > div:last-of-type {
+  border-bottom: none;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 6 · Dashboard doctor — KPI cards: número más grande,
+            hover scale, padding
+   ────────────────────────────────────────────────────────────── */
+
+#view-dashboard-doctor .doc-kpi-card {
+  padding: 1.6rem;                  /* era 1rem en la sección v2 */
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+#view-dashboard-doctor .doc-kpi-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 28px rgba(0,0,0,.10);
+}
+
+#view-dashboard-doctor .doc-kpi-num {
+  font-size: 2.2rem;                /* era 2.1rem */
+  font-weight: 900;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 7 · Modal auth: max-width 520px confirmado, padding,
+            input-group spacing, keypad mínimo 52×52
+   ────────────────────────────────────────────────────────────── */
+
+.modal-panel {
+  max-width: 520px;                 /* confirma el min(520px,…) existente */
+  padding: 2rem 2.2rem;             /* era 28px — más generoso */
+  max-height: 90vh;                 /* FIX 9 incluido aquí */
+  overflow-y: auto;
+}
+
+.input-group {
+  margin-bottom: 1.1rem;            /* era margin-top:14px — agrega espacio inferior */
+}
+
+/* Keypad: 52×52 mínimo en todas las pantallas */
+
+.key {
+  min-width: 52px;
+  min-height: 52px;
+  font-size: 1.1rem;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 8 · Botones generales: btn-primary sólido, btn-full block
+   ────────────────────────────────────────────────────────────── */
+
+.btn-primary {
+  background: var(--hazy-blue);    /* ya estaba, pero evitar overrides transparentes */
+  color: #fff !important;           /* contraste forzado */
+  border-color: var(--hazy-blue);
+}
+
+.btn-full {
+  display: block !important;        /* no inline-block, nunca desborda modal */
+  width: 100%;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 9 · (incluido en FIX 7 — modal max-height: 90vh)
+   ────────────────────────────────────────────────────────────── */
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 10 · Tabla en panel derecho: no desborda el contenedor
+   ────────────────────────────────────────────────────────────── */
+
+#patientRailHistoryRows,
+#patientRailHistoryRows + table,
+#view-dashboard-patient .pt-tab-pane .clinical-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+#view-dashboard-patient .pt-tab-pane .clinical-table th,
+#view-dashboard-patient .pt-tab-pane .clinical-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;                     /* necesario con table-layout:fixed para que ellipsis funcione */
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 11 · Hero center-metrics: ocultar en mobile (<768px)
+            Los valores están disponibles en los widgets inferiores
+   ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  #view-dashboard-patient .patient-hero-center-metrics {
+    display: none;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 12 · #statusCard: altura mínima y contenido centrado
+   ────────────────────────────────────────────────────────────── */
+
+#statusCard {
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 13 · .nav-links button.active::after: underline no cortado
+            Reemplaza bottom:-13px hardcodeado por valor dinámico
+   ────────────────────────────────────────────────────────────── */
+
+.nav-links button.active::after {
+  bottom: 0;                        /* ancla al borde inferior del botón */
+}
+
+/* Compensar en el contenedor: el topbar lleva el underline al borde */
+
+.topbar .nav-links {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+.nav-links button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;                     /* botón ocupa toda la altura del nav */
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FIX 14 · UTF-8: comentarios ahora limpios — encoding corregido
+            en todos los archivos .js, .css y server.js.
+   ────────────────────────────────────────────────────────────── */
+
+/* =============================================================
+   NEOLIGHT — PALETA BEBÉ PASTEL v3 + ELIMINACIÓN DE DEGRADADOS
+   Todos los selectores son aditivos — no se eliminan IDs ni clases.
+   Mobile-first. Usa únicamente las variables CSS de :root.
+   ============================================================= */
+
+/* FIX PALETA: body — fondo plano, sin degradados decorativos */
+
+body {
+  background: var(--soft-white) !important;
+  background-attachment: unset !important;
+}
+
+/* FIX PALETA: underline nav activo — no se corta */
+
+.nav-links button.active::after {
+  bottom: -2px !important;
+}
+
+/* FIX PALETA: btn-primary — hazy-blue sólido, hover más oscuro */
+
+.btn-primary {
+  background: var(--hazy-blue) !important;
+  color: #fff !important;
+  border-color: var(--hazy-blue) !important;
+  box-shadow: none !important;
+}
+
+.btn-primary:hover {
+  background: #8aa0b0 !important;
+  border-color: #8aa0b0 !important;
+  color: #fff !important;
+}
+
+/* ── DOCTOR DASHBOARD ─────────────────────────────────────── */
+
+/* FIX GRADIENTE: sidebar doctor v1 (morado) → plano con borde */
+
+#view-dashboard-doctor .doctor-premium-sidebar {
+  background: var(--soft-white) !important;
+  border-right: 1px solid var(--line) !important;
+  box-shadow: none !important;
+  color: var(--ink) !important;
+}
+
+#view-dashboard-doctor .dp-nav-item {
+  color: var(--muted-ink) !important;
+}
+
+#view-dashboard-doctor .dp-nav-item:hover,
+#view-dashboard-doctor .dp-nav-item.dp-nav-active {
+  background: var(--seafoam) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+
+#view-dashboard-doctor .dp-nav-logout {
+  color: var(--danger) !important;
+}
+
+#view-dashboard-doctor .dp-nav-logout:hover {
+  background: rgba(192,90,90,.12) !important;
+  color: var(--danger) !important;
+}
+
+/* FIX GRADIENTE: sidebar v2 (lavender) → plano */
+
+#view-dashboard-doctor .doctor-premium-shell #view-dashboard-doctor .doctor-premium-sidebar,
+#view-dashboard-doctor .doctor-premium-sidebar {
+  background: var(--cream) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: none !important;
+}
+
+/* FIX GRADIENTE: header/hero doctor → plano cream */
+
+#view-dashboard-doctor .doctor-premium-header {
+  background: var(--cream) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: none !important;
+}
+
+#view-dashboard-doctor .dp-hero-kicker {
+  background: var(--delicate-blue) !important;
+  color: var(--ink) !important;
+}
+
+#view-dashboard-doctor .dp-hero-copy h2 {
+  color: var(--ink) !important;
+}
+
+#view-dashboard-doctor .dp-hero-copy p {
+  color: var(--muted-ink) !important;
+}
+
+#view-dashboard-doctor .dp-hero-meta span,
+#view-dashboard-doctor .dp-hero-status {
+  background: rgba(159,177,193,.18) !important;
+  color: var(--ink) !important;
+}
+
+#view-dashboard-doctor .dp-search-inp {
+  background: var(--warm-white) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+#view-dashboard-doctor .dp-report-btn {
+  background: var(--warm-white) !important;
+  color: var(--hazy-blue) !important;
+  border-color: var(--line) !important;
+  box-shadow: none !important;
+}
+
+/* FIX GRADIENTE: KPI overview card → plano */
+
+#view-dashboard-doctor .doc-overview-card {
+  background: var(--warm-white) !important;
+  color: var(--ink) !important;
+  box-shadow: var(--shadow2) !important;
+}
+
+#view-dashboard-doctor .doc-ov-label {
+  color: var(--ink) !important;
+  opacity: 1 !important;
+}
+
+#view-dashboard-doctor .doc-ov-badge {
+  background: var(--delicate-blue) !important;
+  color: var(--ink) !important;
+}
+
+/* FIX GRADIENTE: doc-kpi-card → fondo plano warm-white */
+
+#view-dashboard-doctor .doc-kpi-card {
+  background: var(--warm-white) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: var(--shadow2) !important;
+}
+
+#view-dashboard-doctor .doc-kpi-num {
+  color: var(--ink) !important;
+}
+
+/* FIX GRADIENTE: ficha button — plano tenue */
+
+#view-dashboard-doctor .dp-btn-ficha {
+  background: var(--delicate-blue) !important;
+  color: var(--hazy-blue) !important;
+  border-color: rgba(159,177,193,.40) !important;
+}
+
+#view-dashboard-doctor .dp-btn-ficha:hover {
+  background: var(--seafoam) !important;
+  border-color: var(--seafoam) !important;
+}
+
+/* FIX GRADIENTE: panels y rail cards → plano */
+
+#view-dashboard-doctor .dp-panel,
+#view-dashboard-doctor .doctor-rail-card,
+#view-dashboard-doctor .doctor-profile-card {
+  background: var(--warm-white) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: var(--shadow2) !important;
+}
+
+/* ── CLINICAL RECORD MODAL ────────────────────────────────── */
+
+/* FIX GRADIENTE: cr-hero → plano cream con borde */
+
+.cr-hero {
+  background: var(--cream) !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+/* ── PATIENT DASHBOARD ────────────────────────────────────── */
+
+/* FIX GRADIENTE: sidebar paciente → plano */
+
+#view-dashboard-patient .patient-sidebar {
+  background: var(--cream) !important;
+  border-right: 1px solid var(--line) !important;
+  box-shadow: none !important;
+}
+
+#view-dashboard-patient .patient-nav-item {
+  color: var(--muted-ink) !important;
+}
+
+#view-dashboard-patient .patient-nav-item.active,
+#view-dashboard-patient .patient-nav-item:hover {
+  background: var(--seafoam) !important;
+  color: var(--ink) !important;
+}
+
+/* FIX CARDS: pt-metric-widget — fondo plano, borde-left semántico */
+
+#view-dashboard-patient .pt-metric-widget {
+  background: var(--warm-white) !important;
+  border: 1px solid rgba(200,216,207,.45) !important;
+  border-left: 3px solid var(--hazy-blue) !important;
+}
+
+/* FIX CARDS: timer y alert — fondo plano, sin degradado morado/rosa */
+
+#view-dashboard-patient .pt-timer-card {
+  background: var(--warm-white) !important;
+  border: 1px solid rgba(200,216,207,.45) !important;
+}
+
+#view-dashboard-patient .pt-alert-card {
+  background: var(--warm-white) !important;
+  border: 1px solid rgba(200,216,207,.45) !important;
+}
+
+/* FIX CARDS: sensor cards anteriores → warm-white */
+
+#view-dashboard-patient .patient-sensor-card:nth-child(1),
+#view-dashboard-patient .patient-sensor-card:nth-child(2),
+#view-dashboard-patient .patient-sensor-card:nth-child(3),
+#view-dashboard-patient .patient-sensor-card:nth-child(4) {
+  background: var(--warm-white) !important;
+  border: 1px solid rgba(200,216,207,.38) !important;
+}
+
+/* FIX GRADIENTE: chart card donut → warm-white */
+
+#view-dashboard-patient .patient-chart-card:nth-child(4) {
+  background: var(--warm-white) !important;
+}
+
+/* FIX: neo-widget-icon — fondo plano blanco suave */
+
+.neo-widget-icon {
+  background: var(--warm-white) !important;
+  box-shadow: var(--shadow2) !important;
+}
+
+/* FIX GRADIENTE: pt-has-alert — conservar animación, quitar gradiente */
+
+#view-dashboard-patient .pt-alert-card.pt-has-alert {
+  background: var(--baby-pink) !important;
+  border-color: var(--dusty-rose) !important;
+}
+
+/* FIX TIPOGRAFÍA: escalas confirmadas para todos los viewports */
+
+#view-dashboard-patient .pt-wval  { font-size: 1.7rem;  font-weight: 700; line-height: 1.1; }
+
+#view-dashboard-patient .pt-wlbl  { font-size: .70rem;  letter-spacing: .12em; text-transform: uppercase; }
+
+#view-dashboard-patient .pt-tc-val { font-size: 2rem;   font-family: var(--font-mono); letter-spacing: var(--monoTrack); }
+
+#view-dashboard-doctor  .doc-kpi-num { font-size: 2.2rem; font-weight: 900; }
+
+/* FIX GRID MÉTRICAS: gap y columnas responsive */
+
+#view-dashboard-patient .patient-metric-grid {
+  gap: 1rem;
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+  #view-dashboard-patient .patient-metric-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  #view-dashboard-patient .patient-metric-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* FIX SIDEBAR WIDTH: 72px fijo */
+
+#view-dashboard-patient .patient-sidebar {
+  width: 72px !important;
+}
+
+#view-dashboard-patient .patient-nav-item {
+  min-height: 48px !important;
+  cursor: pointer !important;
+}
+
+/* FIX TABS PANEL DERECHO */
+
+#view-dashboard-patient .pt-tab {
+  font-size: .72rem !important;
+  padding: .5rem .75rem !important;
+}
+
+/* FIX MODAL AUTH */
+
+.modal-panel {
+  background: var(--warm-white) !important;
+  max-width: 520px !important;
+  padding: 2rem 2.2rem !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+}
+
+.input-group { margin-bottom: 1.1rem; }
+
+.keypad .key  { min-width: 52px !important; min-height: 52px !important; font-size: 1.1rem !important; }
+
+/* FIX KPI CARDS DOCTOR */
+
+#view-dashboard-doctor .doc-kpi-card {
+  padding: 1.6rem !important;
+  background: var(--warm-white) !important;
+  transition: transform .18s ease, box-shadow .18s ease !important;
+}
+
+#view-dashboard-doctor .doc-kpi-card:hover {
+  transform: scale(1.02) !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,.08) !important;
+}
+
+/* FIX STATUS CARD */
+
+#statusCard {
+  min-height: 120px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+}
+
+/* FIX TABLA RAIL */
+
+#patientRailHistoryRows,
+#view-dashboard-patient .pt-tab-pane .clinical-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+#view-dashboard-patient .pt-tab-pane .clinical-table th,
+#view-dashboard-patient .pt-tab-pane .clinical-table td {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 0 !important;
+}
+
+/* FIX MOBILE: ocultar hero center-metrics en móvil */
+
+@media (max-width: 767px) {
+  #view-dashboard-patient .patient-hero-center-metrics { display: none !important; }
+}
+
+/* FIX SEPARADORES PERFIL */
+
+#view-dashboard-patient .patient-profile-card > div { border-bottom: 1px solid var(--line); }
+
+#view-dashboard-patient .patient-profile-card > div:last-of-type { border-bottom: none; }
+
+/* NEOLIGHT pastel bugfix accents */
+
+:root {
+  --neo-purple: #7c6be8;
+  --neo-lavender: #ded8ff;
+  --neo-soft-purple: #b9adff;
+  --neo-pink: #f7a8c8;
+  --neo-sky: #dff3ff;
+  --neo-mint: #c8edd6;
+  --neo-ink: #2d2a45;
+}
+
+.select-wrapper::after {
+  content: "\25BE" !important;
+  color: var(--neo-purple) !important;
+  font-size: .85rem !important;
+}
+
+.input,
+.select {
+  color: var(--neo-ink) !important;
+  border-color: rgba(124,107,232,.24) !important;
+  background: linear-gradient(180deg, #fff, #fbfaff) !important;
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--neo-purple) !important;
+  box-shadow: 0 0 0 3px rgba(222,216,255,.75) !important;
+}
+
+.modal-panel {
+  border: 1px solid rgba(185,173,255,.38) !important;
+  box-shadow: 0 22px 60px rgba(124,107,232,.18) !important;
+}
+
+.btn-primary,
+#view-dashboard-patient .btn-primary,
+#view-dashboard-doctor .dp-req-accept {
+  background: linear-gradient(135deg, var(--neo-purple), var(--neo-soft-purple)) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+#view-dashboard-patient .patient-sidebar {
+  background: linear-gradient(180deg, #fbfaff 0%, var(--neo-lavender) 100%) !important;
+  border-right: 1px solid rgba(185,173,255,.42) !important;
+}
+
+#view-dashboard-patient .patient-nav-item.active,
+#view-dashboard-patient .patient-nav-item:hover {
+  background: rgba(222,216,255,.78) !important;
+  color: var(--neo-ink) !important;
+}
+
+#view-dashboard-patient .patient-card,
+#view-dashboard-patient .pt-metric-widget,
+#view-dashboard-doctor .doc-kpi-card,
+#view-dashboard-doctor .dp-panel,
+#view-dashboard-doctor .doctor-rail-card {
+  border-color: rgba(185,173,255,.38) !important;
+  box-shadow: 0 10px 30px rgba(124,107,232,.08) !important;
+}
+
+#view-dashboard-patient .patient-sensor-card:nth-child(1) { background: linear-gradient(135deg, #fff, var(--neo-sky)) !important; }
+
+#view-dashboard-patient .patient-sensor-card:nth-child(2) { background: linear-gradient(135deg, #fff, var(--neo-lavender)) !important; }
+
+#view-dashboard-patient .patient-sensor-card:nth-child(3) { background: linear-gradient(135deg, #fff, #ffe3ef) !important; }
+
+#view-dashboard-patient .patient-sensor-card:nth-child(4) { background: linear-gradient(135deg, #fff, var(--neo-mint)) !important; }
+
+.control-overlay {
+  background: rgba(222,216,255,.82) !important;
+  border: 1px solid rgba(185,173,255,.55) !important;
+}
+
+.control-overlay strong {
+  color: var(--neo-purple) !important;
+}
+
+.control-overlay-action,
+.manual-ctrl-btn {
+  border: 1px solid rgba(124,107,232,.28);
+  background: #fff;
+  color: var(--neo-purple);
+  border-radius: 12px;
+  padding: .62rem .9rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .18s, box-shadow .18s, transform .14s, color .18s;
+}
+
+.control-overlay-action:hover,
+.manual-ctrl-btn:hover:not(:disabled) {
+  background: var(--neo-lavender);
+  box-shadow: 0 8px 18px rgba(124,107,232,.18);
+  transform: translateY(-1px);
+}
+
+.control-overlay-action:disabled,
+.manual-ctrl-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.patient-manual-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .55rem;
+  margin-top: .9rem;
+}
+
+.patient-manual-controls .manual-ctrl-btn:first-child,
+.patient-manual-controls .manual-ctrl-btn:last-child {
+  grid-column: 1 / -1;
+}
+
+.manual-ctrl-btn.stop {
+  background: #fff1f7;
+  color: #b84f7a;
+  border-color: rgba(247,168,200,.55);
+}
+
+#view-dashboard-doctor .doctor-premium-sidebar {
+  background: linear-gradient(180deg, var(--neo-purple), var(--neo-soft-purple)) !important;
+}
+
+/* =====================================================================
+   NEOLIGHT v3.3 — PATIENT DASHBOARD CLEANUP PASS
+   - Hero: aspect-ratio cuadrado, sin franjas negras
+   - Timer card: sin donut, solo barra
+   - Panel derecho: solo 3 tabs (Paciente, Solicitudes, Sesiones)
+   - Sidebar: solo Campana + Inicio + Solicitudes + Historial + Salir
+   ===================================================================== */
+
+/* Panel derecho — tab Paciente: filas como en el boceto */
+
+#view-dashboard-patient .patient-profile-card > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: .5rem;
+  padding: .52rem 0;
+  border-bottom: 1px solid rgba(124,107,232,.08);
+  font-size: .82rem;
+}
+
+#view-dashboard-patient .patient-profile-card > div:last-child {
+  border-bottom: none;
+}
+
+#view-dashboard-patient .patient-profile-card b {
+  font-weight: 600;
+  color: var(--pt-text, #2d2a45);
+  flex-shrink: 0;
+}
+
+#view-dashboard-patient .patient-profile-card em {
+  font-style: normal;
+  color: var(--pt-muted, #7b7b94);
+  text-align: right;
+  font-size: .80rem;
+}
+
+/* Conexión: filas con dots de color */
+
+#view-dashboard-patient .patient-connection-card > span em {
+  font-style: normal;
+  font-size: .78rem;
+}
+
+/* Hero: aspect-ratio cuadrado en mobile también */
+
+@media (max-width: 580px) {
+  #view-dashboard-patient .patient-hero-card {
+    min-height: auto;
+    max-height: none;
+    height: auto;
+    aspect-ratio: 1 / 1;
+  }
+}
+
+/* Ocultar el donut-wrap por si quedó algún residuo visible */
+
+#view-dashboard-patient .pt-donut-wrap {
+  display: none !important;
+}
+
+/* Timer: barra de progreso más visible */
+
+#view-dashboard-patient .pt-tc-bar {
+  height: 8px !important;
+  border-radius: 6px;
+  margin: .6rem 0 .45rem;
+  background: rgba(124,107,232,.15);
+}
+
+#view-dashboard-patient .pt-tc-bar > span {
+  background: linear-gradient(90deg, var(--pt-purple, #7c6be8), #b9adff);
+  border-radius: 6px;
+  min-width: 3px;
+}
+
+/* Shell: asegurar que con 3 tabs el panel derecho no se quede alto de más */
+
+#view-dashboard-patient .patient-right-rail.pt-right-panel {
+  max-height: calc(100vh - var(--navH, 72px) - 24px);
+  overflow-y: auto;
+}

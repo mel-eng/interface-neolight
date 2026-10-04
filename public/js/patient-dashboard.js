@@ -4,11 +4,12 @@
 // conexion ESP32, alarmas, exportacion y control de modo.
 // =========================================================
 
-import { $, state, STORAGE_KEY, normalizeMode, formatEdad, formatDoctorDisplayName } from "./config.js";
-import { fetchControl, fetchCurrentTutorState, tutorRequestMode, fetchAlarms, fetchSessions, fetchEvents, exportExcel } from "./api.js";
+import { $, state, STORAGE_KEY, normalizeMode, formatEdad, formatDoctorDisplayName, API_URL } from "./config.js";
+import { fetchControl, fetchCurrentTutorState, tutorRequestMode, exportExcel } from "./api.js";
 import {
   socketEmitMute,
   socketEmitMove,
+  socketEmitMode,
   socketIdentifyPatient,
   updateHUD,
   updateTemps,
@@ -16,9 +17,20 @@ import {
   updateMuteButtonFromState,
   isAlarmsMuted,
   getSocket,
+  showRealtimeToast,
 } from "./socket.js";
 import { saveSession, initTimer } from "./sessions.js";
 import { doLogout } from "./auth.js";
+import { downloadPatientPdfReport } from "./patient-report.js";
+import { bindCameraToggle } from "./patient-camera.js";
+import { showStatusOverlay, hideOverlay, showInlineMessage } from "./patient-overlays.js";
+import { loadRecentAlarms, loadPatientHistory, controlLabel, labelGenero } from "./patient-history.js";
+import {
+  clearPatientSensorCards,
+  isPatientTelemetryVisible,
+  renderPatientCharts,
+  updatePatientSensorCards,
+} from "./patient-telemetry.js";
 
 // =========================================================
 // ESTADO LOCAL DEL DASHBOARD
@@ -57,20 +69,39 @@ let _lastTutorStateRefresh = 0;
 let _modeRequestPending = false;
 let _manualControlRequestPending = false;
 let _sectionsBound = false;
-const sensorSeries = {
-  light: [],
-  distance: [],
-  baby: [],
-  ambient: [],
-};
+
+function updateFanUI(data = {}) {
+  const on = data?.fanOn === true || String(data?.fanOn).toLowerCase() === "true";
+  const mode = String(data?.fanMode || "AUTO").toUpperCase();
+  const hot = data?.fanAutoHot === true || String(data?.fanAutoHot).toLowerCase() === "true";
+  const btn = $("fanToggleBtn");
+  const status = $("fanStatusText");
+  if (btn) {
+    btn.classList.toggle("is-on", on);
+    btn.dataset.state = on ? "on" : "off";
+    btn.textContent = on ? "Ventilador ON" : "Ventilador OFF";
+  }
+  if (status) status.textContent = `Ventilador: ${on ? "encendido" : "apagado"} · ${mode}${hot ? " · temp. alta" : ""}`;
+}
+
+async function setFanState(stateValue) {
+  try {
+    const res = await fetch(`${API_URL}/api/fan?state=${encodeURIComponent(stateValue)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok) throw new Error(data?.error || "fan_error");
+    showRealtimeToast(stateValue === "auto" ? "Ventilador en automático" : `Ventilador ${stateValue === "on" ? "encendido" : "apagado"}`, "ok");
+  } catch (_) {
+    showRealtimeToast("No se pudo controlar el ventilador", "warn");
+  }
+}
 
 const MODE_ERROR_MESSAGES = {
   control_bloqueado: "El doctor mantiene bloqueado el cambio de modo.",
   solicitud_manual_pendiente: "Ya existe una solicitud de control manual pendiente.",
-  permiso_expirado: "El permiso manual expiro. Solicita renovacion al doctor.",
-  modo_invalido_para_tutor: "Este modo no esta disponible para el tutor.",
+  permiso_expirado: "El permiso manual expiró. Solicita renovación al doctor.",
+  modo_invalido_para_tutor: "Este modo no está disponible para el tutor.",
   falta_tutor_id: "No se pudo identificar la cuenta del tutor.",
-  paciente_no_encontrado: "No se encontro el paciente asociado.",
+  paciente_no_encontrado: "No se encontró el paciente asociado.",
 };
 
 // =========================================================
@@ -159,6 +190,7 @@ function setControlState(control) {
 
 function setModeState(modo) {
   dashboardState.modoActual = modo;
+  state.controlData = { ...(state.controlData || {}), modo_actual: modo };
 }
 
 function setDashboardLock(isLocked) {
@@ -436,10 +468,14 @@ function renderModeControls(permission) {
   getModeButtons().forEach(btn => {
     if (!btn) return;
 
-    btn.disabled = !permission.canChange || _modeRequestPending;
-    btn.title = permission.canChange ? "" : permission.detail;
-    btn.style.opacity = permission.canChange && !_modeRequestPending ? "1" : "0.45";
-    btn.setAttribute("aria-disabled", String(!permission.canChange || _modeRequestPending));
+    const mode = normalizeMode(btn.dataset.modo);
+    const reposoLibre = mode === "reposo";
+    const disabled = _modeRequestPending || (!reposoLibre && !permission.canChange);
+
+    btn.disabled = disabled;
+    btn.title = disabled && !reposoLibre ? permission.detail : "";
+    btn.style.opacity = disabled ? "0.45" : "1";
+    btn.setAttribute("aria-disabled", String(disabled));
   });
 
   const cardAltura = $("cardAltura");
@@ -489,90 +525,16 @@ function renderControlOverlays(permission) {
   });
 }
 
-export function showStatusOverlay(parentId, overlayId, config = {}) {
-  const parent = $(parentId) || document.body;
-
-  const overlay = ensureOverlay(parent, overlayId);
-  overlay.hidden = false;
-  overlay.style.display = "flex";
-  overlay.dataset.kind = config.kind || "status";
-  overlay.setAttribute("aria-hidden", "false");
-  overlay.innerHTML = "";
-
-  const ico = document.createElement("div");
-  ico.className = "co-ico";
-  ico.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
-
-  const strong = document.createElement("strong");
-  strong.textContent = config.title || "Estado del panel";
-
-  const paragraph = document.createElement("p");
-  paragraph.textContent = config.message || "Operacion no disponible temporalmente.";
-
-  overlay.append(ico, strong, paragraph);
-
-  if (config.actionText) {
-    const action = document.createElement("button");
-    action.type = "button";
-    action.className = "control-overlay-action";
-    action.textContent = config.actionText;
-    action.disabled = !!config.actionDisabled;
-    if (typeof config.onAction === "function") action.addEventListener("click", config.onAction);
-    overlay.appendChild(action);
-  }
-
-  return overlay;
-}
-
-export function showOverlay(parentId, overlayId, config = {}) {
-  return showStatusOverlay(parentId, overlayId, config);
-}
-
-export function hideOverlay(overlayId) {
-  const overlay = $(overlayId);
-  if (!overlay) return;
-
-  overlay.hidden = true;
-  overlay.style.display = "none";
-  overlay.setAttribute("aria-hidden", "true");
-}
-
-function ensureOverlay(parent, overlayId) {
-  let overlay = $(overlayId);
-  if (overlay) return overlay;
-
-  if (!parent.style.position) parent.style.position = "relative";
-  overlay = document.createElement("div");
-  overlay.id = overlayId;
-  overlay.className = "control-overlay";
-  parent.appendChild(overlay);
-  return overlay;
-}
-
-function showInlineMessage(id, { visible, message, kind = "status" }) {
-  const msg = $(id);
-  if (!msg) return;
-
-  if (!visible) {
-    msg.style.display = "none";
-    return;
-  }
-
-  msg.textContent = message;
-  msg.style.color = getMessageColor(kind);
-  msg.style.display = "block";
-}
-
-function getMessageColor(kind) {
-  if (kind === "ok") return "var(--ok)";
-  if (kind === "warn") return "var(--warn)";
-  if (kind === "danger") return "var(--danger)";
-  return "var(--muted)";
-}
-
 // =========================================================
 // ESP32 CONNECTION UI
 // =========================================================
+
+function applyPatientTelemetry(data = {}) {
+  updatePatientSensorCards(data, {
+    getCurrentMode: () => dashboardState.modoActual,
+    onModeChange: setModoUI,
+  });
+}
 
 function bindSocketStatusUI() {
   const socket = getSocket();
@@ -599,20 +561,34 @@ function bindSocketStatusUI() {
       kind: st?.open ? "ok" : "warn",
     });
     setText("patientMasterStatus", st?.open ? "Online" : "Offline");
+    if (!st?.open) clearPatientSensorCards("ESP desconectado");
   });
 
   socket.on("telemetry", payload => {
-    updateHUD(payload || {});
-    updatePatientSensorCards(payload || {});
-    if (payload?.temp_bebe != null || payload?.temp_ambiente != null) updateTemps(payload || {});
-    if (payload?.estado) updateStatusCard(payload || {});
+    const data = payload || {};
+    updateFanUI(data);
+    if (!isPatientTelemetryVisible(data, dashboardState.modoActual)) {
+      clearPatientSensorCards(data?.esp32_connected === false ? "ESP desconectado" : "Sin terapia activa");
+      updateHUD({});
+      updateTemps({});
+    } else {
+      updateHUD(data);
+      applyPatientTelemetry(data);
+      if (data?.temp_bebe != null || data?.temp_ambiente != null) updateTemps(data);
+    }
+    if (data?.estado) updateStatusCard(data);
     setESP32State({ connected: true, portOpen: true, label: "ESP32 transmitiendo", kind: "ok" });
     setText("patientMasterStatus", "Online");
   });
 
   socket.on("temps", payload => {
-    updateTemps(payload || {});
-    updatePatientSensorCards(payload || {});
+    const data = payload || {};
+    if (data?.terapiaActiva === false) {
+      updateTemps({});
+      return;
+    }
+    updateTemps(data);
+    applyPatientTelemetry(data);
     setESP32State({ connected: true, label: "ESP32 transmitiendo", kind: "ok" });
   });
 
@@ -685,7 +661,32 @@ async function solicitarModo(modo) {
   if (_modeRequestPending) return;
   if (!normalizado) return;
   if (normalizado === dashboardState.modoActual) {
-    showModeMessage("Ese modo ya esta activo.", "status");
+    showModeMessage("Ese modo ya está activo.", "status");
+    return;
+  }
+
+  // Reposo es seguro: no requiere solicitud médica especial.
+  if (normalizado === "reposo") {
+    _modeRequestPending = true;
+    renderModeControls(getModePermission());
+    try {
+      const { ok, data } = await tutorRequestMode(state.currentUserId, "reposo");
+      if (!ok) {
+        const sent = socketEmitMode("reposo");
+        if (!sent) {
+          showModeMessage(MODE_ERROR_MESSAGES[data?.error] || data?.message || "No se pudo enviar modo reposo.", "danger");
+          return;
+        }
+      }
+      setModoUI("reposo");
+      showModeMessage("Modo reposo enviado.", "ok");
+    } catch (_) {
+      const sent = socketEmitMode("reposo");
+      showModeMessage(sent ? "Modo reposo enviado." : "No se pudo enviar modo reposo.", sent ? "ok" : "danger");
+    } finally {
+      _modeRequestPending = false;
+      renderModeControls(getModePermission());
+    }
     return;
   }
 
@@ -702,15 +703,16 @@ async function solicitarModo(modo) {
   try {
     const { ok, data } = await tutorRequestMode(state.currentUserId, normalizado);
     if (!ok) {
+      _modeRequestPending = false;
       showModeMessage(MODE_ERROR_MESSAGES[data?.error] || data?.message || "No se pudo solicitar el cambio de modo.", "danger");
+      renderModeControls(getModePermission());
       return;
     }
 
     showModeMessage(`Solicitud de modo ${normalizado} enviada al doctor.`, "ok");
   } catch (_) {
-    showModeMessage("No se pudo enviar la solicitud al doctor.", "danger");
-  } finally {
     _modeRequestPending = false;
+    showModeMessage("No se pudo enviar la solicitud al doctor.", "danger");
     renderModeControls(getModePermission());
   }
 }
@@ -731,11 +733,10 @@ async function requestManualControl() {
       showModeMessage(MODE_ERROR_MESSAGES[data?.error] || data?.message || "No se pudo enviar la solicitud al doctor.", "danger");
       return;
     }
-    showModeMessage("Solicitud enviada al doctor", "ok");
+    showModeMessage("Solicitud enviada al doctor. Esperando aprobación en tiempo real.", "ok");
   } catch (_) {
-    showModeMessage("No se pudo enviar la solicitud al doctor.", "danger");
-  } finally {
     _manualControlRequestPending = false;
+    showModeMessage("No se pudo enviar la solicitud al doctor.", "danger");
     renderControlOverlays(getModePermission());
   }
 }
@@ -791,7 +792,25 @@ function bindControlRefresh() {
       showModeMessage(`Modo actualizado: ${String(data.control.modo_actual).toUpperCase()}.`, "ok");
     }
   });
-  ["plan-updated","mode-request-resolved","doctor-request-resolved","session-started","session-paused","session-finished"].forEach(name => {
+  window.addEventListener("neolight:mode-request-resolved", event => {
+    const payload = event.detail || {};
+    if (payload.paciente_id && dashboardState.pacienteId && String(payload.paciente_id) !== String(dashboardState.pacienteId)) return;
+
+    _manualControlRequestPending = false;
+    _modeRequestPending = false;
+
+    const accepted = payload.status === "accepted";
+    if (payload.request_type === "manual_control" || payload.mode === "manual_control") {
+      showModeMessage(accepted ? "Control manual aprobado. Ya puedes usar los controles durante esta sesión." : "Solicitud de control manual rechazada.", accepted ? "ok" : "warn");
+      showRealtimeToast(accepted ? "Control manual aprobado" : "Control manual rechazado", accepted ? "ok" : "warn");
+    } else if (payload.mode) {
+      showModeMessage(accepted ? `Cambio a modo ${payload.mode} aprobado.` : `Cambio a modo ${payload.mode} rechazado.`, accepted ? "ok" : "warn");
+    }
+
+    refreshTutorState("mode-request-resolved");
+  });
+
+  ["plan-updated","doctor-request-resolved","session-started","session-paused","session-finished"].forEach(name => {
     window.addEventListener(`neolight:${name}`, () => refreshTutorState(name));
   });
   window.addEventListener("neolight:alarm-new", () => {
@@ -820,6 +839,13 @@ function bindPatientEvents(pacienteId) {
     socketEmitMute(next);
     updateMuteButtonFromState(next);
   });
+
+  $("fanToggleBtn")?.addEventListener("click", () => {
+    const currentlyOn = $("fanToggleBtn")?.classList.contains("is-on");
+    setFanState(currentlyOn ? "off" : "on");
+  });
+
+  $("fanAutoBtn")?.addEventListener("click", () => setFanState("auto"));
 
   $("saveExitBtn")?.addEventListener("click", async () => {
     await saveSession();
@@ -867,147 +893,6 @@ function bindPatientSections() {
   buttons.forEach(btn => btn.addEventListener("click", () => show(btn.dataset.sectionTarget || "inicio")));
 }
 
-async function loadRecentAlarms(pacienteId) {
-  try {
-    const { ok, data } = await fetchAlarms(pacienteId);
-    renderPatientAlarms(data.alarms || []);
-    if (!ok || !data.alarms?.length) return;
-
-    const criticals = data.alarms.filter(alarm => !alarm.silenciada && alarm.severidad === "critical");
-    if (!criticals.length) return;
-
-    const statusDet = $("statusDetail");
-    if (statusDet) statusDet.textContent += ` - ${criticals.length} alarma(s) critica(s) activa(s).`;
-  } catch (_) {}
-}
-
-async function loadPatientHistory(pacienteId) {
-  if (!pacienteId) return;
-  try {
-    const [sessionsRes, eventsRes] = await Promise.all([
-      fetchSessions(pacienteId),
-      fetchEvents(pacienteId),
-    ]);
-    const sessions = sessionsRes.data?.sessions || [];
-    const events = eventsRes.data?.events || [];
-    renderHistoryRows(sessions, events);
-  } catch (_) {}
-}
-
-function renderHistoryRows(sessions = [], events = []) {
-  const tbody = $("patientHistoryRows");
-  if (!tbody) return;
-
-  const rows = [
-    ...sessions.slice(0, 5).map(s => ({
-      date: s.fecha || s.created_at,
-      type: "Sesión",
-      detail: `${s.modo_programado || "-"} · ${secondsLabel(s.duracion_s)} · ${s.status || "-"}`
-    })),
-    ...events.slice(0, 5).map(e => ({
-      date: e.created_at,
-      type: "Evento",
-      detail: e.descripcion || e.tipo || "-"
-    })),
-  ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 8);
-
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="3">Sin datos</td></tr>`;
-    const railTbody = $("patientRailHistoryRows");
-    if (railTbody) railTbody.innerHTML = `<tr><td colspan="3">Sin datos</td></tr>`;
-    return;
-  }
-
-  const _clk = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const _tagClass = t => /sesi/i.test(t) ? "sesion" : /lectur/i.test(t) ? "lectura" : /cambio/i.test(t) ? "cambio" : /ingres/i.test(t) ? "ingreso" : "evento";
-  const _tagIco = {
-    sesion:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-6 4 12 2-6h4"/></svg>',
-    lectura: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/></svg>',
-    cambio:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 4l3 3-3 3"/><path d="M20 7H8"/><path d="M7 20l-3-3 3-3"/><path d="M4 17h12"/></svg>',
-    ingreso: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
-    evento:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-6 4 12 2-6h4"/></svg>',
-  };
-  tbody.innerHTML = rows.map(r => {
-    const _c = _tagClass(r.type);
-    return `
-    <tr>
-      <td><span class="td-date">${_clk}${formatDate(r.date)}</span></td>
-      <td><span class="tag ${_c}">${_tagIco[_c] || ""}${escapeText(r.type)}</span></td>
-      <td>${escapeText(r.detail)}</td>
-    </tr>`;
-  }).join("");
-
-  const railTbody = $("patientRailHistoryRows");
-  if (railTbody) railTbody.innerHTML = tbody.innerHTML;
-}
-
-function renderPatientAlarms(alarms = []) {
-  const box = $("patientAlarmsList");
-  const railBox = $("patientRailAlarmsList");
-  const emptyHtml = `<div class="empty-note">Sin alarmas · No hay registros recientes.</div>`;
-
-  if (!alarms.length) {
-    if (box) box.innerHTML = emptyHtml;
-    if (railBox) railBox.innerHTML = emptyHtml;
-    updateAlertCard(0);
-    return;
-  }
-
-  const _triIco = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-  const _clkIco = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const _sevMap = s => { const v = String(s || "").toLowerCase(); if (v === "critical" || v === "critica" || v === "crit") return ["crit", "CRÍTICA"]; if (v === "warning" || v === "warn" || v === "advertencia") return ["warn", "ADVERTENCIA"]; return ["info", "INFO"]; };
-  const html = alarms.slice(0, 5).map(a => {
-    const [lvl, sevLbl] = _sevMap(a.severidad);
-    const sil = a.silenciada ? `<span class="ar-silenced">SILENCIADA</span>` : "";
-    return `<div class="alert-row ${lvl}">
-      <div class="ar-ico">${_triIco}</div>
-      <div class="ar-body">
-        <div class="ar-title">${escapeText(a.tipo || "Alarma")}${sil}</div>
-        <div class="ar-desc">${escapeText(a.mensaje || a.valor_medido || "")}</div>
-        <div class="ar-time">${_clkIco}${formatDate(a.created_at)}</div>
-      </div>
-      <span class="ar-sev">${sevLbl}</span>
-    </div>`;
-  }).join("");
-
-  if (box) box.innerHTML = html;
-  if (railBox) railBox.innerHTML = html;
-
-  const active = alarms.filter(a => !a.silenciada).length;
-  updateAlertCard(active);
-}
-
-function updateAlertCard(count) {
-  const card = $("ptAlertCard");
-  const msg = $("ptAlertMsg");
-  const cnt = $("ptAlertCount");
-  const badge = $("ptBellBadge");
-
-  if (count > 0) {
-    card?.classList.add("pt-has-alert");
-    if (msg) msg.textContent = `${count} alarma${count > 1 ? "s" : ""} activa${count > 1 ? "s" : ""}`;
-    if (cnt) cnt.textContent = `${count} alarma${count > 1 ? "s" : ""}`;
-    badge?.classList.add("pt-badge-visible");
-  } else {
-    card?.classList.remove("pt-has-alert");
-    if (msg) msg.textContent = "Sin alarmas activas";
-    if (cnt) cnt.textContent = "";
-    badge?.classList.remove("pt-badge-visible");
-  }
-}
-
-function controlLabel(control) {
-  const mode = String(control?.modo_control || "bloqueado").toLowerCase();
-  if (mode === "manual") return "Manual habilitado";
-  if (mode === "automatico") return "Automático";
-  return "Bloqueado";
-}
-
-function labelGenero(value) {
-  const v = String(value || "").replace("_", " ");
-  return v ? v.charAt(0).toUpperCase() + v.slice(1) : "-";
-}
-
 function setProgress(id, pct) {
   const el = $(id);
   if (el) el.style.width = `${Math.max(0, Math.min(100, pct))}%`;
@@ -1018,164 +903,6 @@ function setDonut(id, pct) {
   if (!el) return;
   const value = Math.max(0, Math.min(100, Number(pct) || 0));
   el.style.setProperty("--pct", `${value}`);
-}
-
-function updatePatientSensorCards(data = {}) {
-  console.log("[NEOLIGHT] telemetría recibida:", data);
-
-  const cm      = Number(data.cm ?? data.distance_cm ?? data.distance);
-  const light   = Number(data.pct ?? data.percent ?? data.illumination_pct ?? data.illumination ?? data.intensidad_led_pct);
-  const baby    = Number(data.bebe ?? data.temp_bebe ?? data.temp_body_c);
-  const ambient = Number(data.ambiente ?? data.temp_ambiente ?? data.temp_amb_c);
-  const pwm     = Number(data.pwm ?? data.pwm_led);
-  const modo    = data.modo_actual ?? data.modo ?? data.mode;
-
-  if (Number.isFinite(light))   updatePatientLight(light);
-  if (Number.isFinite(cm))      updatePatientDistance(cm);
-  if (Number.isFinite(baby))    updatePatientBabyTemp(baby);
-  if (Number.isFinite(ambient)) updatePatientAmbientTemp(ambient);
-  if (Number.isFinite(pwm))     updatePatientPWM(pwm);
-  if (modo) {
-    const normalized = normalizeMode(modo);
-    if (normalized) setModoUI(normalized);
-    setText("patientMode", String(modo).toUpperCase());
-  }
-  renderPatientCharts();
-}
-
-function updatePatientPWM(value) {
-  const pct = Math.max(0, Math.min(100, Math.round(value)));
-  setText("patientHeroPWM", `${pct} %`);
-}
-
-function updatePatientLight(value) {
-  const pct = Math.max(0, Math.min(100, Math.round(value)));
-  setText("patientLightLevel", `${pct}%`);
-  setText("patientLightStatus", pct >= 60 && pct <= 95 ? "Dentro del rango terapéutico" : "Revisar intensidad LED");
-  setProgress("patientLightBar", pct);
-  pushSeries(sensorSeries.light, pct);
-}
-
-function updatePatientDistance(value) {
-  const cm = Math.round(value);
-  setText("patientDistance", `${cm} cm`);
-  const status = cm >= 25 && cm <= 45 ? "Distancia correcta" : cm < 20 ? "Peligro: muy cerca" : "Fuera de rango";
-  setText("patientDistanceStatus", status);
-  setProgress("patientDistanceBar", Math.max(0, Math.min(100, (cm / 60) * 100)));
-  pushSeries(sensorSeries.distance, cm);
-}
-
-function updatePatientBabyTemp(value) {
-  setText("patientBabyTemp", `${Number(value).toFixed(1)}°C`);
-  setText("patientBabyTempStatus", value >= 36.5 && value <= 37.5 ? "Temperatura estable" : "Revisar temperatura");
-  pushSeries(sensorSeries.baby, Number(value));
-}
-
-function updatePatientAmbientTemp(value) {
-  setText("patientAmbientTemp", `${Number(value).toFixed(1)}°C`);
-  setText("patientAmbientTempStatus", "Lectura ambiental");
-  pushSeries(sensorSeries.ambient, Number(value));
-}
-
-function pushSeries(series, value) {
-  series.push(Number(value));
-  if (series.length > 24) series.shift();
-}
-
-function renderPatientCharts() {
-  drawLineChart("patientLedChart", [sensorSeries.light], ["#7c6be8"], 0, 100);
-  drawLineChart("patientDistanceChart", [sensorSeries.distance], ["#b9adff"], 0, 60);
-  drawLineChart("patientTempChart", [sensorSeries.baby, sensorSeries.ambient], ["#f7a8c8", "#7c6be8"], 25, 40);
-}
-
-function drawLineChart(id, seriesList, colors, minY, maxY) {
-  const canvas = $(id);
-  if (!canvas?.getContext) return;
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "#fbfaff";
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = "rgba(124,107,232,.12)";
-  ctx.lineWidth = 1;
-  for (let i = 1; i < 4; i++) {
-    const y = (h / 4) * i;
-    ctx.beginPath(); ctx.moveTo(12, y); ctx.lineTo(w - 12, y); ctx.stroke();
-  }
-  seriesList.forEach((series, idx) => {
-    if (!series.length) {
-      ctx.fillStyle = "#7b7b94";
-      ctx.font = "12px Inter, sans-serif";
-      ctx.fillText("Sin datos suficientes", 18, h / 2);
-      return;
-    }
-    ctx.strokeStyle = colors[idx] || "#7c6be8";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    series.forEach((value, i) => {
-      const x = 16 + (i / Math.max(1, series.length - 1)) * (w - 32);
-      const y = h - 16 - ((value - minY) / Math.max(1, maxY - minY)) * (h - 32);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-  });
-}
-
-function downloadPatientPdfReport() {
-  renderPatientPdfReport();
-  const report = $("patientPdfReport");
-  if (report) report.setAttribute("aria-hidden", "false");
-  window.print();
-  window.setTimeout(() => report?.setAttribute("aria-hidden", "true"), 500);
-}
-
-function renderPatientPdfReport() {
-  const report = $("patientPdfReport");
-  if (!report) return;
-  const ledChart = canvasData("patientLedChart");
-  const tempChart = canvasData("patientTempChart");
-  const distanceChart = canvasData("patientDistanceChart");
-  const progress = $("patientProgressChartText")?.textContent || "0%";
-  report.innerHTML = `
-    <div class="pdf-header">
-      <div><div class="pdf-brand">NEOLIGHT</div><h1>Reporte de seguimiento paciente</h1><p>Generado: ${escapeText(new Date().toLocaleString("es"))}</p></div>
-      <div class="pdf-doctor-box"><strong>${escapeText($("pacienteNombre")?.textContent || "-")}</strong><span>${escapeText($("pacienteCodigo")?.textContent || "-")}</span><span>${escapeText($("pacienteDoctor")?.textContent || "-")}</span></div>
-    </div>
-    <div class="pdf-kpi-grid">
-      ${pdfKpi("Intensidad LED", $("patientLightLevel")?.textContent || "-")}
-      ${pdfKpi("Distancia", $("patientDistance")?.textContent || "-")}
-      ${pdfKpi("Temperatura bebé", $("patientBabyTemp")?.textContent || "-")}
-      ${pdfKpi("Ambiente", $("patientAmbientTemp")?.textContent || "-")}
-    </div>
-    <section class="pdf-section"><h2>Graficos de seguimiento</h2>
-      <div class="pdf-chart-grid">
-        ${pdfChart("Intensidad LED vs tiempo", ledChart)}
-        ${pdfChart("Temperatura bebe / ambiente", tempChart)}
-        ${pdfChart("Distancia lampara", distanceChart)}
-        <div class="pdf-chart-card"><h3>Progreso terapia</h3><div class="pdf-progress-circle">${escapeText(progress)}</div></div>
-      </div>
-    </section>
-    <section class="pdf-section"><h2>Progreso terapia</h2><div class="pdf-empty">${escapeText($("pacienteProgreso")?.textContent || "-")}</div></section>
-    <section class="pdf-section"><h2>Historial</h2><table class="pdf-table">${$("patientHistoryRows")?.innerHTML || "<tr><td>Sin datos</td></tr>"}</table></section>
-    <section class="pdf-section"><h2>Alertas</h2><div class="pdf-empty">${escapeText($("patientAlarmsList")?.innerText || "Sin alertas")}</div></section>`;
-}
-
-function pdfKpi(label, value) {
-  return `<div class="pdf-kpi"><span>${escapeText(label)}</span><strong>${escapeText(value)}</strong></div>`;
-}
-
-function canvasData(id) {
-  const canvas = $(id);
-  if (!canvas?.toDataURL) return "";
-  try {
-    return canvas.toDataURL("image/png");
-  } catch (_) {
-    return "";
-  }
-}
-
-function pdfChart(title, src) {
-  return `<div class="pdf-chart-card"><h3>${escapeText(title)}</h3>${src ? `<img src="${src}" alt="${escapeText(title)}">` : `<div class="pdf-empty">Sin datos suficientes</div>`}</div>`;
 }
 
 // =========================================================
@@ -1199,83 +926,11 @@ function bindRightPanelTabs() {
 // CAMERA TOGGLE
 // =========================================================
 
-function bindCameraToggle() {
-  const btn       = $("ptCamToggle");
-  const heroVideo = document.querySelector("#ptHeroMedia .pt-hero-video");
-  const camImg    = $("ptCameraStream");
-  const camError  = $("ptCamError");
-  if (!btn || !camImg) return;
-
-  const STREAM_URL     = "http://10.26.0.74/stream";
-  const ERROR_TIMEOUT  = 7000;   // ms sin primer frame → error
-  let   errorTimer     = null;
-
-  function setToggle(on) {
-    btn.setAttribute("aria-pressed", on ? "true" : "false");
-  }
-
-  function hideError() {
-    if (camError) { camError.style.display = "none"; camError.setAttribute("aria-hidden", "true"); }
-  }
-
-  function showError() {
-    clearTimeout(errorTimer); errorTimer = null;
-    camImg.src          = "";
-    camImg.style.display = "none";
-    camImg.onerror      = null;
-    camImg.onload       = null;
-    if (camError) { camError.style.display = "flex"; camError.removeAttribute("aria-hidden"); }
-  }
-
-  function turnOn() {
-    setToggle(true);
-    hideError();
-    camImg.style.display = "none";    // oculto hasta que cargue primer frame
-    if (heroVideo) heroVideo.style.display = "none";
-
-    camImg.onerror = () => showError();
-    camImg.onload  = () => {
-      // Primer frame recibido — mostramos el stream
-      clearTimeout(errorTimer); errorTimer = null;
-      camImg.style.display = "block";
-    };
-    errorTimer = setTimeout(showError, ERROR_TIMEOUT);
-    camImg.src = STREAM_URL;
-  }
-
-  function turnOff() {
-    setToggle(false);
-    clearTimeout(errorTimer); errorTimer = null;
-    camImg.onerror       = null;
-    camImg.onload        = null;
-    camImg.src           = "";
-    camImg.style.display = "none";
-    hideError();
-    if (heroVideo) heroVideo.style.display = "block";
-  }
-
-  btn.addEventListener("click", () => {
-    btn.getAttribute("aria-pressed") === "true" ? turnOff() : turnOn();
-  });
-}
-
 function secondsLabel(sec) {
   const n = Number(sec || 0);
   if (!Number.isFinite(n) || n <= 0) return "00:00:00";
   const h = Math.floor(n / 3600), m = Math.floor((n % 3600) / 60), s = Math.floor(n % 60);
   return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? String(value).slice(0, 10) : d.toLocaleDateString("es");
-}
-
-function escapeText(value) {
-  return String(value ?? "").replace(/[&<>"']/g, c =>
-    ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c])
-  );
 }
 
 function setText(id, value) {

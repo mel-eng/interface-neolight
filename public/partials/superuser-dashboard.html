@@ -1,0 +1,338 @@
+<div class="su-app" id="superuserApp">
+  <aside class="su-sidebar" id="suSidebar" aria-label="Navegación del superusuario">
+    <div class="su-brand">
+      <img src="./img/logo.png" alt="NeoLight">
+      <div>
+        <strong>NeoLight</strong>
+        <span>Fototerapia neonatal</span>
+      </div>
+    </div>
+
+    <nav class="su-nav" aria-label="Secciones del panel">
+      <button class="su-nav-item active" type="button" data-su-section="inicio">
+        <span class="su-nav-icon" data-icon="home"></span><span>Inicio</span>
+      </button>
+      <button class="su-nav-item" type="button" data-su-section="usuarios">
+        <span class="su-nav-icon" data-icon="users"></span><span>Usuarios</span>
+      </button>
+      <button class="su-nav-item" type="button" data-su-section="equipos">
+        <span class="su-nav-icon" data-icon="device"></span><span>Equipos</span>
+      </button>
+      <button class="su-nav-item" type="button" data-su-section="diagnostico">
+        <span class="su-nav-icon" data-icon="activity"></span><span>Diagnóstico</span>
+      </button>
+      <button class="su-nav-item" type="button" data-su-section="mantenimiento">
+        <span class="su-nav-icon" data-icon="wrench"></span><span>Mantenimiento</span>
+      </button>
+    </nav>
+
+    <div class="su-sidebar-art" aria-hidden="true">
+      <div class="su-lamp-glow"></div>
+      <span class="su-art-star su-art-star-a">✦</span>
+      <span class="su-art-star su-art-star-b">✧</span>
+      <div class="su-baby-cradle">
+        <div class="su-baby-head"></div>
+        <div class="su-baby-body"></div>
+      </div>
+    </div>
+
+    <div class="su-role-card">
+      <div class="su-role-badge" data-icon="shield"></div>
+      <div><span>Rol actual</span><strong>Superusuario</strong></div>
+    </div>
+  </aside>
+
+  <div class="su-main">
+    <header class="su-topbar">
+      <div class="su-topbar-left">
+        <button class="su-mobile-menu" id="suMobileMenu" type="button" aria-label="Abrir menú">
+          <span data-icon="menu"></span>
+        </button>
+        <div>
+          <p class="su-eyebrow" id="suSectionEyebrow">Panel de control</p>
+          <h1 id="suSectionTitle">Inicio</h1>
+          <p id="suSectionSubtitle">Resumen general del sistema NeoLight.</p>
+        </div>
+      </div>
+
+      <div class="su-topbar-actions">
+        <label class="su-equipment-picker" for="suGlobalEquipment">
+          <span data-icon="device"></span>
+          <span class="su-equipment-picker-copy"><small>Equipo activo</small><b id="suSelectedEquipmentLabel">NEOLIGHT-01</b></span>
+          <select id="suGlobalEquipment" aria-label="Seleccionar equipo">
+            <option value="neo-01">NEOLIGHT-01</option>
+            <option value="neo-02">NEOLIGHT-02</option>
+          </select>
+        </label>
+        <button class="su-icon-button" id="suNotificationsBtn" type="button" aria-label="Abrir alertas">
+          <span data-icon="bell"></span><b id="suNotificationBadge">0</b>
+        </button>
+        <div class="su-profile-chip">
+          <div class="su-avatar" id="suAvatar">MM</div>
+          <div><strong id="suUserName">Mel Marquadt</strong><span>Superusuario</span></div>
+        </div>
+        <button class="su-icon-button" id="suLogoutBtn" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">
+          <span data-icon="power"></span>
+        </button>
+      </div>
+    </header>
+
+    <main class="su-content">
+      <!-- INICIO -->
+      <section class="su-section active" data-su-panel="inicio" aria-labelledby="suSectionTitle">
+        <div class="su-welcome-card">
+          <div>
+            <span class="su-soft-badge"><span data-icon="sparkles"></span> Centro de administración</span>
+            <h2>Gestión centralizada, clara y segura.</h2>
+            <p>Supervisa usuarios, equipos y actividad técnica desde un resumen ordenado. Cada función dispone de su propia sección para facilitar el seguimiento.</p>
+          </div>
+          <div class="su-sync-status" id="suSyncStatus"><i></i><span>Comprobando conexión</span></div>
+        </div>
+
+        <div class="su-stat-grid">
+          <article class="su-stat-card su-stat-mint">
+            <span class="su-stat-icon" data-icon="device"></span>
+            <div><small>Equipos operativos</small><strong id="suStatEquipment">1 de 2</strong><span>Uno pendiente de verificación</span></div>
+          </article>
+          <article class="su-stat-card su-stat-lavender">
+            <span class="su-stat-icon" data-icon="clock"></span>
+            <div><small>Horas registradas</small><strong id="suStatHours">0 h</strong><span>Uso acumulado</span></div>
+          </article>
+          <article class="su-stat-card su-stat-blue">
+            <span class="su-stat-icon" data-icon="baby"></span>
+            <div><small>Pacientes registrados</small><strong id="suStatPatients">0</strong><span>En el sistema</span></div>
+          </article>
+          <article class="su-stat-card su-stat-rose">
+            <span class="su-stat-icon" data-icon="alert"></span>
+            <div><small>Alertas activas</small><strong id="suStatAlerts">0</strong><span>Requieren revisión</span></div>
+          </article>
+        </div>
+
+        <div class="su-home-grid">
+          <article class="su-card su-active-equipment-card">
+            <div class="su-card-head">
+              <div><span class="su-card-kicker">Equipo seleccionado</span><h3 id="suHomeEquipmentName">NEOLIGHT-01</h3></div>
+              <span class="su-status-pill success" id="suHomeEquipmentStatus">Operativo</span>
+            </div>
+            <div class="su-equipment-visual">
+              <div class="su-device-illustration">
+                <span class="su-device-light"></span><span class="su-device-arm"></span><span class="su-device-base"></span>
+              </div>
+              <div class="su-equipment-summary">
+                <p id="suHomeEquipmentDescription">Prototipo principal disponible para diagnóstico.</p>
+                <div class="su-mini-metrics">
+                  <span><small>Conexión</small><b id="suHomeConnection">Sin datos</b></span>
+                  <span><small>Última lectura</small><b id="suHomeLastSeen">—</b></span>
+                  <span><small>Última prueba</small><b id="suHomeLastTest">No registrada</b></span>
+                </div>
+              </div>
+            </div>
+            <div class="su-card-actions">
+              <button class="su-button primary" type="button" data-go-section="diagnostico">Probar equipo</button>
+              <button class="su-button ghost" type="button" data-go-section="equipos">Ver ficha</button>
+            </div>
+          </article>
+
+          <article class="su-card su-calendar-card">
+            <div class="su-card-head">
+              <div><span class="su-card-kicker">Historial de uso</span><h3 id="suCalendarMonth">Mes actual</h3></div>
+              <button class="su-text-button" type="button" id="suExpandHistory">Ver detalle</button>
+            </div>
+            <div class="su-calendar-week"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
+            <div class="su-calendar-grid" id="suCalendarGrid"></div>
+            <div class="su-calendar-legend"><span><i class="use"></i>Día con uso</span><span><i class="alert"></i>Alerta</span><span><i class="maintenance"></i>Mantenimiento</span></div>
+          </article>
+
+          <article class="su-card su-alert-preview">
+            <div class="su-card-head">
+              <div><span class="su-card-kicker">Estado técnico</span><h3>Alertas recientes</h3></div>
+              <button class="su-text-button" type="button" id="suViewAllAlerts">Ver todas</button>
+            </div>
+            <div class="su-list" id="suHomeAlerts"></div>
+          </article>
+
+          <article class="su-card su-assignment-preview">
+            <div class="su-card-head">
+              <div><span class="su-card-kicker">Administración</span><h3>Asignaciones recientes</h3></div>
+              <button class="su-text-button" type="button" data-go-section="usuarios">Gestionar</button>
+            </div>
+            <div class="su-list" id="suHomeAssignments"></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- USUARIOS -->
+      <section class="su-section" data-su-panel="usuarios">
+        <div class="su-toolbar-card">
+          <div class="su-tabs" role="tablist" aria-label="Gestión de usuarios">
+            <button class="su-tab active" type="button" data-users-tab="doctors">Doctores</button>
+            <button class="su-tab" type="button" data-users-tab="patients">Pacientes y asignaciones</button>
+          </div>
+          <div class="su-toolbar-actions">
+            <label class="su-search"><span data-icon="search"></span><input id="suUserSearch" type="search" placeholder="Buscar usuario..."></label>
+            <button class="su-button primary" id="suNewDoctorBtn" type="button"><span data-icon="plus"></span>Nuevo doctor</button>
+          </div>
+        </div>
+
+        <div class="su-user-panel active" data-users-panel="doctors">
+          <div class="su-panel-heading"><div><span class="su-card-kicker">Personal médico</span><h2>Doctores registrados</h2><p>Desactiva cuentas sin borrar el historial y reasigna pacientes cuando corresponda.</p></div><span class="su-count-badge" id="suDoctorsCount">0 doctores</span></div>
+          <div class="su-table-card">
+            <div class="su-table su-doctors-table">
+              <div class="su-table-row su-table-head"><span>Doctor</span><span>Especialidad</span><span>Pacientes</span><span>Estado</span><span>Acciones</span></div>
+              <div id="suDoctorsTableBody"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="su-user-panel" data-users-panel="patients">
+          <div class="su-panel-heading"><div><span class="su-card-kicker">Seguimiento</span><h2>Pacientes y asignaciones</h2><p>Consulta el médico actual y registra una reasignación sin perder antecedentes.</p></div><span class="su-count-badge" id="suPatientsCount">0 pacientes</span></div>
+          <div class="su-table-card">
+            <div class="su-table su-patients-table">
+              <div class="su-table-row su-table-head"><span>Paciente</span><span>Médico actual</span><span>Estado</span><span>Ingreso</span><span>Acciones</span></div>
+              <div id="suPatientsTableBody"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EQUIPOS -->
+      <section class="su-section" data-su-panel="equipos">
+        <div class="su-panel-heading su-equipment-heading">
+          <div><span class="su-card-kicker">Inventario técnico</span><h2>Equipos NeoLight</h2><p>Por ahora se registran dos lámparas: una operativa y una pendiente de verificación física.</p></div>
+          <button class="su-button secondary" id="suRegisterEquipmentBtn" type="button"><span data-icon="plus"></span>Registrar equipo</button>
+        </div>
+        <div class="su-equipment-list" id="suEquipmentList"></div>
+      </section>
+
+      <!-- DIAGNÓSTICO -->
+      <section class="su-section" data-su-panel="diagnostico">
+        <div class="su-diagnostic-banner">
+          <div><span class="su-soft-badge"><span data-icon="activity"></span> Pruebas técnicas</span><h2>Diagnóstico de <b id="suDiagnosticEquipmentName">NEOLIGHT-01</b></h2><p>Las acciones manuales solo se habilitan durante el modo de prueba para evitar movimientos o activaciones accidentales.</p></div>
+          <button class="su-test-mode-button" id="suTestModeBtn" type="button"><span data-icon="lock"></span><b>Activar modo de prueba</b><small>Controles bloqueados</small></button>
+        </div>
+
+        <div class="su-tabs su-diagnostic-tabs" role="tablist" aria-label="Áreas de diagnóstico">
+          <button class="su-tab active" type="button" data-diagnostic-tab="sensors">Sensores</button>
+          <button class="su-tab" type="button" data-diagnostic-tab="actuators">Actuadores</button>
+          <button class="su-tab" type="button" data-diagnostic-tab="lighting">Matriz LED</button>
+          <button class="su-tab" type="button" data-diagnostic-tab="camera">Cámara y alarmas</button>
+        </div>
+
+        <div class="su-diagnostic-panel active" data-diagnostic-panel="sensors">
+          <div class="su-diagnostic-grid" id="suSensorGrid"></div>
+          <div class="su-test-footer"><div><strong>Prueba conjunta de sensores</strong><span>Actualiza las lecturas y comprueba respuesta, conexión y rango.</span></div><button class="su-button primary" id="suTestAllSensors" type="button"><span data-icon="play"></span>Iniciar prueba</button></div>
+        </div>
+
+        <div class="su-diagnostic-panel" data-diagnostic-panel="actuators">
+          <div class="su-two-column-layout">
+            <article class="su-card su-control-card">
+              <div class="su-card-head"><div><span class="su-card-kicker">Movimiento</span><h3>Actuadores lineales</h3></div><span class="su-status-pill neutral" id="suActuatorStatus">Bloqueados</span></div>
+              <div class="su-direction-pad">
+                <span></span><button type="button" data-move="subir"><span data-icon="arrow-up"></span><b>Subir</b></button><span></span>
+                <button type="button" data-move="izq"><span data-icon="arrow-left"></span><b>Izquierda</b></button><button class="stop" type="button" data-move="stop"><span data-icon="square"></span><b>Detener</b></button><button type="button" data-move="der"><span data-icon="arrow-right"></span><b>Derecha</b></button>
+                <span></span><button type="button" data-move="bajar"><span data-icon="arrow-down"></span><b>Bajar</b></button><span></span>
+              </div>
+            </article>
+            <article class="su-card">
+              <div class="su-card-head"><div><span class="su-card-kicker">Comprobación</span><h3>Estado de movimiento</h3></div></div>
+              <div class="su-check-list" id="suActuatorChecks">
+                <div><span data-icon="check"></span><p><b>Comunicación con esclavo</b><small id="suSlaveConnection">Sin datos</small></p></div>
+                <div><span data-icon="check"></span><p><b>Límites verticales</b><small>Protección configurada</small></p></div>
+                <div><span data-icon="check"></span><p><b>Parada de emergencia</b><small>Disponible durante la prueba</small></p></div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="su-diagnostic-panel" data-diagnostic-panel="lighting">
+          <div class="su-two-column-layout">
+            <article class="su-card su-led-card">
+              <div class="su-card-head"><div><span class="su-card-kicker">Emisión</span><h3>Prueba de matriz LED</h3></div><span class="su-status-pill neutral" id="suLedStatus">En reposo</span></div>
+              <div class="su-led-visual"><div class="su-led-rays" id="suLedRays"></div><div class="su-led-panel"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+              <div class="su-level-buttons" id="suLedLevels"><button type="button" data-led="0">0%</button><button type="button" data-led="25">25%</button><button type="button" data-led="50">50%</button><button type="button" data-led="75">75%</button><button type="button" data-led="100">100%</button></div>
+            </article>
+            <article class="su-card">
+              <div class="su-card-head"><div><span class="su-card-kicker">Respuesta</span><h3>Lectura durante la prueba</h3></div></div>
+              <div class="su-reading-list">
+                <div><span>LDR 1</span><b id="suLedLdr1">—</b></div><div><span>LDR 2</span><b id="suLedLdr2">—</b></div><div><span>Promedio lumínico</span><b id="suLedAverage">—</b></div><div><span>Temperatura ambiente</span><b id="suLedTemp">—</b></div><div><span>Ventilador</span><b id="suLedFan">Sin datos</b></div>
+              </div>
+              <button class="su-button primary full" id="suAutomaticLedTest" type="button"><span data-icon="play"></span>Prueba automática</button>
+            </article>
+          </div>
+        </div>
+
+        <div class="su-diagnostic-panel" data-diagnostic-panel="camera">
+          <div class="su-two-column-layout su-camera-layout">
+            <article class="su-card">
+              <div class="su-card-head"><div><span class="su-card-kicker">Monitoreo visual</span><h3>Cámara ESP32-S3</h3></div><span class="su-status-pill neutral" id="suCameraStatus">No probada</span></div>
+              <div class="su-camera-frame"><img id="suCameraPreview" alt="Vista de prueba de la cámara"><div id="suCameraPlaceholder"><span data-icon="camera"></span><p>La transmisión se cargará al iniciar la prueba.</p></div></div>
+              <div class="su-card-actions"><button class="su-button primary" id="suTestCamera" type="button">Probar cámara</button><button class="su-button ghost" id="suStopCamera" type="button">Detener</button></div>
+            </article>
+            <article class="su-card">
+              <div class="su-card-head"><div><span class="su-card-kicker">Salidas auxiliares</span><h3>Alarmas y ventilación</h3></div></div>
+              <div class="su-output-tests">
+                <button type="button" data-output-test="buzzer"><span data-icon="volume"></span><p><b>Buzzer</b><small>Prueba sonora local</small></p><em>Probar</em></button>
+                <button type="button" data-output-test="fan-on"><span data-icon="fan"></span><p><b>Ventilador</b><small>Encendido manual</small></p><em>Encender</em></button>
+                <button type="button" data-output-test="fan-auto"><span data-icon="refresh"></span><p><b>Modo automático</b><small>Control por temperatura</small></p><em>Activar</em></button>
+                <button type="button" data-output-test="fan-off"><span data-icon="power"></span><p><b>Detener salida</b><small>Ventilador en reposo</small></p><em>Apagar</em></button>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- MANTENIMIENTO -->
+      <section class="su-section" data-su-panel="mantenimiento">
+        <div class="su-toolbar-card">
+          <div class="su-tabs" role="tablist" aria-label="Tipo de mantenimiento">
+            <button class="su-tab active" type="button" data-maintenance-tab="preventive">Preventivo</button>
+            <button class="su-tab" type="button" data-maintenance-tab="corrective">Correctivo</button>
+          </div>
+          <div class="su-maintenance-equipment"><span>Equipo:</span><strong id="suMaintenanceEquipment">NEOLIGHT-01</strong></div>
+        </div>
+
+        <div class="su-maintenance-layout">
+          <article class="su-card">
+            <div class="su-card-head"><div><span class="su-card-kicker">Lista de control</span><h3 id="suMaintenanceChecklistTitle">Revisión preventiva</h3></div><span class="su-progress-badge" id="suMaintenanceProgress">0/7</span></div>
+            <div class="su-maintenance-checklist" id="suMaintenanceChecklist"></div>
+            <button class="su-button ghost full" id="suCompleteChecklist" type="button">Marcar todo como revisado</button>
+          </article>
+
+          <article class="su-card">
+            <div class="su-card-head"><div><span class="su-card-kicker">Registro local</span><h3>Guardar mantenimiento</h3></div></div>
+            <form class="su-form" id="suMaintenanceForm">
+              <label><span>Tipo</span><select id="suMaintenanceType"><option value="preventivo">Preventivo</option><option value="correctivo">Correctivo</option><option value="inspeccion">Inspección general</option></select></label>
+              <label><span>Resultado</span><select id="suMaintenanceResult"><option value="aprobado">Aprobado</option><option value="observacion">Aprobado con observaciones</option><option value="no_aprobado">No aprobado</option></select></label>
+              <label><span>Responsable</span><input id="suMaintenanceResponsible" autocomplete="name" placeholder="Nombre del responsable"></label>
+              <label><span>Observaciones</span><textarea id="suMaintenanceNotes" rows="5" placeholder="Detalles de la revisión, falla encontrada o acción realizada..."></textarea></label>
+              <button class="su-button primary full" type="submit">Guardar registro</button>
+            </form>
+          </article>
+
+          <article class="su-card">
+            <div class="su-card-head"><div><span class="su-card-kicker">Trazabilidad</span><h3>Historial reciente</h3></div><button class="su-text-button" id="suFullMaintenanceHistory" type="button">Ver completo</button></div>
+            <div class="su-list su-maintenance-history" id="suMaintenanceHistory"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <aside class="su-notification-drawer" id="suNotificationDrawer" aria-hidden="true">
+    <div class="su-drawer-head"><div><span class="su-card-kicker">Centro de alertas</span><h2>Notificaciones</h2></div><button class="su-icon-button" id="suCloseNotifications" type="button" aria-label="Cerrar"><span data-icon="x"></span></button></div>
+    <div class="su-drawer-filters"><button class="active" type="button" data-alert-filter="all">Todas</button><button type="button" data-alert-filter="technical">Técnicas</button><button type="button" data-alert-filter="admin">Administrativas</button></div>
+    <div class="su-drawer-list" id="suNotificationList"></div>
+  </aside>
+  <div class="su-drawer-backdrop" id="suDrawerBackdrop"></div>
+
+  <div class="su-modal" id="suModal" aria-hidden="true">
+    <div class="su-modal-backdrop" data-close-su-modal></div>
+    <div class="su-modal-panel" role="dialog" aria-modal="true" aria-labelledby="suModalTitle">
+      <div class="su-modal-head"><div><span class="su-card-kicker" id="suModalKicker">Administración</span><h2 id="suModalTitle">Detalle</h2></div><button class="su-icon-button" type="button" data-close-su-modal aria-label="Cerrar"><span data-icon="x"></span></button></div>
+      <div class="su-modal-body" id="suModalBody"></div>
+      <div class="su-modal-actions" id="suModalActions"></div>
+    </div>
+  </div>
+
+  <div class="su-toast-stack" id="suToastStack" aria-live="polite"></div>
+</div>

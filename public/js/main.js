@@ -37,7 +37,13 @@ export function setNavMode(mode) {
 function showDash(which) {
   const lb = $("logoutBtn"); if (lb) lb.style.display = "inline-flex";
   setNavMode("private");
-  navigate(which === "patient" ? "dashboard-patient" : "dashboard-doctor");
+  document.body.classList.toggle("superuser-mode", which === "superuser");
+  const target = which === "patient"
+    ? "dashboard-patient"
+    : which === "superuser"
+      ? "dashboard-superuser"
+      : "dashboard-doctor";
+  navigate(target);
 }
 
 export async function enterFromSession(data) {
@@ -47,6 +53,23 @@ export async function enterFromSession(data) {
     return;
   }
   state.currentRole = role;
+
+
+  if (role === "superuser") {
+    if (!data?.superuser) {
+      doLogout(false);
+      return;
+    }
+    state.currentUserId = data.superuser.id;
+    state.currentSuperuserId = data.superuser.id;
+    showDash("superuser");
+    const { initSocket, socketIdentifySuperuser } = await import("./socket.js");
+    initSocket();
+    socketIdentifySuperuser(data.superuser.id);
+    const { initSuperuserDashboard } = await import("./superuser-dashboard.js");
+    await initSuperuserDashboard(data);
+    return;
+  }
 
   if (role === "doctor") {
     if (!data?.doctor) {
@@ -88,11 +111,13 @@ function bindNavButtons() {
   // Nav links
   $("navHome")?.addEventListener("click",     () => navigate("home"));
   $("navLogin")?.addEventListener("click",    () => openAuthModal());
+  $("topLoginBtn")?.addEventListener("click", () => openAuthModal());
   $("navHistoria")?.addEventListener("click", () => navigate("historia"));
   $("navContacto")?.addEventListener("click", () => navigate("contacto"));
 
   // Hero CTA
   $("heroLoginBtn")?.addEventListener("click",    () => openAuthModal());
+  $("heroRegisterBtn")?.addEventListener("click", () => openAuthModal("registerChooserView"));
   $("historiaLoginBtn")?.addEventListener("click",() => openAuthModal("loginView"));
 
   // Footer links

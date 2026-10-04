@@ -6,6 +6,10 @@ import {
   doctorSetMode, updateControl, fetchSessions, fetchAlarms, fetchEvents, exportExcel,
   dischargePatient, archivePatient,
 } from "./api.js";
+import { playNotificationSound, showRealtimeToast } from "./socket.js";
+import { renderDoctorCharts, renderDoctorAlerts } from "./doctor-analytics.js";
+import { renderDoctorPdfData, bindDoctorReportButton } from "./doctor-report.js";
+import { bindDoctorSections, bindPlanCalculator } from "./doctor-navigation.js";
 
 let doctorEventsBound = false;
 let searchTimer = null;
@@ -29,6 +33,7 @@ export function initDoctorDashboard(sessionSnapshot) {
   renderDoctorProfile(doctor);
 
   loadDoctorDashboard();
+  bindDoctorRealtimeEvents();
 
   if (!doctorEventsBound) {
     doctorEventsBound = true;
@@ -39,8 +44,54 @@ export function initDoctorDashboard(sessionSnapshot) {
 
     bindPlanCalculator();
     bindDoctorSections();
-    bindDoctorReportButton();
+    bindDoctorReportButton(() => ({
+      doctor: currentDoctor,
+      patients: currentDoctorReport.patients,
+      requests: [...currentDoctorReport.requests, ...currentDoctorReport.modeRequests],
+      alerts: currentDoctorReport.alerts,
+    }));
   }
+}
+
+
+let doctorRealtimeBound = false;
+let doctorRealtimeRefreshTimer = null;
+
+function scheduleDoctorRealtimeRefresh(reason = "realtime") {
+  clearTimeout(doctorRealtimeRefreshTimer);
+  doctorRealtimeRefreshTimer = window.setTimeout(() => {
+    loadDoctorDashboard();
+  }, reason === "resolved" ? 120 : 250);
+}
+
+function bindDoctorRealtimeEvents() {
+  if (doctorRealtimeBound) return;
+  doctorRealtimeBound = true;
+
+  window.addEventListener("neolight:doctor-request-new", event => {
+    const payload = event.detail || {};
+    if (payload.doctor_id && state.doctorId && String(payload.doctor_id) !== String(state.doctorId)) return;
+    playNotificationSound();
+    showRealtimeToast("Nueva solicitud de ingreso", "info");
+    showDoctorFeedback("Nueva solicitud recibida en tiempo real.", "ok");
+    scheduleDoctorRealtimeRefresh("new");
+  });
+
+  window.addEventListener("neolight:mode-request-new", event => {
+    const payload = event.detail || {};
+    if (payload.doctor_id && state.doctorId && String(payload.doctor_id) !== String(state.doctorId)) return;
+    playNotificationSound();
+    const label = payload.request_type === "manual_control" ? "control manual" : `modo ${payload.mode || ""}`.trim();
+    showRealtimeToast(`Nueva solicitud de ${label}`, "info");
+    showDoctorFeedback(`Nueva solicitud de ${label}.`, "ok");
+    scheduleDoctorRealtimeRefresh("new");
+  });
+
+  window.addEventListener("neolight:mode-request-resolved", () => scheduleDoctorRealtimeRefresh("resolved"));
+  window.addEventListener("neolight:doctor-request-resolved", () => scheduleDoctorRealtimeRefresh("resolved"));
+  window.addEventListener("neolight:session-started", () => scheduleDoctorRealtimeRefresh("session"));
+  window.addEventListener("neolight:session-finished", () => scheduleDoctorRealtimeRefresh("session"));
+  window.addEventListener("neolight:alarm-new", () => scheduleDoctorRealtimeRefresh("alarm"));
 }
 
 async function loadDoctorDashboard() {
@@ -53,10 +104,15 @@ async function loadDoctorDashboard() {
     const modeRequests = resMode.data?.requests || [];
     const patients = resPat.data?.patients || [];
     const alerts = Number(resAlert.data?.count || 0);
+    const alertSummary = {
+      critical: Number(resAlert.data?.critical || 0),
+      warning: Number(resAlert.data?.warning || 0),
+      silenced: Number(resAlert.data?.silenced || 0),
+    };
     const activeSessions = patients.filter(p => Number(p.sesiones_activas || 0) > 0).length;
     const clinicalActivity = await loadDoctorClinicalActivity(patients);
     const allRequests = [...requests, ...modeRequests];
-    const alertData = { today: alerts, ...clinicalActivity };
+    const alertData = { today: alerts, summary: alertSummary, ...clinicalActivity };
 
     currentDoctorReport = { patients, requests, modeRequests, alerts: alertData };
 
@@ -71,7 +127,7 @@ async function loadDoctorDashboard() {
     renderDoctorPlansSummary(patients);
     renderDoctorAlerts(alertData.recent || []);
     renderDoctorCharts(patients, allRequests, alertData);
-    renderDoctorPdfData(patients, allRequests, alertData);
+    renderDoctorPdfData({ doctor: currentDoctor, patients, requests: allRequests, alerts: alertData });
     renderDoctorRightRail(patients, alertData);
     renderDoctorHeroState(patients, alertData);
   } catch (_) {
@@ -181,7 +237,12 @@ async function handleDecision(id, accept) {
 async function handleModeDecision(id, accept) {
   try {
     const { ok, data } = await decideModeRequest(id, accept);
-    if (!ok) showDoctorFeedback(data?.message || data?.error || "No se pudo resolver la solicitud de modo.", "danger");
+    if (!ok) {
+      const message = data?.error === "esp32_manual_no_habilitado"
+        ? "No se pudo activar el control manual porque el ESP32 esclavo no está conectado. La solicitud seguirá pendiente."
+        : (data?.message || data?.error || "No se pudo resolver la solicitud de modo.");
+      showDoctorFeedback(message, "danger");
+    }
   } catch (_) {
     showDoctorFeedback("No se pudo conectar con el servidor.", "danger");
   }
@@ -331,122 +392,6 @@ function renderDoctorPlansSummary(list = []) {
     return `<div class="doctor-mini-row">
       <div><strong>${escapeHtml(name)}</strong><span>${escapeHtml(p.codigo || "-")} · terapia en curso</span></div>
       <em>${Number(p.sesiones_activas || 0)} activa(s)</em>
-    </div>`;
-  }).join("");
-}
-
-export function renderDoctorCharts(patients = [], requests = [], alerts = {}) {
-  renderPatientStateChart(patients);
-  renderSessionModeChart(alerts.sessions || []);
-  renderAlertChart(alerts.recent || alerts.alarms || []);
-}
-
-function renderPatientStateChart(patients = []) {
-  const box = $("chartPatientStates");
-  if (!box) return;
-
-  const counts = { ok: 0, observacion: 0, riesgo: 0, alta: 0 };
-  patients.forEach(p => {
-    const key = normalizeClinicalState(p.estado_clinico);
-    counts[key] = (counts[key] || 0) + 1;
-  });
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  if (!total) return renderChartEmpty(box);
-
-  const rows = [
-    ["OK", counts.ok, "#79b88f"],
-    ["Observación", counts.observacion, "#e6c86e"],
-    ["Riesgo", counts.riesgo, "#e1849c"],
-    ["Alta", counts.alta, "#8db9e8"],
-  ];
-  let offset = 25;
-  const circles = rows.map(([, value, color]) => {
-    const dash = (value / total) * 100;
-    const segment = `<circle class="doc-donut-seg" r="15.9" cx="18" cy="18" style="stroke:${color};stroke-dasharray:${dash} ${100 - dash};stroke-dashoffset:${offset};"></circle>`;
-    offset -= dash;
-    return segment;
-  }).join("");
-
-  box.innerHTML = `
-    <div class="doc-donut-wrap">
-      <svg class="doc-donut" viewBox="0 0 36 36" aria-label="Distribución de pacientes por estado clínico">
-        <circle class="doc-donut-bg" r="15.9" cx="18" cy="18"></circle>
-        ${circles}
-        <text x="18" y="19.5" text-anchor="middle">${total}</text>
-      </svg>
-      <div class="doc-chart-legend">
-        ${rows.map(([label, value, color]) => `<span><i style="background:${color}"></i>${escapeHtml(label)} <b>${value}</b></span>`).join("")}
-      </div>
-    </div>`;
-}
-
-function renderSessionModeChart(sessions = []) {
-  const box = $("chartSessionModes");
-  if (!box) return;
-
-  const counts = { reposo: 0, convencional: 0, intensivo: 0, automatico: 0 };
-  sessions.forEach(s => {
-    const mode = normalizeMode(s.modo_final || s.modo_programado || s.modo) || "reposo";
-    counts[mode] = (counts[mode] || 0) + 1;
-  });
-  const max = Math.max(...Object.values(counts));
-  if (!max) return renderChartEmpty(box);
-
-  const rows = [
-    ["Reposo", counts.reposo, "#b9c6d4"],
-    ["Conv.", counts.convencional, "#99b8dd"],
-    ["Intens.", counts.intensivo, "#b09af8"],
-    ["Auto", counts.automatico, "#8dd4bd"],
-  ];
-  box.innerHTML = `<div class="doc-bars">${rows.map(([label, value, color]) => `
-    <div class="doc-bar-item">
-      <div class="doc-bar-track"><span style="height:${Math.max(8, (value / max) * 100)}%;background:${color}"></span></div>
-      <strong>${value}</strong>
-      <small>${escapeHtml(label)}</small>
-    </div>`).join("")}</div>`;
-}
-
-function renderAlertChart(alarms = []) {
-  const box = $("chartRecentAlerts");
-  if (!box) return;
-  if (!alarms.length) return renderChartEmpty(box);
-
-  const counts = alarms.reduce((acc, alarm) => {
-    const sev = String(alarm.severidad || "").toLowerCase();
-    if (alarm.silenciada) acc.silenciadas += 1;
-    else if (sev === "critical" || sev === "critica" || sev === "crítica") acc.criticas += 1;
-    else acc.warning += 1;
-    return acc;
-  }, { criticas: 0, warning: 0, silenciadas: 0 });
-
-  box.innerHTML = `<div class="doc-alert-chips">
-    <span class="doc-alert-chip critical"><b>${counts.criticas}</b> Críticas</span>
-    <span class="doc-alert-chip warning"><b>${counts.warning}</b> Warning</span>
-    <span class="doc-alert-chip muted"><b>${counts.silenciadas}</b> Silenciadas</span>
-  </div>`;
-}
-
-function renderChartEmpty(box) {
-  box.innerHTML = `<div class="doc-chart-empty">Sin datos suficientes</div>`;
-}
-
-function renderDoctorAlerts(alarms = []) {
-  const box = $("doctorAlertsList");
-  if (!box) return;
-  if (!alarms.length) {
-    box.innerHTML = `<div class="dp-empty">Sin alertas recientes.</div>`;
-    return;
-  }
-
-  box.innerHTML = alarms.slice(0, 6).map(a => {
-    const sev = String(a.severidad || "warning").toLowerCase();
-    const cls = a.silenciada ? "muted" : (sev === "critical" ? "critical" : "warning");
-    return `<div class="doc-alert-row">
-      <span class="doc-alert-dot ${cls}"></span>
-      <div>
-        <div class="doc-alert-title">${escapeHtml(a.tipo || "Alerta")} · ${escapeHtml(a.patientCode || "—")}</div>
-        <div class="doc-alert-sub">${escapeHtml(a.patientName || "Paciente")} · ${formatDate(a.created_at)}</div>
-      </div>
     </div>`;
   }).join("");
 }
@@ -940,131 +885,18 @@ async function saveControl(patientId, tutorId) {
     motivo: value("controlReason") || null,
     tutor_id: tutorId || null,
   });
-  if (!res.ok) return showDoctorFeedback(res.data?.message || "No se pudieron guardar permisos.", "danger");
+  if (!res.ok) {
+    const message = res.data?.error === "esp32_manual_no_habilitado"
+      ? "No se pudo habilitar el control manual porque el ESP32 esclavo no está conectado."
+      : (res.data?.message || "No se pudieron guardar permisos.");
+    return showDoctorFeedback(message, "danger");
+  }
   showDoctorFeedback("Permisos actualizados.", "ok");
 }
 
 async function setDoctorMode(patientId, mode) {
   const res = await doctorSetMode(patientId, mode);
   showDoctorFeedback(res.ok ? `Modo ${mode} enviado.` : (res.data?.message || "No se pudo cambiar el modo."), res.ok ? "ok" : "danger");
-}
-
-export function renderDoctorPdfData(patients = [], requests = [], alerts = {}) {
-  const report = $("doctorPdfReport");
-  if (!report) return;
-
-  const doctorName = formatDoctorDisplayName(currentDoctor, "Doctor");
-  const activeSessions = patients.filter(p => Number(p.sesiones_activas || 0) > 0).length;
-  const generatedAt = new Date().toLocaleString("es");
-  const sessions = alerts.sessions || [];
-  const events = alerts.events || [];
-  const alarms = alerts.recent || [];
-  const chartsHtml = renderPdfCharts(patients, sessions, alarms);
-  const systemRows = [
-    ["MySQL", "Conexion por API"],
-    ["ESP32", "Sistema activo / pendiente de telemetria"],
-    ["Socket.IO", "Tiempo real habilitado"],
-  ];
-
-  report.innerHTML = `
-    <div class="pdf-header">
-      <div>
-        <div class="pdf-brand">NEOLIGHT</div>
-        <h1>Resumen del perfil doctor</h1>
-        <p>Generado: ${escapeHtml(generatedAt)}</p>
-      </div>
-      <div class="pdf-doctor-box">
-        <strong>${escapeHtml(doctorName)}</strong>
-        <span>${escapeHtml(currentDoctor?.especialidad || "Especialidad no registrada")}</span>
-        <span>Matrícula: ${escapeHtml(currentDoctor?.matricula || currentDoctor?.matricula_profesional || "—")}</span>
-      </div>
-    </div>
-
-    <div class="pdf-kpi-grid">
-      ${pdfKpi("Pacientes asignados", patients.length)}
-      ${pdfKpi("Solicitudes pendientes", requests.length)}
-      ${pdfKpi("Alertas del dia", alerts.today || 0)}
-      ${pdfKpi("Sesiones activas", activeSessions)}
-    </div>
-
-    <section class="pdf-section">
-      <h2>Graficos del resumen</h2>
-      ${chartsHtml}
-    </section>
-
-    <section class="pdf-section">
-      <h2>Pacientes recientes</h2>
-      ${pdfTable(["Codigo","Nombre","Dias nacido","Estado clinico","Tutor"], patients.slice(0, 12).map(p => [
-        p.codigo || "—",
-        `${p.nombre || ""} ${p.apellidos || ""}`.trim() || "Paciente",
-        p.dias_nacido ?? "—",
-        p.estado_clinico || "—",
-        `${p.tutor_nombre || ""} ${p.tutor_apellidos || ""}`.trim() || "—",
-      ]))}
-    </section>
-
-    <section class="pdf-section">
-      <h2>Últimos eventos disponibles</h2>
-      ${pdfTable(["Paciente","Tipo","Detalle"], requests.slice(0, 10).map(r => [
-        `${r.nombre || r.paciente_nombre || ""} ${r.apellidos || r.paciente_apellidos || ""}`.trim() || "Paciente",
-        r.mode || r.modo ? "Cambio de modo" : "Ingreso",
-        r.mode || r.modo || r.doctor_request_status || "Pendiente",
-      ]))}
-    </section>
-
-    <section class="pdf-section">
-      <h2>Ultimos eventos disponibles</h2>
-      ${pdfTable(["Fecha","Paciente","Tipo","Detalle"], events.slice(0, 8).map(e => [
-        formatDate(e.created_at),
-        e.patientName || e.patientCode || "—",
-        e.tipo || "—",
-        e.descripcion || e.actor || "—",
-      ]))}
-    </section>
-
-    <section class="pdf-section">
-      <h2>Últimas sesiones</h2>
-      ${pdfTable(["Fecha","Paciente","Modo","Duración","Estado"], sessions.slice(0, 8).map(s => [
-        formatDate(s.fecha || s.created_at),
-        s.patientName || s.patientCode || "—",
-        s.modo_final || s.modo_programado || "—",
-        secondsLabel(s.duracion_s),
-        s.status || "—",
-      ]))}
-    </section>
-
-    <section class="pdf-section">
-      <h2>Alarmas recientes</h2>
-      ${pdfTable(["Fecha","Paciente","Tipo","Severidad","Mensaje"], alarms.slice(0, 8).map(a => [
-        formatDate(a.created_at),
-        a.patientName || a.patientCode || "—",
-        a.tipo || "—",
-        a.severidad || "—",
-        a.mensaje || a.valor_medido || "—",
-      ]))}
-    </section>
-
-    <section class="pdf-section">
-      <h2>Estado del sistema</h2>
-      ${pdfTable(["Componente","Estado"], systemRows)}
-    </section>`;
-  report.querySelector(".pdf-section:nth-of-type(3) h2")?.replaceChildren(document.createTextNode("Solicitudes pendientes"));
-}
-
-export function downloadDoctorPdfReport() {
-  renderDoctorPdfData(
-    currentDoctorReport.patients,
-    [...currentDoctorReport.requests, ...currentDoctorReport.modeRequests],
-    currentDoctorReport.alerts
-  );
-  const report = $("doctorPdfReport");
-  if (report) report.setAttribute("aria-hidden", "false");
-  window.print();
-  window.setTimeout(() => report?.setAttribute("aria-hidden", "true"), 500);
-}
-
-export function bindDoctorReportButton() {
-  $("downloadDoctorPdfBtn")?.addEventListener("click", downloadDoctorPdfReport);
 }
 
 function numberOrNull(id) {
@@ -1126,71 +958,6 @@ function normalizeClinicalState(value) {
   return "ok";
 }
 
-function renderPdfCharts(patients = [], sessions = [], alarms = []) {
-  const stateCounts = { ok: 0, observacion: 0, riesgo: 0, alta: 0 };
-  patients.forEach(p => { stateCounts[normalizeClinicalState(p.estado_clinico)] += 1; });
-
-  const modeCounts = { reposo: 0, convencional: 0, intensivo: 0, automatico: 0 };
-  sessions.forEach(s => {
-    const mode = normalizeMode(s.modo_final || s.modo_programado || s.modo) || "reposo";
-    modeCounts[mode] = (modeCounts[mode] || 0) + 1;
-  });
-
-  const alertCounts = alarms.reduce((acc, alarm) => {
-    const sev = String(alarm.severidad || "").toLowerCase();
-    if (alarm.silenciada) acc.silenciadas += 1;
-    else if (sev === "critical" || sev === "critica" || sev === "crítica") acc.criticas += 1;
-    else acc.warning += 1;
-    return acc;
-  }, { criticas: 0, warning: 0, silenciadas: 0 });
-
-  return `<div class="pdf-chart-grid">
-    ${pdfBarChart("Estados clinicos", [
-      ["OK", stateCounts.ok],
-      ["Observacion", stateCounts.observacion],
-      ["Riesgo", stateCounts.riesgo],
-      ["Alta", stateCounts.alta],
-    ])}
-    ${pdfBarChart("Sesiones por modo", [
-      ["Reposo", modeCounts.reposo],
-      ["Conv.", modeCounts.convencional],
-      ["Intens.", modeCounts.intensivo],
-      ["Auto", modeCounts.automatico],
-    ])}
-    ${pdfBarChart("Alertas recientes", [
-      ["Criticas", alertCounts.criticas],
-      ["Warning", alertCounts.warning],
-      ["Silenciadas", alertCounts.silenciadas],
-    ])}
-  </div>`;
-}
-
-function pdfBarChart(title, rows) {
-  const max = Math.max(1, ...rows.map(([, value]) => Number(value) || 0));
-  return `<div class="pdf-chart-card">
-    <h3>${escapeHtml(title)}</h3>
-    <div class="pdf-bars">
-      ${rows.map(([label, value]) => `<div class="pdf-bar-row">
-        <span>${escapeHtml(label)}</span>
-        <div><i style="width:${Math.max(4, (Number(value || 0) / max) * 100)}%"></i></div>
-        <b>${escapeHtml(value)}</b>
-      </div>`).join("")}
-    </div>
-  </div>`;
-}
-
-function pdfKpi(label, value) {
-  return `<div class="pdf-kpi"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
-}
-
-function pdfTable(headers, rows) {
-  if (!rows.length) return `<div class="pdf-empty">Sin datos disponibles.</div>`;
-  return `<table class="pdf-table">
-    <thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
-    <tbody>${rows.map(row => `<tr>${row.map(c => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`).join("")}</tbody>
-  </table>`;
-}
-
 function setText(id, value) {
   const el = $(id);
   if (el) el.textContent = String(value ?? "—");
@@ -1230,56 +997,4 @@ async function handleArchive(patientId) {
     showDoctorFeedback("No se pudo conectar con el servidor.", "danger");
   }
   loadDoctorDashboard();
-}
-
-export function bindDoctorSections() {
-  const navItems = document.querySelectorAll("#view-dashboard-doctor [data-section-target]");
-  const sections = document.querySelectorAll("#view-dashboard-doctor .doctor-section[data-section]");
-  if (!navItems.length || !sections.length) return;
-
-  const showSection = sectionName => {
-    sections.forEach(section => {
-      section.classList.toggle("active", section.dataset.section === sectionName);
-    });
-    navItems.forEach(btn => {
-      btn.classList.toggle("dp-nav-active", btn.dataset.sectionTarget === sectionName);
-    });
-    const viewTop = $("view-dashboard-doctor")?.offsetTop || 0;
-    window.scrollTo({ top: viewTop, behavior: "smooth" });
-  };
-
-  navItems.forEach(btn => {
-    btn.style.cursor = "pointer";
-    btn.addEventListener("click", () => showSection(btn.dataset.sectionTarget || "resumen"));
-  });
-
-  const initial = document.querySelector("#view-dashboard-doctor .doctor-section.active")?.dataset.section || "resumen";
-  showSection(initial);
-}
-
-function defaultRate(v) { return v === "int" ? 0.30 : 0.15; }
-
-function bindPlanCalculator() {
-  const planIntensity = $("planIntensity");
-  const planRate = $("planRate");
-  const planResult = $("planResult");
-  if (planRate && planIntensity) planRate.value = String(defaultRate(planIntensity.value));
-  planIntensity?.addEventListener("change", () => {
-    planRate.value = String(defaultRate(planIntensity.value));
-  });
-  $("calcPlanBtn")?.addEventListener("click", () => {
-    const tsb = Number((($("planTSB")?.value || "").replace(",",".")));
-    const goal = Number((($("planGoal")?.value || "").replace(",",".")));
-    let rate = Number(((planRate?.value || "").replace(",",".")));
-    if (!Number.isFinite(tsb) || !Number.isFinite(goal) || tsb <= goal) {
-      if (planResult) planResult.textContent = " ";
-      return;
-    }
-    if (!Number.isFinite(rate) || rate <= 0) {
-      rate = defaultRate(planIntensity?.value);
-      if (planRate) planRate.value = String(rate);
-    }
-    const totalMin = Math.max(0, Math.round((tsb - goal) / rate * 60));
-    if (planResult) planResult.textContent = `${Math.floor(totalMin / 60)}h ${String(totalMin % 60).padStart(2,"0")}m aprox.`;
-  });
 }

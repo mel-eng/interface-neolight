@@ -1,5 +1,5 @@
 // =========================================================
-// server/server.js — NEOLIGHT API v3.2
+// server/server.js — NEOLIGHT API v3.3
 // Fixes v3.2:
 //   [1] ENUMs de eventos corregidos (solicitud_modo_aprobada/rechazada)
 //   [2] control_autorizaciones limpiado al rechazar solicitud
@@ -9,6 +9,8 @@
 //   [6] logEvent tipo 'solicitud_modo_aprobada' → 'solicitud_aceptada'
 //   [7] endpoint GET /api/doctor/patients/:id/plan-history añadido
 //   [8] alarmas y eventos siempre se registran aunque sesión sea nula
+//   [9] alarmas activas se resuelven al corregirse y se reinician al iniciar sesión
+//   [10] modo recomendado del plan se aplica sin solicitud médica extra
 // =========================================================
 
 import dotenv          from 'dotenv';
@@ -20,25 +22,60 @@ import http            from 'http';
 import https           from 'https';
 import path            from 'path';
 import os              from 'os';
+import fs              from 'fs';
 import { fileURLToPath } from 'url';
 import { Server as SocketIOServer } from 'socket.io';
 import ExcelJS         from 'exceljs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '.env'), quiet: true });
+
+// Zona horaria del sistema. En la nube el servidor corre en UTC; sin esto las
+// horas de las sesiones saldrían 4 horas adelantadas respecto a Bolivia.
+if (!process.env.TZ) process.env.TZ = 'America/La_Paz';
+
+// Lee la conexión MySQL desde cualquiera de estas fuentes, en este orden:
+//   1) MYSQL_URL / DATABASE_URL  (Railway y otros hostings)
+//   2) MYSQLHOST, MYSQLUSER...    (variables que crea el servicio MySQL de Railway)
+//   3) DB_HOST, DB_USER...        (archivo .env local, como siempre)
+function readDbConfig(env) {
+  const url = env.MYSQL_URL || env.DATABASE_URL || '';
+  if (/^mysql:\/\//i.test(url)) {
+    try {
+      const u = new URL(url);
+      return {
+        host: u.hostname,
+        port: Number(u.port || 3306),
+        user: decodeURIComponent(u.username || 'root'),
+        pass: decodeURIComponent(u.password || ''),
+        name: decodeURIComponent(u.pathname.replace(/^\//, '')) || 'lampara',
+      };
+    } catch { console.warn('[CONFIG] MYSQL_URL no es válida; se usan las variables sueltas.'); }
+  }
+  return {
+    host: env.MYSQLHOST     || env.DB_HOST || '127.0.0.1',
+    port: Number(env.MYSQLPORT || env.DB_PORT || 3306),
+    user: env.MYSQLUSER     || env.DB_USER || 'root',
+    pass: env.MYSQLPASSWORD ?? env.DB_PASS ?? '',
+    name: env.MYSQLDATABASE || env.DB_NAME || 'lampara',
+  };
+}
+
+const DB = readDbConfig(process.env);
 
 const CONFIG = {
   PORT:             Number(process.env.PORT || 3000),
-  DB_HOST:          process.env.DB_HOST          || '127.0.0.1',
-  DB_USER:          process.env.DB_USER          || 'root',
-  DB_PASS:          process.env.DB_PASS          || '',
-  DB_NAME:          process.env.DB_NAME          || 'lampara',
-  DB_PORT:          Number(process.env.DB_PORT   || 3306),
+  DB_HOST:          DB.host,
+  DB_USER:          DB.user,
+  DB_PASS:          DB.pass,
+  DB_NAME:          DB.name,
+  DB_PORT:          DB.port,
   HOSPITAL_CODE:    process.env.HOSPITAL_CODE    || '152436',
   ESP32_MASTER_URL: process.env.ESP32_MASTER_URL || null,
+  CAMERA_STREAM_URL: process.env.CAMERA_STREAM_URL || process.env.CAM_STREAM_URL || 'http://192.168.4.50/stream',
   PWM_MAX:          4095,
-  ALARM_COOLDOWN_MS: 30_000,
+  ALARM_COOLDOWN_MS: Number(process.env.ALARM_COOLDOWN_MS || 60_000),
 };
 
 const ACCOUNT_TABLE      = '`cuentas`';
@@ -115,6 +152,19 @@ function normalizeMode(raw) {
   const m = String(raw ?? '').toLowerCase().trim();
   if (m === 'automatic') return 'automatico';
   return VALID_MODES.includes(m) ? m : null;
+}
+
+function isTherapyMode(mode) {
+  return ['convencional', 'intensivo', 'automatico'].includes(normalizeMode(mode));
+}
+
+function boolFromEsp(v) {
+  if (typeof v === 'boolean') return v;
+  if (v == null) return null;
+  const t = String(v).toLowerCase().trim();
+  if (['true','1','on','si','sí'].includes(t)) return true;
+  if (['false','0','off','no'].includes(t)) return false;
+  return Boolean(v);
 }
 
 function secondsToHMS(s) {
@@ -199,6 +249,8 @@ app.use(cors({ origin: true }));
 app.use(express.json());
 app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  const match = req.url.match(/\/api\/patients\/(\d+)/) || req.url.match(/\/api\/patient\/(\d+)/);
+  if (match) rememberPatientContext(match[1]);
   next();
 });
 
@@ -206,22 +258,83 @@ app.use((req, _res, next) => {
 
 let pool;
 
+// Diferencia horaria de Node (+HH:MM) para que MySQL use la misma hora en NOW().
+function nodeUtcOffset() {
+  const min = -new Date().getTimezoneOffset();
+  const abs = Math.abs(min);
+  return `${min < 0 ? '-' : '+'}${String(Math.floor(abs / 60)).padStart(2,'0')}:${String(abs % 60).padStart(2,'0')}`;
+}
+
 async function initDB() {
   const { DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT } = CONFIG;
+  const tz = nodeUtcOffset();
   const root = await mysql.createConnection({
     host: DB_HOST, user: DB_USER, password: DB_PASS, port: DB_PORT, multipleStatements: true
   });
-  await root.query(
-    `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
-  );
+  try {
+    await root.query(
+      `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+    );
+  } catch (e) {
+    // En hostings la base ya existe y el usuario puede no tener permiso de crearla.
+    console.warn('[DB] No se pudo crear la base (se asume que ya existe):', e.code || e.message);
+  }
+  await root.query(`USE \`${DB_NAME}\``);
+  await root.query(`SET time_zone = '${tz}'`);
+  await ensureBaseSchema(root);
   await root.end();
+
   pool = mysql.createPool({
     host: DB_HOST, user: DB_USER, password: DB_PASS,
     database: DB_NAME, port: DB_PORT,
     waitForConnections: true, connectionLimit: 10, charset: 'utf8mb4',
   });
+  // Cada conexión nueva usa la misma hora que Node.
+  pool.on('connection', conn => conn.query(`SET time_zone = '${tz}'`));
   await pool.query('SELECT 1');
-  console.log(`[DB] Conectado a "${DB_NAME}"`);
+  await ensureSchemaCompatibility();
+  console.log(`[DB] Conectado a "${DB_NAME}" en ${DB_HOST}:${DB_PORT} (hora ${tz})`);
+}
+
+// Crea las tablas que falten a partir de sql/schema.sql.
+// Solo usa CREATE TABLE IF NOT EXISTS: nunca borra ni modifica datos existentes.
+async function ensureBaseSchema(conn) {
+  const file = path.join(__dirname, 'sql', 'schema.sql');
+  if (!fs.existsSync(file)) { console.warn('[DB] Falta sql/schema.sql; no se verificaron las tablas.'); return; }
+  const sql = fs.readFileSync(file, 'utf8');
+  if (/\bDROP\s+(TABLE|DATABASE)\b/i.test(sql)) {
+    throw new Error('sql/schema.sql contiene DROP: no se ejecuta para proteger los datos.');
+  }
+  const [before] = await conn.query('SHOW TABLES');
+  await conn.query(sql);
+  const [after] = await conn.query('SHOW TABLES');
+  const created = after.length - before.length;
+  if (created > 0) console.log(`[DB] Esquema: ${created} tabla(s) creada(s).`);
+}
+
+async function ensureSchemaCompatibility() {
+  // Migraciones pequeñas y seguras para que el server no choque con esquemas viejos.
+  // Sí, MySQL también necesita niñera, aparentemente.
+  const safe = async (sql) => {
+    try { await pool.query(sql); }
+    catch (e) {
+      // Columna o índice que ya existe: es lo esperado en una base al día.
+      if (['ER_DUP_FIELDNAME','ER_DUP_KEYNAME'].includes(e.code)) return;
+      console.warn('[DB-MIGRATION]', e.code || e.message);
+    }
+  };
+
+  await safe(`ALTER TABLE planes_terapia ADD COLUMN horas_por_dia DECIMAL(5,2) NULL AFTER modo_recomendado`);
+  await safe(`ALTER TABLE planes_terapia ADD COLUMN sesiones_por_dia INT NULL AFTER horas_por_dia`);
+  await safe(`ALTER TABLE planes_terapia ADD COLUMN duracion_sesion_min INT NULL AFTER sesiones_por_dia`);
+
+  // Las alarmas críticas deben poder guardarse aunque todavía no exista una sesión activa.
+  await safe(`ALTER TABLE alarmas MODIFY COLUMN sesion_id INT NULL`);
+  await safe(`ALTER TABLE alarmas ADD COLUMN silenciada BOOLEAN NOT NULL DEFAULT FALSE`);
+  await safe(`ALTER TABLE alarmas ADD COLUMN silenciada_por INT NULL`);
+  await safe(`ALTER TABLE alarmas ADD COLUMN silenciada_hasta DATETIME NULL`);
+  await safe(`ALTER TABLE alarmas ADD INDEX ix_paciente_created_at (paciente_id, created_at)`);
+  await safe(`ALTER TABLE alarmas ADD INDEX ix_alarmas_activas (paciente_id, silenciada, tipo)`);
 }
 
 // ===================== HELPERS DE NEGOCIO ========================
@@ -254,6 +367,58 @@ async function getActiveSession(paciente_id, conn = null) {
     [paciente_id]
   );
   return rows[0] || null;
+}
+
+const AUTO_ALARM_TYPES = [
+  'sensor_ultrasonico', 'sensor_temperatura',
+  'distancia_baja', 'distancia_alta',
+  'temperatura_baja', 'temperatura_alta'
+];
+
+async function resetActiveAlarmsForNewSession(paciente_id, conn = null) {
+  if (!paciente_id) return;
+  const db = conn || pool;
+  await db.execute(
+    `UPDATE alarmas
+     SET silenciada = TRUE, silenciada_hasta = COALESCE(silenciada_hasta, NOW())
+     WHERE paciente_id = ? AND silenciada = FALSE`,
+    [paciente_id]
+  );
+  alarmCooldown.clear();
+}
+
+async function syncResolvedAutoAlarms(paciente_id, activeTypes = []) {
+  if (!paciente_id) return;
+  const types = [...new Set((activeTypes || []).filter(Boolean))];
+  const autoPlaceholders = AUTO_ALARM_TYPES.map(() => '?').join(',');
+
+  if (!types.length) {
+    await pool.execute(
+      `UPDATE alarmas
+       SET silenciada = TRUE, silenciada_hasta = COALESCE(silenciada_hasta, NOW())
+       WHERE paciente_id = ? AND silenciada = FALSE AND tipo IN (${autoPlaceholders})`,
+      [paciente_id, ...AUTO_ALARM_TYPES]
+    );
+    return;
+  }
+
+  const activePlaceholders = types.map(() => '?').join(',');
+  await pool.execute(
+    `UPDATE alarmas
+     SET silenciada = TRUE, silenciada_hasta = COALESCE(silenciada_hasta, NOW())
+     WHERE paciente_id = ? AND silenciada = FALSE
+       AND tipo IN (${autoPlaceholders})
+       AND tipo NOT IN (${activePlaceholders})`,
+    [paciente_id, ...AUTO_ALARM_TYPES, ...types]
+  );
+}
+
+async function hasActiveAlarm(paciente_id, tipo) {
+  const [rows] = await pool.execute(
+    `SELECT id FROM alarmas WHERE paciente_id = ? AND tipo = ? AND silenciada = FALSE LIMIT 1`,
+    [paciente_id, tipo]
+  );
+  return rows.length > 0;
 }
 
 async function updatePlanProgress(plan_id, duracion_s, conn) {
@@ -301,26 +466,95 @@ async function upsertDeviceStatus(paciente_id, esp_online, estado, conn = null) 
   );
 }
 
+function requestEsp32(pathname, { method = 'GET', body = null, timeout = 3000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const base = String(CONFIG.ESP32_MASTER_URL || '').replace(/\/$/, '');
+    const url = `${base}${pathname}`;
+    const lib = url.startsWith('https') ? https : http;
+    const payload = body ? JSON.stringify(body) : null;
+    const req = lib.request(url, {
+      method,
+      headers: payload ? {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      } : undefined,
+      timeout
+    }, res => {
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => resolve({ statusCode: res.statusCode, data }));
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+function buildEsp32CommandRequest(command = {}) {
+  const type = String(command.type || '').toLowerCase();
+
+  if (type === 'mode') {
+    const mode = normalizeMode(command.mode);
+    if (!mode) return null;
+    return `/modo?m=${encodeURIComponent(mode.toUpperCase())}`;
+  }
+
+  if (type === 'fan') {
+    const raw = String(command.state || command.value || '').toLowerCase().trim();
+    const map = { on: 'on', off: 'off', auto: 'auto', '1': 'on', '0': 'off' };
+    const state = map[raw];
+    if (!state) return null;
+    return `/fan?state=${encodeURIComponent(state)}`;
+  }
+
+  if (type === 'manual' || type === 'manual_control' || type === 'control') {
+    const raw = String(command.state || command.value || command.mode || '').toLowerCase().trim();
+    const map = {
+      on: 'on', manual: 'on', habilitado: 'on', enabled: 'on', '1': 'on',
+      off: 'off', lock: 'off', bloqueado: 'off', automatico: 'off', disabled: 'off', '0': 'off'
+    };
+    const state = map[raw];
+    if (!state) return null;
+    return `/manual?state=${encodeURIComponent(state)}`;
+  }
+
+  if (type === 'height' || type === 'move') {
+    const raw = String(command.dir || command.direction || '').toLowerCase().trim();
+    const map = {
+      subir: 'SUBIR', up: 'SUBIR', u: 'SUBIR',
+      bajar: 'BAJAR', down: 'BAJAR', d: 'BAJAR',
+      izq: 'IZQ', izquierda: 'IZQ', left: 'IZQ', l: 'IZQ',
+      der: 'DER', derecha: 'DER', right: 'DER', r: 'DER',
+      stop: 'STOP', s: 'STOP'
+    };
+    const dir = map[raw];
+    if (!dir) return null;
+    return `/mover?dir=${encodeURIComponent(dir)}`;
+  }
+
+  // Compatibilidad futura: si el firmware agrega /cmd, el backend puede volver a POSTear JSON.
+  return null;
+}
+
 async function sendCommandToESP(command) {
   if (!CONFIG.ESP32_MASTER_URL) {
     console.warn('[ESP32] ESP32_MASTER_URL no configurado — comando ignorado:', command);
     return { sent: false, reason: 'ESP32_MASTER_URL no configurado' };
   }
+
+  const pathname = buildEsp32CommandRequest(command);
+  if (!pathname) {
+    console.warn('[ESP32] comando no compatible con firmware actual:', command);
+    return { sent: false, reason: 'comando_no_compatible' };
+  }
+
   try {
-    const url  = `${CONFIG.ESP32_MASTER_URL}/cmd`;
-    const body = JSON.stringify(command);
-    const lib  = url.startsWith('https') ? https : http;
-    await new Promise((resolve, reject) => {
-      const req = lib.request(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-        timeout: 3000
-      }, res => { res.resume(); resolve(res.statusCode); });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-      req.write(body); req.end();
-    });
-    return { sent: true };
+    const result = await requestEsp32(pathname, { method: 'GET', timeout: 3000 });
+    const ok = result.statusCode >= 200 && result.statusCode < 300;
+    if (!ok) return { sent: false, reason: `ESP32 HTTP ${result.statusCode}`, response: result.data };
+    return { sent: true, statusCode: result.statusCode, response: result.data };
   } catch (e) {
     console.error('[ESP32] Error enviando comando:', e.message);
     return { sent: false, reason: e.message };
@@ -338,6 +572,133 @@ let currentLampMode = 'reposo';
 const pendingModeRequests = new Map();
 let pendingModeRequestSeq = 1;
 const alarmCooldown = new Map();
+
+let lastPatientContext = { paciente_id: null, ts: 0 };
+
+function rememberPatientContext(paciente_id) {
+  const id = Number(paciente_id);
+  if (!id) return;
+  lastPatientContext = { paciente_id: id, ts: Date.now() };
+}
+
+async function resolveTelemetryPatientId(explicitId = null) {
+  if (explicitId) return Number(explicitId);
+
+  // 1) Si la interfaz acaba de trabajar con un paciente, usar ese contexto.
+  // Antes se priorizaba cualquier sesión activa global y por eso todo terminaba pegado al paciente 1.
+  if (lastPatientContext.paciente_id && Date.now() - lastPatientContext.ts < 30 * 60 * 1000) {
+    return lastPatientContext.paciente_id;
+  }
+
+  // 2) Si no hay contexto reciente, usar la sesión activa más reciente.
+  try {
+    const [rows] = await pool.execute(
+      `SELECT paciente_id FROM sesiones WHERE status = 'active' ORDER BY created_at DESC LIMIT 1`
+    );
+    if (rows.length) return Number(rows[0].paciente_id);
+  } catch {}
+
+  // 3) Fallback académico: si solo hay un paciente activo/aceptado, usarlo.
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id FROM pacientes
+       WHERE estado_registro = 'activo'
+         AND (doctor_request_status = 'accepted' OR doctor_request_status IS NULL)
+       ORDER BY id ASC LIMIT 2`
+    );
+    if (rows.length === 1) return Number(rows[0].id);
+  } catch {}
+
+  // 4) Último fallback para prototipo local: primer paciente activo.
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id FROM pacientes WHERE estado_registro = 'activo' ORDER BY id ASC LIMIT 1`
+    );
+    if (rows.length) return Number(rows[0].id);
+  } catch {}
+
+  return null;
+}
+
+async function autoStartSessionForTelemetry(paciente_id, modo = null) {
+  const mode = normalizeMode(modo) || currentLampMode || 'reposo';
+  if (!paciente_id || !['convencional','intensivo','automatico'].includes(mode)) return null;
+
+  const existing = await getActiveSession(paciente_id);
+  if (existing) return existing;
+
+  const plan = await getActivePlan(paciente_id).catch(() => null);
+  const now = new Date();
+  const fecha = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const hora  = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await resetActiveAlarmsForNewSession(paciente_id, conn);
+    const [r] = await conn.execute(
+      `INSERT INTO sesiones (paciente_id, plan_id, fecha, hora_inicio, started_at, modo_programado, tipo_control, status, observaciones)
+       VALUES (?, ?, ?, ?, NOW(), ?, 'automatico', 'active', 'Sesión iniciada automáticamente por telemetría ESP32')`,
+      [paciente_id, plan?.id || null, fecha, hora, mode]
+    );
+    await upsertDeviceStatus(paciente_id, true, 'en_sesion', conn);
+    await logEvent({ paciente_id, sesion_id: r.insertId, tipo: 'inicio_sesion',
+                     descripcion: 'Sesión iniciada automáticamente al detectar terapia activa desde ESP32',
+                     metadata: { modo: mode, origen: 'esp32_telemetry' } }, conn);
+    await conn.commit();
+    const sesion = { id: r.insertId, paciente_id, plan_id: plan?.id || null, status: 'active', modo_programado: mode, started_at: now };
+    io.emit('session:started', { paciente_id, sesion_id: r.insertId, modo: mode, origen: 'esp32_telemetry' });
+    return sesion;
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
+async function insertAlarmRecord({ sesion_id = null, paciente_id, alarm }) {
+  if (await hasActiveAlarm(paciente_id, alarm.tipo)) return null;
+
+  const [r] = await pool.execute(
+    `INSERT INTO alarmas (sesion_id, paciente_id, tipo, severidad, valor_medido, unidad, mensaje)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [sesion_id || null, paciente_id, alarm.tipo, alarm.severidad,
+     alarm.valor != null ? String(alarm.valor) : null,
+     alarm.unidad ?? null,
+     alarm.mensaje || `Alarma automática: ${alarm.tipo}`]
+  );
+  const payload = {
+    id: r.insertId,
+    sesion_id: sesion_id || null,
+    paciente_id,
+    tipo: alarm.tipo,
+    severidad: alarm.severidad,
+    valor: alarm.valor ?? null,
+    unidad: alarm.unidad ?? null,
+    mensaje: alarm.mensaje || `Alarma automática: ${alarm.tipo}`,
+    created_at: new Date().toISOString(),
+  };
+  io.emit('alarm:new', payload);
+  io.emit('doctor-alert:new', payload);
+  return payload;
+}
+
+
+function doctorRoom(id) { return `doctor:${String(id || '').trim()}`; }
+function patientRoom(id) { return `patient:${String(id || '').trim()}`; }
+function tutorRoom(id) { return `tutor:${String(id || '').trim()}`; }
+
+function emitDoctor(_doctorId, event, payload = {}) {
+  // Se emite globalmente y cada cliente filtra por doctor_id.
+  // Así evitamos eventos duplicados por rooms + broadcast.
+  io.emit(event, payload);
+}
+
+function emitPatient(_pacienteId, _tutorId, event, payload = {}) {
+  // Se emite globalmente y cada cliente filtra por paciente_id/tutor_id.
+  io.emit(event, payload);
+}
 
 async function setEspOnline(paciente_id = null) {
   const wasOnline = espOnline;
@@ -364,12 +725,12 @@ setInterval(async () => {
 }, 5000);
 
 function parseTelemetryPayload(body) {
-  const cm    = toNum(body.distance_cm ?? body.cm ?? body.dist_cm);
-  const tBebe = toNum(body.temp_body_c ?? body.temp_c ?? body.temp_bebe ?? body.bebe ?? body.t_body);
-  const tAmb  = toNum(body.temp_amb_c  ?? body.temp_ambiente ?? body.ambient_c ?? body.ta ?? body.ambiente ?? body.t_amb);
-  let   pct   = toNum(body.illumination_pct ?? body.intensidad_led_pct ?? body.pct ?? body.percent ?? body.led_pct);
+  const cm    = toNum(body.distance_cm ?? body.cm ?? body.dist_cm ?? body.distancia);
+  const tBebe = toNum(body.temp_body_c ?? body.tempBody ?? body.temp_c ?? body.temp_bebe ?? body.bebe ?? body.t_body);
+  const tAmb  = toNum(body.temp_amb_c  ?? body.tempAmb ?? body.temp_ambiente ?? body.ambient_c ?? body.ta ?? body.ambiente ?? body.t_amb);
+  let   pct   = toNum(body.illumination_pct ?? body.intensidad_led_pct ?? body.ldr ?? body.pct ?? body.percent ?? body.led_pct);
   const duty  = toNum(body.pwm_raw ?? body.duty);
-  const pwm   = toNum(body.pwm ?? body.pwm_led);
+  const pwm   = toNum(body.pwm ?? body.pwm_led ?? body.pwmPorc);
 
   if (pct == null && body.bright != null)  pct = Math.round(Number(body.bright) * 100);
   if (pct == null && duty  != null)        pct = Math.round((1 - duty / CONFIG.PWM_MAX) * 100);
@@ -378,14 +739,18 @@ function parseTelemetryPayload(body) {
     pct = Math.round(Math.max(0, Math.min(100, avg)));
   }
 
-  const modo            = normalizeMode(body.mode ?? body.modo ?? body.modo_actual);
+  const modo            = normalizeMode(body.mode ?? body.modo ?? body.modo_actual ?? body.estado);
+  const pausado         = boolFromEsp(body.pausado) === true;
   const sensor_ultra_fail = Boolean(body.sensor_ultra_fail);
   const sensor_body_fail  = Boolean(body.sensor_body_fail);
   const sensor_amb_fail   = Boolean(body.sensor_amb_fail);
   const alarms_muted      = body.alarms_muted != null ? Boolean(body.alarms_muted) : null;
   const paciente_id       = toNum(body.paciente_id) || null;
+  const fanOn            = boolFromEsp(body.fanOn);
+  const fanMode          = body.fanMode != null ? String(body.fanMode) : null;
+  const fanAutoHot       = boolFromEsp(body.fanAutoHot);
 
-  return { cm, tBebe, tAmb, pct, pwm, modo, sensor_ultra_fail, sensor_body_fail, sensor_amb_fail, alarms_muted, paciente_id };
+  return { cm, tBebe, tAmb, pct, pwm, modo, pausado, sensor_ultra_fail, sensor_body_fail, sensor_amb_fail, alarms_muted, paciente_id, fanOn, fanMode, fanAutoHot };
 }
 
 function evaluateStatusAndAlarms({ cm, tBebe, tAmb, sensor_ultra_fail, sensor_body_fail, sensor_amb_fail }) {
@@ -405,11 +770,11 @@ function evaluateStatusAndAlarms({ cm, tBebe, tAmb, sensor_ultra_fail, sensor_bo
   }
 
   if (tBebe != null) {
-    if (tBebe < 36.5) alarms.push({ tipo: 'temperatura_baja', severidad: 'warning', valor: tBebe, unidad: '°C' });
-    if (tBebe > 37.5) alarms.push({ tipo: 'temperatura_alta', severidad: 'warning', valor: tBebe, unidad: '°C' });
+    if (tBebe < 34.8) alarms.push({ tipo: 'temperatura_baja', severidad: 'warning', valor: tBebe, unidad: '°C' });
+    if (tBebe > 38.0) alarms.push({ tipo: 'temperatura_alta', severidad: 'warning', valor: tBebe, unidad: '°C' });
     if (!estado.startsWith('alarma') && !estado.startsWith('peligro')) {
-      if (tBebe >= 36.5 && tBebe <= 37.5) estado = 'ok';
-      else if (tBebe < 36.5) estado = 'frio';
+      if (tBebe >= 34.8 && tBebe <= 38.0) estado = 'ok';
+      else if (tBebe < 34.8) estado = 'frio';
       else estado = 'caliente';
     }
   }
@@ -419,44 +784,40 @@ function evaluateStatusAndAlarms({ cm, tBebe, tAmb, sensor_ultra_fail, sensor_bo
 
 // ===================== ENDPOINT ESP32 ========================
 
-app.post(['/api/esp32-data', '/api/esp32/telemetry'], async (req, res) => {
-  if (!req.body || typeof req.body !== 'object')
-    return res.status(400).json({ ok: false, error: 'body_invalido' });
+async function processEsp32Telemetry(body = {}) {
+  if (!body || typeof body !== 'object')
+    return { status: 400, payload: { ok: false, error: 'body_invalido' } };
 
-  const parsed = parseTelemetryPayload(req.body);
-  const { cm, tBebe, tAmb, pct, pwm, modo, sensor_ultra_fail, sensor_body_fail, sensor_amb_fail, alarms_muted } = parsed;
+  const parsed = parseTelemetryPayload(body);
+  const {
+    cm, tBebe, tAmb, pct, pwm, modo, pausado,
+    sensor_ultra_fail, sensor_body_fail, sensor_amb_fail,
+    alarms_muted, fanOn, fanMode, fanAutoHot
+  } = parsed;
   let { paciente_id } = parsed;
 
-  if (!paciente_id) {
-    try {
-      const [rows] = await pool.execute(
-        `SELECT paciente_id FROM sesiones WHERE status = 'active' ORDER BY created_at DESC LIMIT 1`
-      );
-      if (rows.length) paciente_id = rows[0].paciente_id;
-    } catch {}
-  }
+  paciente_id = await resolveTelemetryPatientId(paciente_id);
+  if (paciente_id) rememberPatientContext(paciente_id);
 
   await setEspOnline(paciente_id);
   if (modo) currentLampMode = modo;
 
-  if (cm != null || pct != null || pwm != null || sensor_ultra_fail) {
-    lastTelemetry = {
-      cm: cm ?? lastTelemetry?.cm ?? null,
-      pct: pct ?? lastTelemetry?.pct ?? null,
-      pwm: pwm ?? lastTelemetry?.pwm ?? null,
-      modo: modo ?? lastTelemetry?.modo ?? null,
-      ultraFail: sensor_ultra_fail,
-      alarms_muted: alarms_muted ?? false,
-      ts: Date.now()
-    };
-    io.emit('telemetry', {
-      cm: lastTelemetry.cm, distance: lastTelemetry.cm, distance_cm: lastTelemetry.cm,
-      pct: lastTelemetry.pct, illumination: lastTelemetry.pct, illumination_pct: lastTelemetry.pct,
-      pwm: lastTelemetry.pwm, modo_actual: lastTelemetry.modo,
-      temp_bebe: lastTemps?.bebe ?? null, temp_ambiente: lastTemps?.ambiente ?? null,
-      estado: lastStatus?.estado ?? null, alarms_muted: lastTelemetry.alarms_muted,
-    });
-  }
+  const effectiveMode = modo || currentLampMode || 'reposo';
+  const terapiaActiva = isTherapyMode(effectiveMode) && !pausado;
+
+  lastTelemetry = {
+    cm: cm ?? lastTelemetry?.cm ?? null,
+    pct: pct ?? lastTelemetry?.pct ?? null,
+    pwm: pwm ?? lastTelemetry?.pwm ?? null,
+    modo: effectiveMode,
+    ultraFail: sensor_ultra_fail,
+    alarms_muted: alarms_muted ?? lastTelemetry?.alarms_muted ?? false,
+    terapiaActiva,
+    fanOn: fanOn ?? lastTelemetry?.fanOn ?? null,
+    fanMode: fanMode ?? lastTelemetry?.fanMode ?? null,
+    fanAutoHot: fanAutoHot ?? lastTelemetry?.fanAutoHot ?? null,
+    ts: Date.now()
+  };
 
   if (tBebe != null || tAmb != null || sensor_body_fail || sensor_amb_fail) {
     lastTemps = {
@@ -464,24 +825,76 @@ app.post(['/api/esp32-data', '/api/esp32/telemetry'], async (req, res) => {
       ambiente: tAmb  != null ? +tAmb.toFixed(1)  : lastTemps?.ambiente ?? null,
       failBody: sensor_body_fail, failAmb: sensor_amb_fail, ts: Date.now()
     };
-    io.emit('temps', { bebe: lastTemps.bebe, ambiente: lastTemps.ambiente, failBody: sensor_body_fail, failAmb: sensor_amb_fail });
   }
 
   const { estado, alarms } = evaluateStatusAndAlarms({
     cm: lastTelemetry?.cm ?? null, tBebe: lastTemps?.bebe ?? null,
     tAmb: lastTemps?.ambiente ?? null, sensor_ultra_fail, sensor_body_fail, sensor_amb_fail
   });
-  lastStatus = { estado, temp_bebe: lastTemps?.bebe ?? null, temp_ambiente: lastTemps?.ambiente ?? null,
-                 distance_cm: lastTelemetry?.cm ?? null, illumination_pct: lastTelemetry?.pct ?? null,
-                 sensor_ultra_fail, sensor_body_fail, sensor_amb_fail, ts: Date.now() };
+
+  lastStatus = {
+    estado: terapiaActiva ? estado : 'sin_datos',
+    temp_bebe: terapiaActiva ? (lastTemps?.bebe ?? null) : null,
+    temp_ambiente: terapiaActiva ? (lastTemps?.ambiente ?? null) : null,
+    distance_cm: terapiaActiva ? (lastTelemetry?.cm ?? null) : null,
+    illumination_pct: terapiaActiva ? (lastTelemetry?.pct ?? null) : null,
+    sensor_ultra_fail: terapiaActiva ? sensor_ultra_fail : false,
+    sensor_body_fail: terapiaActiva ? sensor_body_fail : false,
+    sensor_amb_fail: terapiaActiva ? sensor_amb_fail : false,
+    esp32_connected: true,
+    terapiaActiva,
+    modo_actual: effectiveMode,
+    fanOn: lastTelemetry.fanOn,
+    fanMode: lastTelemetry.fanMode,
+    fanAutoHot: lastTelemetry.fanAutoHot,
+    ts: Date.now()
+  };
+
+  // En reposo/STOP o con terapia inactiva NO se mandan lecturas visibles.
+  // El ESP sigue leyendo por dentro, pero la interfaz ve guiones. El teatro clínico, pero ordenado.
+  io.emit('telemetry', {
+    cm: terapiaActiva ? lastTelemetry.cm : null,
+    distance: terapiaActiva ? lastTelemetry.cm : null,
+    distance_cm: terapiaActiva ? lastTelemetry.cm : null,
+    pct: terapiaActiva ? lastTelemetry.pct : null,
+    illumination: terapiaActiva ? lastTelemetry.pct : null,
+    illumination_pct: terapiaActiva ? lastTelemetry.pct : null,
+    pwm: terapiaActiva ? lastTelemetry.pwm : null,
+    modo_actual: effectiveMode,
+    temp_bebe: terapiaActiva ? (lastTemps?.bebe ?? null) : null,
+    temp_ambiente: terapiaActiva ? (lastTemps?.ambiente ?? null) : null,
+    estado: lastStatus.estado,
+    alarms_muted: lastTelemetry.alarms_muted,
+    terapiaActiva,
+    esp32_connected: true,
+    fanOn: lastTelemetry.fanOn,
+    fanMode: lastTelemetry.fanMode,
+    fanAutoHot: lastTelemetry.fanAutoHot,
+  });
+
+  io.emit('temps', {
+    bebe: terapiaActiva ? (lastTemps?.bebe ?? null) : null,
+    ambiente: terapiaActiva ? (lastTemps?.ambiente ?? null) : null,
+    failBody: terapiaActiva ? sensor_body_fail : false,
+    failAmb: terapiaActiva ? sensor_amb_fail : false,
+    terapiaActiva,
+  });
+
   io.emit('status', lastStatus);
 
   if (paciente_id) {
     try {
-      const sesion = await getActiveSession(paciente_id);
-      const dispEstado = sesion ? 'en_sesion' : 'online';
-      await upsertDeviceStatus(paciente_id, true, dispEstado);
+      await upsertDeviceStatus(paciente_id, true, terapiaActiva ? 'en_sesion' : 'online');
       io.emit('patient:online', { id: String(paciente_id) });
+
+      if (!terapiaActiva) {
+        await syncResolvedAutoAlarms(paciente_id, []).catch(e => console.warn('[ALARMS] sync:', e.message));
+        return { status: 200, payload: { ok: true, terapiaActiva: false } };
+      }
+
+      await syncResolvedAutoAlarms(paciente_id, alarms.map(a => a.tipo)).catch(e => console.warn('[ALARMS] sync:', e.message));
+      let sesion = await getActiveSession(paciente_id);
+      if (!sesion) sesion = await autoStartSessionForTelemetry(paciente_id, effectiveMode);
 
       if (sesion) {
         await pool.execute(
@@ -492,7 +905,7 @@ app.post(['/api/esp32-data', '/api/esp32/telemetry'], async (req, res) => {
            VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?, ?)`,
           [sesion.id, paciente_id,
            cm ?? null, tBebe ?? null, tAmb ?? null,
-           pct ?? null, modo ?? null,
+           pct ?? null, effectiveMode ?? null,
            sensor_ultra_fail ? 1 : 0, sensor_body_fail ? 1 : 0, sensor_amb_fail ? 1 : 0]
         );
 
@@ -501,49 +914,37 @@ app.post(['/api/esp32-data', '/api/esp32/telemetry'], async (req, res) => {
           const last = alarmCooldown.get(key) || 0;
           if (Date.now() - last >= CONFIG.ALARM_COOLDOWN_MS) {
             alarmCooldown.set(key, Date.now());
-            await pool.execute(
-              `INSERT INTO alarmas (sesion_id, paciente_id, tipo, severidad, valor_medido, unidad, mensaje)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              [sesion.id, paciente_id, alarm.tipo, alarm.severidad,
-               alarm.valor != null ? String(alarm.valor) : null,
-               alarm.unidad ?? null, `Alarma automática: ${alarm.tipo}`]
-            );
-            io.emit('alarm:new', { paciente_id, tipo: alarm.tipo, severidad: alarm.severidad, valor: alarm.valor });
-          }
-        }
-      } else {
-        // FIX [8]: registrar alarmas críticas aunque no haya sesión activa
-        for (const alarm of alarms.filter(a => a.severidad === 'critical')) {
-          const key = `nosession:${paciente_id}:${alarm.tipo}`;
-          const last = alarmCooldown.get(key) || 0;
-          if (Date.now() - last >= CONFIG.ALARM_COOLDOWN_MS * 2) {
-            alarmCooldown.set(key, Date.now());
-            // Buscar última sesión para relacionar
-            const [lastSes] = await pool.execute(
-              `SELECT id FROM sesiones WHERE paciente_id = ? ORDER BY created_at DESC LIMIT 1`, [paciente_id]
-            );
-            if (lastSes.length) {
-              await pool.execute(
-                `INSERT INTO alarmas (sesion_id, paciente_id, tipo, severidad, valor_medido, unidad, mensaje)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [lastSes[0].id, paciente_id, alarm.tipo, alarm.severidad,
-                 alarm.valor != null ? String(alarm.valor) : null,
-                 alarm.unidad ?? null, `Alarma sin sesión activa: ${alarm.tipo}`]
-              );
-            }
-            io.emit('alarm:new', { paciente_id, tipo: alarm.tipo, severidad: alarm.severidad, valor: alarm.valor });
+            await insertAlarmRecord({ sesion_id: sesion.id, paciente_id, alarm });
           }
         }
       }
     } catch (e) { console.error('[ESP32-DATA] DB error:', e.message); }
   }
 
-  res.json({ ok: true });
+  return { status: 200, payload: { ok: true, terapiaActiva } };
+}
+
+app.post(['/api/esp32-data', '/api/esp32/telemetry'], async (req, res) => {
+  const result = await processEsp32Telemetry(req.body);
+  res.status(result.status).json(result.payload);
 });
+async function pollEsp32Telemetry() {
+  if (!CONFIG.ESP32_MASTER_URL) return;
+  try {
+    const result = await requestEsp32('/data', { method: 'GET', timeout: 2500 });
+    if (result.statusCode < 200 || result.statusCode >= 300) return;
+    const data = JSON.parse(result.data || '{}');
+    await processEsp32Telemetry(data);
+  } catch (e) {
+    // El watchdog de espOnline ya marcará offline si deja de llegar telemetría.
+  }
+}
+
+setInterval(pollEsp32Telemetry, 1500);
 
 // ===================== HEALTH + LATEST ========================
 
-app.get('/ping', (_req, res) => res.send('NEOLIGHT v3.2'));
+app.get('/ping', (_req, res) => res.send('NEOLIGHT v3.3'));
 app.get('/api/health', async (_req, res) => {
   try { await pool.query('SELECT 1'); res.json({ ok: true, mode: 'wifi', espOnline }); }
   catch { res.status(500).json({ ok: false, mode: 'wifi', espOnline }); }
@@ -557,28 +958,75 @@ app.get('/api/health', async (_req, res) => {
 app.get('/api/client-config', (_req, res) => {
   res.json({
     ok: true,
-    camStreamUrl: process.env.CAM_STREAM_URL || 'http://10.26.0.74/stream',
+    camStreamUrl: CONFIG.CAMERA_STREAM_URL,
   });
 });
 
-const buildLatestPayload = () => ({
-  ok: true, mode: 'wifi', espOnline,
-  data: lastTelemetry ? {
-    cm: lastTelemetry.cm, distance: lastTelemetry.cm, distance_cm: lastTelemetry.cm,
-    pct: lastTelemetry.pct, illumination: lastTelemetry.pct, illumination_pct: lastTelemetry.pct,
-    pwm: lastTelemetry.pwm, modo_actual: lastTelemetry.modo,
-    temp_bebe: lastTemps?.bebe ?? null, temp_ambiente: lastTemps?.ambiente ?? null,
-    estado: lastStatus?.estado ?? null, ultraFail: lastTelemetry.ultraFail,
-    alarms_muted: lastTelemetry.alarms_muted,
-  } : null
+app.post('/api/fan', async (req, res) => {
+  const state = String(req.body?.state || req.query?.state || '').toLowerCase().trim();
+  if (!['on','off','auto','1','0'].includes(state)) {
+    return res.status(400).json({ ok: false, error: 'fan_state_invalido' });
+  }
+  const result = await sendCommandToESP({ type: 'fan', state });
+  if (!result.sent) return res.status(502).json({ ok: false, error: result.reason || 'fan_no_enviado' });
+  let esp = null;
+  try { esp = JSON.parse(result.response || '{}'); } catch {}
+  io.emit('fan:updated', { state, esp });
+  res.json({ ok: true, state, esp });
 });
+
+app.get('/api/fan', async (req, res) => {
+  const state = String(req.query?.state || '').toLowerCase().trim();
+  if (!['on','off','auto','1','0'].includes(state)) {
+    return res.status(400).json({ ok: false, error: 'fan_state_invalido' });
+  }
+  const result = await sendCommandToESP({ type: 'fan', state });
+  if (!result.sent) return res.status(502).json({ ok: false, error: result.reason || 'fan_no_enviado' });
+  let esp = null;
+  try { esp = JSON.parse(result.response || '{}'); } catch {}
+  io.emit('fan:updated', { state, esp });
+  res.json({ ok: true, state, esp });
+});
+
+const buildLatestPayload = () => {
+  const visible = !!(espOnline && lastTelemetry?.terapiaActiva);
+  return {
+    ok: true, mode: 'wifi', espOnline,
+    data: lastTelemetry ? {
+      cm: visible ? lastTelemetry.cm : null,
+      distance: visible ? lastTelemetry.cm : null,
+      distance_cm: visible ? lastTelemetry.cm : null,
+      pct: visible ? lastTelemetry.pct : null,
+      illumination: visible ? lastTelemetry.pct : null,
+      illumination_pct: visible ? lastTelemetry.pct : null,
+      pwm: visible ? lastTelemetry.pwm : null,
+      modo_actual: lastTelemetry.modo,
+      temp_bebe: visible ? (lastTemps?.bebe ?? null) : null,
+      temp_ambiente: visible ? (lastTemps?.ambiente ?? null) : null,
+      estado: visible ? (lastStatus?.estado ?? null) : 'sin_datos',
+      ultraFail: visible ? lastTelemetry.ultraFail : false,
+      alarms_muted: lastTelemetry.alarms_muted,
+      terapiaActiva: visible,
+      esp32_connected: espOnline,
+      fanOn: lastTelemetry.fanOn ?? null,
+      fanMode: lastTelemetry.fanMode ?? null,
+      fanAutoHot: lastTelemetry.fanAutoHot ?? null,
+    } : null
+  };
+};
 
 app.get('/api/telemetry/latest', (_req, res) => res.json(buildLatestPayload()));
 app.get('/api/esp32/latest',     (_req, res) => res.json(buildLatestPayload()));
-app.get('/api/temps/latest', (_req, res) => res.json({
-  ok: true, mode: 'wifi',
-  data: lastTemps ? { bebe: lastTemps.bebe, ambiente: lastTemps.ambiente, failBody: lastTemps.failBody, failAmb: lastTemps.failAmb } : null
-}));
+app.get('/api/temps/latest', (_req, res) => {
+  const visible = !!(espOnline && lastTelemetry?.terapiaActiva);
+  res.json({ ok: true, mode: 'wifi', data: lastTemps ? {
+    bebe: visible ? lastTemps.bebe : null,
+    ambiente: visible ? lastTemps.ambiente : null,
+    failBody: visible ? lastTemps.failBody : false,
+    failAmb: visible ? lastTemps.failAmb : false,
+    terapiaActiva: visible,
+  } : null });
+});
 app.get('/api/status/latest', (_req, res) => res.json({ ok: true, mode: 'wifi', data: lastStatus || null }));
 
 // ===================== AUTH ========================
@@ -734,6 +1182,13 @@ app.post('/api/register', async (req, res) => {
       }, conn);
 
       await conn.commit();
+      emitDoctor(Number(doctor_id), 'doctor-request:new', {
+        id: cr.insertId, paciente_id: pacienteId, tutor_id: tutorId, doctor_id: Number(doctor_id),
+        nombre: String(nombre).trim(), apellidos: String(apellidos).trim(), codigo,
+        tutor_nombre: String(tutor_nombre || nombre).trim(),
+        tutor_apellidos: String(tutor_apellidos || apellidos).trim(),
+        created_at: new Date().toISOString(),
+      });
       res.json({ ok: true, paciente_id: pacienteId, tutor_id: tutorId, usuario: usuarioFinal, codigo });
     } catch (e) { await conn.rollback(); throw e; }
     finally { conn.release(); }
@@ -764,7 +1219,20 @@ app.post('/api/login', async (req, res) => {
 
     await logEvent({ cuenta_id: c.id, tipo: 'login', descripcion: `Login ${c.rol}` });
 
-    if (c.rol === 'doctor' || c.rol === 'admin') {
+    if (c.rol === 'admin') {
+      return res.json({
+        ok: true, role: 'superuser',
+        superuser: {
+          id: c.id, usuario: c.usuario, rol: c.rol,
+          nombre: c.nombre, apellidos: c.apellidos,
+          genero: c.genero || '', telefono: c.telefono || '', correo: c.correo || '',
+          matricula: c.matricula || '', especialidad: c.especialidad || '',
+        },
+        paciente: null, last_session: null,
+      });
+    }
+
+    if (c.rol === 'doctor') {
       return res.json({
         ok: true, role: 'doctor',
         doctor: {
@@ -782,6 +1250,7 @@ app.post('/api/login', async (req, res) => {
     );
     if (!pRows.length) return res.status(500).json({ ok: false, error: 'cuenta_sin_paciente' });
     const p = pRows[0];
+    rememberPatientContext(p.id);
 
     if (p.doctor_request_status !== 'accepted')
       return res.status(403).json({ ok: false, error: 'doctor_no_acepto', status: p.doctor_request_status });
@@ -834,6 +1303,256 @@ app.post('/api/login', async (req, res) => {
       control, dispositivo: devRows[0] || null, doctor: doctorRows[0] || null,
     });
   } catch (e) { return sendDbError(res, e, 'LOGIN_ERROR'); }
+});
+
+
+// ===================== SUPERUSUARIO ========================
+
+async function requireSuperuser(req, res, next) {
+  try {
+    const id = Number(req.headers['x-superuser-id'] || req.query.superuser_id);
+    if (!id) return res.status(401).json({ ok: false, error: 'falta_superuser_id' });
+    const [rows] = await pool.execute(
+      `SELECT id, usuario, rol, nombre, apellidos, estado
+       FROM ${ACCOUNT_TABLE} WHERE id = ? LIMIT 1`,
+      [id]
+    );
+    const account = rows[0];
+    if (!account || account.rol !== 'admin' || account.estado !== 'activo')
+      return res.status(403).json({ ok: false, error: 'superusuario_no_autorizado' });
+    req.superuser = account;
+    next();
+  } catch (e) { return sendServerError(res, e, 'SUPERUSER_AUTH'); }
+}
+
+app.get('/api/auth/current', async (req, res) => {
+  try {
+    const requestedRole = String(req.query.role || '').toLowerCase();
+    if (requestedRole === 'superuser') {
+      const id = Number(req.headers['x-superuser-id']);
+      const [rows] = await pool.execute(
+        `SELECT id, usuario, rol, nombre, apellidos, genero, matricula, especialidad,
+                parentesco, correo, telefono, estado
+         FROM ${ACCOUNT_TABLE} WHERE id = ? AND rol = 'admin' LIMIT 1`, [id]
+      );
+      if (!rows.length || rows[0].estado !== 'activo')
+        return res.status(404).json({ ok: false, error: 'superusuario_no_encontrado' });
+      const c = rows[0];
+      return res.json({ ok: true, role: 'superuser', superuser: {
+        id: c.id, usuario: c.usuario, rol: c.rol, nombre: c.nombre, apellidos: c.apellidos,
+        genero: c.genero || '', telefono: c.telefono || '', correo: c.correo || '',
+        matricula: c.matricula || '', especialidad: c.especialidad || ''
+      }});
+    }
+
+    if (requestedRole === 'doctor') {
+      const id = Number(req.headers['x-doctor-id']);
+      const [rows] = await pool.execute(
+        `SELECT id, usuario, rol, nombre, apellidos, genero, matricula, especialidad,
+                correo, telefono, estado
+         FROM ${ACCOUNT_TABLE} WHERE id = ? AND rol = 'doctor' LIMIT 1`, [id]
+      );
+      if (!rows.length || rows[0].estado !== 'activo')
+        return res.status(404).json({ ok: false, error: 'doctor_no_encontrado' });
+      const c = rows[0];
+      return res.json({ ok: true, role: 'doctor', doctor: {
+        id: c.id, usuario: c.usuario, rol: c.rol, nombre: c.nombre, apellidos: c.apellidos,
+        genero: c.genero || '', telefono: c.telefono || '', correo: c.correo || '',
+        matricula: c.matricula || '', especialidad: c.especialidad || ''
+      }});
+    }
+
+    if (requestedRole === 'tutor') {
+      const tutorId = Number(req.headers['x-tutor-id']);
+      const [accountRows] = await pool.execute(
+        `SELECT id, usuario, rol, nombre, apellidos, genero, parentesco, correo, telefono, estado
+         FROM ${ACCOUNT_TABLE} WHERE id = ? AND rol = 'tutor' LIMIT 1`, [tutorId]
+      );
+      if (!accountRows.length || accountRows[0].estado !== 'activo')
+        return res.status(404).json({ ok: false, error: 'tutor_no_encontrado' });
+      const c = accountRows[0];
+      const [pRows] = await pool.execute(`SELECT * FROM pacientes WHERE tutor_id = ? LIMIT 1`, [tutorId]);
+      if (!pRows.length) return res.status(404).json({ ok: false, error: 'cuenta_sin_paciente' });
+      const p = pRows[0];
+      const plan = await getActivePlan(p.id);
+      const session = await getActiveSession(p.id);
+      const [ssRows] = await pool.execute(`SELECT * FROM sesiones WHERE paciente_id = ? ORDER BY created_at DESC LIMIT 1`, [p.id]);
+      const [ctrlRows] = await pool.execute(
+        `SELECT modo_control, manual_habilitado, automatico_habilitado, habilitado_hasta, motivo
+         FROM control_autorizaciones WHERE paciente_id = ? AND tutor_id = ? LIMIT 1`, [p.id, c.id]
+      );
+      const [devRows] = await pool.execute(
+        `SELECT esp_online, estado, last_seen_at FROM estado_dispositivo WHERE paciente_id = ? LIMIT 1`, [p.id]
+      );
+      const [doctorRows] = await pool.execute(
+        `SELECT id, usuario, nombre, apellidos, genero, matricula, especialidad
+         FROM ${ACCOUNT_TABLE} WHERE id = ? AND rol IN ('doctor','admin') LIMIT 1`, [p.doctor_id]
+      );
+      return res.json({
+        ok: true, role: 'tutor',
+        paciente: {
+          id: p.id, codigo: p.codigo, nombre: p.nombre, apellidos: p.apellidos,
+          fecha_nac: p.fecha_nac, dias_nacido: daysBetween(p.fecha_nac), genero: p.genero,
+          peso_nacimiento_g: p.peso_nacimiento_g, peso_actual_g: p.peso_actual_g,
+          edad_gestacional_sem: p.edad_gestacional_sem, fecha_ingreso: p.fecha_ingreso,
+          fecha_alta: p.fecha_alta, doctor_id: p.doctor_id,
+          doctor_request_status: p.doctor_request_status, estado_clinico: p.estado_clinico,
+          estado_registro: p.estado_registro, diagnostico: p.diagnostico,
+          observaciones: p.observaciones, nivel_bilirrubina_inicial: p.nivel_bilirrubina_inicial,
+          nivel_bilirrubina_actual: p.nivel_bilirrubina_actual,
+          grupo_sanguineo: p.grupo_sanguineo, factor_rh: p.factor_rh,
+        },
+        tutor: {
+          id: c.id, usuario: c.usuario, nombre: c.nombre, apellidos: c.apellidos,
+          genero: c.genero || '', telefono: c.telefono || '', correo: c.correo || '', parentesco: c.parentesco
+        },
+        plan: plan || null, session: session || null, last_session: ssRows[0] || null,
+        control: ctrlRows[0] ? { ...ctrlRows[0], modo_actual: currentLampMode } : null,
+        dispositivo: devRows[0] || null, doctor: doctorRows[0] || null,
+      });
+    }
+
+    return res.status(400).json({ ok: false, error: 'rol_invalido' });
+  } catch (e) { return sendServerError(res, e, 'AUTH_CURRENT'); }
+});
+
+app.get('/api/superuser/overview', requireSuperuser, async (_req, res) => {
+  try {
+    const [[doctorCount]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM ${ACCOUNT_TABLE} WHERE rol = 'doctor' AND estado = 'activo'`
+    );
+    const [[patientCount]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM pacientes WHERE estado_registro <> 'eliminado'`
+    );
+    const [[sessionStats]] = await pool.query(
+      `SELECT COUNT(*) AS sessions, COALESCE(SUM(duracion_s),0) AS duration_s FROM sesiones WHERE status = 'finished'`
+    );
+    const [[alertCount]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM alarmas WHERE silenciada = FALSE AND DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
+    );
+    const [usageDays] = await pool.query(
+      `SELECT DATE(fecha) AS day, COUNT(*) AS sessions, COALESCE(SUM(duracion_s),0) AS duration_s
+       FROM sesiones WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 62 DAY)
+       GROUP BY DATE(fecha) ORDER BY day ASC`
+    );
+    const [alerts] = await pool.query(
+      `SELECT a.id, a.tipo, a.severidad, a.valor_medido, a.unidad, a.created_at,
+              p.codigo, p.nombre AS patient_name, p.apellidos AS patient_lastname
+       FROM alarmas a LEFT JOIN pacientes p ON p.id = a.paciente_id
+       ORDER BY a.created_at DESC LIMIT 8`
+    );
+    res.json({
+      ok: true,
+      stats: {
+        doctors: Number(doctorCount?.total || 0),
+        patients: Number(patientCount?.total || 0),
+        sessions: Number(sessionStats?.sessions || 0),
+        duration_s: Number(sessionStats?.duration_s || 0),
+        alerts: Number(alertCount?.total || 0),
+      },
+      usageDays,
+      alerts,
+      equipment: { registered: 2, operational: espOnline ? 1 : 0, espOnline },
+    });
+  } catch (e) { return sendServerError(res, e, 'SUPERUSER_OVERVIEW'); }
+});
+
+app.get('/api/superuser/users', requireSuperuser, async (_req, res) => {
+  try {
+    const [doctors] = await pool.query(
+      `SELECT c.id, c.usuario, c.nombre, c.apellidos, c.genero, c.especialidad,
+              c.matricula, c.correo, c.telefono, c.estado,
+              COUNT(CASE WHEN p.estado_registro = 'activo' THEN 1 END) AS patient_count
+       FROM ${ACCOUNT_TABLE} c
+       LEFT JOIN pacientes p ON p.doctor_id = c.id
+       WHERE c.rol = 'doctor'
+       GROUP BY c.id
+       ORDER BY c.estado DESC, c.apellidos, c.nombre`
+    );
+    const [patients] = await pool.query(
+      `SELECT p.id, p.codigo, p.nombre, p.apellidos, p.estado_clinico, p.estado_registro,
+              p.fecha_ingreso, p.doctor_id, p.doctor_request_status,
+              d.nombre AS doctor_nombre, d.apellidos AS doctor_apellidos,
+              d.genero AS doctor_genero, d.estado AS doctor_estado
+       FROM pacientes p
+       LEFT JOIN ${ACCOUNT_TABLE} d ON d.id = p.doctor_id
+       WHERE p.estado_registro <> 'eliminado'
+       ORDER BY p.apellidos, p.nombre`
+    );
+    res.json({ ok: true, doctors, patients });
+  } catch (e) { return sendServerError(res, e, 'SUPERUSER_USERS'); }
+});
+
+app.post('/api/superuser/patients/:id/reassign', requireSuperuser, async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const patientId = Number(req.params.id);
+    const doctorId = Number(req.body?.doctor_id);
+    const reason = String(req.body?.reason || '').trim();
+    if (!patientId || !doctorId)
+      return res.status(400).json({ ok: false, error: 'datos_invalidos' });
+    await conn.beginTransaction();
+    const [doctorRows] = await conn.execute(
+      `SELECT id, nombre, apellidos FROM ${ACCOUNT_TABLE}
+       WHERE id = ? AND rol = 'doctor' AND estado = 'activo' LIMIT 1`, [doctorId]
+    );
+    if (!doctorRows.length) { await conn.rollback(); return res.status(404).json({ ok: false, error: 'doctor_no_disponible' }); }
+    const [patientRows] = await conn.execute(`SELECT id, doctor_id, nombre, apellidos FROM pacientes WHERE id = ? LIMIT 1`, [patientId]);
+    if (!patientRows.length) { await conn.rollback(); return res.status(404).json({ ok: false, error: 'paciente_no_encontrado' }); }
+    const previousDoctorId = patientRows[0].doctor_id;
+    await conn.execute(
+      `UPDATE pacientes SET doctor_id = ?, doctor_request_status = 'accepted' WHERE id = ?`,
+      [doctorId, patientId]
+    );
+    await conn.execute(`UPDATE control_autorizaciones SET doctor_id = ? WHERE paciente_id = ?`, [doctorId, patientId]);
+    await logEvent({
+      paciente_id: patientId, cuenta_id: req.superuser.id, tipo: 'paciente_editado',
+      descripcion: `Paciente reasignado al doctor ${doctorRows[0].nombre} ${doctorRows[0].apellidos}`,
+      metadata: { action: 'doctor_reassigned', previous_doctor_id: previousDoctorId, doctor_id: doctorId, reason }
+    }, conn);
+    await conn.commit();
+    io.emit('patient:reassigned', { paciente_id: patientId, previous_doctor_id: previousDoctorId, doctor_id: doctorId });
+    res.json({ ok: true, previous_doctor_id: previousDoctorId, doctor: doctorRows[0] });
+  } catch (e) { await conn.rollback(); return sendServerError(res, e, 'SUPERUSER_REASSIGN'); }
+  finally { conn.release(); }
+});
+
+app.patch('/api/superuser/doctors/:id/status', requireSuperuser, async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const doctorId = Number(req.params.id);
+    const status = String(req.body?.status || '').toLowerCase();
+    const reassignTo = Number(req.body?.reassign_to) || null;
+    if (!doctorId || !['activo','inactivo'].includes(status))
+      return res.status(400).json({ ok: false, error: 'datos_invalidos' });
+    if (doctorId === Number(req.superuser.id))
+      return res.status(400).json({ ok: false, error: 'no_puede_modificar_su_cuenta' });
+    await conn.beginTransaction();
+    const [[assigned]] = await conn.execute(
+      `SELECT COUNT(*) AS total FROM pacientes WHERE doctor_id = ? AND estado_registro = 'activo'`, [doctorId]
+    );
+    const assignedCount = Number(assigned?.total || 0);
+    if (status === 'inactivo' && assignedCount > 0 && !reassignTo) {
+      await conn.rollback();
+      return res.status(409).json({ ok: false, error: 'doctor_con_pacientes', assigned_count: assignedCount });
+    }
+    if (status === 'inactivo' && reassignTo) {
+      if (reassignTo === doctorId) { await conn.rollback(); return res.status(400).json({ ok: false, error: 'doctor_reasignacion_invalido' }); }
+      const [target] = await conn.execute(
+        `SELECT id FROM ${ACCOUNT_TABLE} WHERE id = ? AND rol = 'doctor' AND estado = 'activo' LIMIT 1`, [reassignTo]
+      );
+      if (!target.length) { await conn.rollback(); return res.status(404).json({ ok: false, error: 'doctor_destino_no_disponible' }); }
+      await conn.execute(`UPDATE pacientes SET doctor_id = ?, doctor_request_status = 'accepted' WHERE doctor_id = ? AND estado_registro = 'activo'`, [reassignTo, doctorId]);
+      await conn.execute(`UPDATE control_autorizaciones SET doctor_id = ? WHERE doctor_id = ?`, [reassignTo, doctorId]);
+    }
+    const [result] = await conn.execute(
+      `UPDATE ${ACCOUNT_TABLE} SET estado = ? WHERE id = ? AND rol = 'doctor'`, [status, doctorId]
+    );
+    if (!result.affectedRows) { await conn.rollback(); return res.status(404).json({ ok: false, error: 'doctor_no_encontrado' }); }
+    await conn.commit();
+    res.json({ ok: true, status, reassigned: status === 'inactivo' ? assignedCount : 0 });
+  } catch (e) { await conn.rollback(); return sendServerError(res, e, 'SUPERUSER_DOCTOR_STATUS'); }
+  finally { conn.release(); }
 });
 
 // ===================== DOCTOR DASHBOARD ========================
@@ -905,6 +1624,9 @@ app.post('/api/doctor/requests/:id', async (req, res) => {
     }
 
     await conn.commit();
+    emitPatient(r.paciente_id, r.tutor_id, 'doctor-request:resolved', {
+      id: reqId, paciente_id: r.paciente_id, tutor_id: r.tutor_id, doctor_id: r.doctor_id, status: newStatus
+    });
     res.json({ ok: true, status: newStatus });
   } catch (e) { await conn.rollback(); return sendServerError(res, e, 'DOC_REQ_DECIDE'); }
   finally { conn.release(); }
@@ -1257,6 +1979,7 @@ app.post('/api/sessions/start', async (req, res) => {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      await resetActiveAlarmsForNewSession(paciente_id, conn);
       const [r] = await conn.execute(
         `INSERT INTO sesiones (paciente_id, plan_id, fecha, hora_inicio, started_at, modo_programado, tipo_control, status)
          VALUES (?, ?, ?, ?, NOW(), ?, ?, 'active')`,
@@ -1342,15 +2065,31 @@ app.post('/api/sessions/:id/finish', async (req, res) => {
       const isEspOn = espOnline;
       await upsertDeviceStatus(s.paciente_id, isEspOn, isEspOn ? 'online' : 'offline', conn);
 
+      // Al finalizar la sesión se bloquea nuevamente el control manual del tutor.
+      // Así el desbloqueo aprobado por el doctor dura solo durante la sesión clínica.
+      await conn.execute(
+        `UPDATE control_autorizaciones
+         SET modo_control = 'bloqueado', manual_habilitado = 0, automatico_habilitado = 0,
+             habilitado_hasta = NULL, bloqueado_at = NOW(), motivo = 'Bloqueado automáticamente al finalizar sesión'
+         WHERE paciente_id = ?`,
+        [s.paciente_id]
+      );
+
       await logEvent({ paciente_id: s.paciente_id, sesion_id: sesionId, cuenta_id,
                        tipo: 'fin_sesion', descripcion: `Sesión finalizada: ${motivo_fin}`,
                        metadata: { duracion_s: durS, motivo_fin, plan_id: s.plan_id } }, conn);
 
       await conn.commit();
+      const espManualLock = await sendCommandToESP({ type: 'manual', state: 'off' });
       io.emit('session:finished', { paciente_id: s.paciente_id, sesion_id: sesionId, duracion_s: durS });
+      emitPatient(s.paciente_id, null, 'control:updated', {
+        paciente_id: s.paciente_id, modo_control: 'bloqueado',
+        manual_habilitado: false, automatico_habilitado: false, modo_actual: currentLampMode,
+        reason: 'session_finished'
+      });
 
       const plan = s.plan_id ? await getActivePlan(s.paciente_id) : null;
-      res.json({ ok: true, duracion_s: durS, hms: secondsToHMS(durS), plan: plan || null });
+      res.json({ ok: true, duracion_s: durS, hms: secondsToHMS(durS), plan: plan || null, esp_manual_lock: espManualLock });
     } catch (e) { await conn.rollback(); throw e; }
     finally { conn.release(); }
   } catch (e) { return sendServerError(res, e, 'SESSION_FINISH'); }
@@ -1450,6 +2189,14 @@ app.post('/api/doctor/patients/:id/control', async (req, res) => {
     const bloqAt   = modo_control === 'bloqueado'  ? new Date() : null;
     const habDesde = modo_control !== 'bloqueado'  ? new Date() : null;
 
+    // El permiso de la base de datos y el permiso real del ESP32 deben cambiar juntos.
+    // Para habilitar manual exigimos confirmacion del maestro; para bloquear continuamos
+    // aunque el equipo este desconectado, porque la interfaz debe quedar segura.
+    const esp = await sendCommandToESP({ type: 'manual', state: manualH ? 'on' : 'off' });
+    if (manualH && !esp.sent) {
+      return res.status(503).json({ ok: false, error: 'esp32_manual_no_habilitado', esp });
+    }
+
     await pool.execute(
       `UPDATE control_autorizaciones
        SET modo_control = ?, manual_habilitado = ?, automatico_habilitado = ?,
@@ -1468,7 +2215,7 @@ app.post('/api/doctor/patients/:id/control', async (req, res) => {
 
     io.emit('control:updated', { paciente_id: patientId, modo_control,
                                   manual_habilitado: !!manualH, automatico_habilitado: !!autoH });
-    res.json({ ok: true, modo_control });
+    res.json({ ok: true, modo_control, esp });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ ok: false, error: e.error });
     return sendServerError(res, e, 'DOCTOR_CONTROL_UPDATE');
@@ -1507,19 +2254,6 @@ app.post('/api/patient/:id/mode-request', async (req, res) => {
     const modo = isManualControlRequest ? 'manual_control' : normalizeMode(requestedMode);
     if (!modo || modo === 'automatico') return res.status(400).json({ ok: false, error: 'modo_invalido_para_tutor' });
 
-    if (!isManualControlRequest) {
-      const [ctrlRows] = await pool.execute(
-        `SELECT modo_control, manual_habilitado, habilitado_hasta
-         FROM control_autorizaciones WHERE paciente_id = ? AND tutor_id = ? LIMIT 1`,
-        [patientId, tutorId]
-      );
-      const ctrl = ctrlRows[0];
-      if (!ctrl || ctrl.modo_control !== 'manual' || !ctrl.manual_habilitado)
-        return res.status(403).json({ ok: false, error: 'control_bloqueado' });
-      if (ctrl.habilitado_hasta && new Date(ctrl.habilitado_hasta) < new Date())
-        return res.status(403).json({ ok: false, error: 'permiso_expirado' });
-    }
-
     const [patientRows] = await pool.execute(
       `SELECT p.id, p.nombre, p.apellidos, p.doctor_id,
               t.nombre AS tutor_nombre, t.apellidos AS tutor_apellidos
@@ -1529,6 +2263,36 @@ app.post('/api/patient/:id/mode-request', async (req, res) => {
       [patientId, tutorId]
     );
     if (!patientRows.length) return res.status(404).json({ ok: false, error: 'paciente_no_encontrado' });
+
+    const activePlan = await getActivePlan(patientId);
+    const recommendedMode = normalizeMode(activePlan?.modo_recomendado);
+
+    // Carta verde: si el doctor programó un plan en este modo, el tutor puede pasar
+    // de reposo al modo recomendado sin volver a pedir permiso. Cambiar a otro modo
+    // clínico, por ejemplo convencional -> intensivo, sigue requiriendo solicitud.
+    if (!isManualControlRequest && modo !== 'reposo' && recommendedMode && modo === recommendedMode) {
+      const result = await sendCommandToESP({ type: 'mode', mode: modo.toUpperCase() });
+      currentLampMode = modo;
+      await logEvent({ paciente_id: patientId, cuenta_id: tutorId, tipo: 'cambio_modo',
+                       descripcion: `Tutor activó modo recomendado por plan: ${modo}`,
+                       metadata: { modo, plan_id: activePlan?.id || null, esp_sent: result.sent, permiso: 'plan_activo' } });
+      io.emit('lamp:command', { type: 'mode', mode: modo, paciente_id: patientId });
+      emitPatient(patientId, tutorId, 'control:updated', {
+        paciente_id: patientId, modo_actual: currentLampMode, plan_mode_allowed: true
+      });
+      return res.json({ ok: true, status: 'applied', mode: modo, esp: result, reason: 'plan_recomendado' });
+    }
+
+    if (!isManualControlRequest && modo === 'reposo') {
+      const result = await sendCommandToESP({ type: 'mode', mode: 'REPOSO' });
+      currentLampMode = 'reposo';
+      await logEvent({ paciente_id: patientId, cuenta_id: tutorId, tipo: 'cambio_modo',
+                       descripcion: 'Tutor envió modo reposo',
+                       metadata: { modo: 'reposo', esp_sent: result.sent } });
+      io.emit('lamp:command', { type: 'mode', mode: 'reposo', paciente_id: patientId });
+      emitPatient(patientId, tutorId, 'control:updated', { paciente_id: patientId, modo_actual: currentLampMode });
+      return res.json({ ok: true, status: 'applied', mode: 'reposo', esp: result });
+    }
 
     const duplicate = Array.from(pendingModeRequests.values()).find(r =>
       r.status === 'pending' && Number(r.paciente_id) === Number(patientId) &&
@@ -1551,8 +2315,14 @@ app.post('/api/patient/:id/mode-request', async (req, res) => {
                      tipo: isManualControlRequest ? 'control_manual_habilitado' : 'cambio_modo',
                      descripcion: isManualControlRequest ? 'Tutor solicitó control manual' : `Tutor solicitó modo ${modo}`,
                      metadata: { modo, request_id: requestId } });
-    io.emit('mode-request:new', { id: requestId, paciente_id: patientId, mode: modo,
-                                   request_type: isManualControlRequest ? 'manual_control' : 'mode_change' });
+    emitDoctor(Number(patientRows[0].doctor_id), 'mode-request:new', {
+      id: requestId, paciente_id: patientId, doctor_id: Number(patientRows[0].doctor_id), tutor_id: tutorId,
+      mode: modo, request_type: isManualControlRequest ? 'manual_control' : 'mode_change',
+      motivo: req.body?.motivo || null,
+      paciente_nombre: patientRows[0].nombre, paciente_apellidos: patientRows[0].apellidos,
+      tutor_nombre: patientRows[0].tutor_nombre, tutor_apellidos: patientRows[0].tutor_apellidos,
+      created_at: new Date().toISOString(),
+    });
     return res.json({ ok: true, status: 'pending', request_id: requestId, mode: modo });
   } catch (e) { return sendServerError(res, e, 'TUTOR_MODE_REQUEST'); }
 });
@@ -1589,13 +2359,23 @@ app.post('/api/doctor/mode-requests/:id', async (req, res) => {
                        tipo: 'solicitud_rechazada',
                        descripcion: `Doctor rechazó solicitud de modo ${request.mode}`,
                        metadata: { request_id: requestId, mode: request.mode } });
-      io.emit('mode-request:resolved', { id: requestId, paciente_id: request.paciente_id, status: 'rejected', mode: request.mode });
+      emitPatient(request.paciente_id, request.tutor_id, 'mode-request:resolved', {
+        id: requestId, paciente_id: request.paciente_id, tutor_id: request.tutor_id,
+        doctor_id: request.doctor_id, status: 'rejected', mode: request.mode, request_type: request.request_type
+      });
       return res.json({ ok: true, status: 'rejected' });
     }
 
     await ensurePatientBelongsToDoctor(request.paciente_id, doctorId);
 
     if (request.mode === 'manual_control' || request.request_type === 'manual_control') {
+      // Primero habilitamos el permiso real en el ESP32. Si falla, la solicitud queda
+      // pendiente para que el doctor pueda reintentar sin mostrar controles falsamente activos.
+      const esp = await sendCommandToESP({ type: 'manual', state: 'on' });
+      if (!esp.sent) {
+        return res.status(503).json({ ok: false, error: 'esp32_manual_no_habilitado', esp });
+      }
+
       const until = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await pool.execute(
         `UPDATE control_autorizaciones
@@ -1610,10 +2390,15 @@ app.post('/api/doctor/mode-requests/:id', async (req, res) => {
                        tipo: 'solicitud_aceptada',
                        descripcion: 'Doctor aprobó control manual solicitado por tutor',
                        metadata: { request_id: requestId } });
-      io.emit('control:updated', { paciente_id: request.paciente_id, modo_control: 'manual',
-                                    manual_habilitado: true, automatico_habilitado: false });
-      io.emit('mode-request:resolved', { id: requestId, paciente_id: request.paciente_id, status: 'accepted', mode: request.mode });
-      return res.json({ ok: true, status: 'accepted', mode: request.mode });
+      emitPatient(request.paciente_id, request.tutor_id, 'control:updated', {
+        paciente_id: request.paciente_id, modo_control: 'manual',
+        manual_habilitado: true, automatico_habilitado: false
+      });
+      emitPatient(request.paciente_id, request.tutor_id, 'mode-request:resolved', {
+        id: requestId, paciente_id: request.paciente_id, tutor_id: request.tutor_id,
+        doctor_id: request.doctor_id, status: 'accepted', mode: request.mode, request_type: request.request_type
+      });
+      return res.json({ ok: true, status: 'accepted', mode: request.mode, esp });
     }
 
     const result = await sendCommandToESP({ type: 'mode', mode: request.mode.toUpperCase() });
@@ -1625,8 +2410,11 @@ app.post('/api/doctor/mode-requests/:id', async (req, res) => {
                      descripcion: `Doctor aprobó modo ${request.mode}`,
                      metadata: { request_id: requestId, mode: request.mode, esp_sent: result.sent } });
     io.emit('lamp:command', { type: 'mode', mode: request.mode, paciente_id: request.paciente_id });
-    io.emit('control:updated', { paciente_id: request.paciente_id, modo_actual: currentLampMode });
-    io.emit('mode-request:resolved', { id: requestId, paciente_id: request.paciente_id, status: 'accepted', mode: request.mode });
+    emitPatient(request.paciente_id, request.tutor_id, 'control:updated', { paciente_id: request.paciente_id, modo_actual: currentLampMode });
+    emitPatient(request.paciente_id, request.tutor_id, 'mode-request:resolved', {
+      id: requestId, paciente_id: request.paciente_id, tutor_id: request.tutor_id,
+      doctor_id: request.doctor_id, status: 'accepted', mode: request.mode, request_type: request.request_type
+    });
     res.json({ ok: true, status: 'accepted', mode: request.mode, esp: result });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ ok: false, error: e.error });
@@ -1655,12 +2443,23 @@ app.post('/api/doctor/patients/:id/height', async (req, res) => {
 
 // ===================== ALARMAS ========================
 
+app.post('/api/patients/:id/alarms/reset-active', async (req, res) => {
+  try {
+    const patientId = Number(req.params.id);
+    await resetActiveAlarmsForNewSession(patientId);
+    io.emit('alarm:reset', { paciente_id: patientId });
+    res.json({ ok: true });
+  } catch (e) { return sendServerError(res, e, 'RESET_ACTIVE_ALARMS'); }
+});
+
 app.get('/api/patients/:id/alarms', async (req, res) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT a.*, s.fecha AS sesion_fecha FROM alarmas a
+      `SELECT a.*, s.fecha AS sesion_fecha, (a.silenciada = FALSE) AS activa
+       FROM alarmas a
        LEFT JOIN sesiones s ON s.id = a.sesion_id
-       WHERE a.paciente_id = ? ORDER BY a.created_at DESC LIMIT 100`,
+       WHERE a.paciente_id = ?
+       ORDER BY a.silenciada ASC, a.created_at DESC LIMIT 100`,
       [Number(req.params.id)]
     );
     res.json({ ok: true, alarms: rows });
@@ -1719,13 +2518,22 @@ app.get('/api/doctor/alerts/today', async (req, res) => {
     const doctorId = getDoctorIdFromReq(req);
     if (!doctorId) return res.status(400).json({ ok: false, error: 'falta_doctor_id' });
     const [rows] = await pool.execute(
-      `SELECT COUNT(*) AS count FROM alarmas a
-       JOIN sesiones s ON s.id = a.sesion_id
-       JOIN pacientes p ON p.id = s.paciente_id
+      `SELECT
+          SUM(CASE WHEN a.silenciada = FALSE THEN 1 ELSE 0 END) AS count,
+          SUM(CASE WHEN a.silenciada = FALSE AND LOWER(a.severidad) = 'critical' THEN 1 ELSE 0 END) AS critical,
+          SUM(CASE WHEN a.silenciada = FALSE AND LOWER(a.severidad) <> 'critical' THEN 1 ELSE 0 END) AS warning,
+          SUM(CASE WHEN a.silenciada = TRUE THEN 1 ELSE 0 END) AS silenced
+       FROM alarmas a
+       JOIN pacientes p ON p.id = a.paciente_id
        WHERE p.doctor_id = ? AND DATE(a.created_at) = CURDATE()`,
       [doctorId]
     );
-    res.json({ ok: true, count: Number(rows[0]?.count || 0) });
+    res.json({ ok: true,
+      count: Number(rows[0]?.count || 0),
+      critical: Number(rows[0]?.critical || 0),
+      warning: Number(rows[0]?.warning || 0),
+      silenced: Number(rows[0]?.silenced || 0)
+    });
   } catch (e) { res.status(500).json({ ok: false, error: 'server_error' }); }
 });
 
@@ -1759,8 +2567,8 @@ app.get('/api/export/:pacienteId', async (req, res) => {
     const [alarmas] = await pool.execute(
       `SELECT a.sesion_id, a.tipo, a.severidad, a.valor_medido, a.unidad,
               a.mensaje, a.accion_tomada, a.created_at
-       FROM alarmas a JOIN sesiones s ON s.id = a.sesion_id
-       WHERE s.paciente_id = ? ORDER BY a.created_at`,
+       FROM alarmas a LEFT JOIN sesiones s ON s.id = a.sesion_id
+       WHERE a.paciente_id = ? ORDER BY a.created_at`,
       [pacienteId]
     );
     const [planes] = await pool.execute(
@@ -1846,17 +2654,31 @@ function notifyOnline(pid, isOnline) {
 }
 
 io.on('connection', socket => {
+  const visible = !!(espOnline && lastTelemetry?.terapiaActiva);
   if (lastTelemetry) socket.emit('telemetry', {
-    cm: lastTelemetry.cm, distance: lastTelemetry.cm, distance_cm: lastTelemetry.cm,
-    pct: lastTelemetry.pct, illumination: lastTelemetry.pct, illumination_pct: lastTelemetry.pct,
-    pwm: lastTelemetry.pwm, modo_actual: lastTelemetry.modo,
-    temp_bebe: lastTemps?.bebe ?? null, temp_ambiente: lastTemps?.ambiente ?? null,
-    estado: lastStatus?.estado ?? null, alarms_muted: lastTelemetry.alarms_muted,
+    cm: visible ? lastTelemetry.cm : null, distance: visible ? lastTelemetry.cm : null, distance_cm: visible ? lastTelemetry.cm : null,
+    pct: visible ? lastTelemetry.pct : null, illumination: visible ? lastTelemetry.pct : null, illumination_pct: visible ? lastTelemetry.pct : null,
+    pwm: visible ? lastTelemetry.pwm : null, modo_actual: lastTelemetry.modo,
+    temp_bebe: visible ? (lastTemps?.bebe ?? null) : null, temp_ambiente: visible ? (lastTemps?.ambiente ?? null) : null,
+    estado: visible ? (lastStatus?.estado ?? null) : 'sin_datos', alarms_muted: lastTelemetry.alarms_muted,
+    terapiaActiva: visible, esp32_connected: espOnline,
+    fanOn: lastTelemetry.fanOn ?? null, fanMode: lastTelemetry.fanMode ?? null, fanAutoHot: lastTelemetry.fanAutoHot ?? null,
   });
-  if (lastTemps)  socket.emit('temps', { bebe: lastTemps.bebe, ambiente: lastTemps.ambiente, failBody: lastTemps.failBody, failAmb: lastTemps.failAmb });
-  if (lastStatus) socket.emit('status', lastStatus);
+  if (lastTemps)  socket.emit('temps', { bebe: visible ? lastTemps.bebe : null, ambiente: visible ? lastTemps.ambiente : null, failBody: visible ? lastTemps.failBody : false, failAmb: visible ? lastTemps.failAmb : false, terapiaActiva: visible });
+  if (lastStatus) socket.emit('status', { ...lastStatus, terapiaActiva: visible, esp32_connected: espOnline });
   socket.emit('lamp:port', { open: espOnline, path: 'WiFi', baudRate: null });
   for (const [pid] of onlinePatients) socket.emit('patient:online', { id: pid });
+
+  socket.on('client:identify', payload => {
+    const role = String(payload?.role || '').toLowerCase();
+    const doctorId = payload?.doctor_id ? String(payload.doctor_id) : '';
+    const pacienteId = payload?.paciente_id ? String(payload.paciente_id) : '';
+    const tutorId = payload?.tutor_id ? String(payload.tutor_id) : '';
+    socket.data.role = role || socket.data.role;
+    if (doctorId) { socket.data.doctorId = doctorId; socket.join(doctorRoom(doctorId)); }
+    if (pacienteId) { socket.data.patientId = pacienteId; socket.join(patientRoom(pacienteId)); }
+    if (tutorId) { socket.data.tutorId = tutorId; socket.join(tutorRoom(tutorId)); }
+  });
 
   socket.on('patient:identify', payload => {
     const pid = String(payload?.id || '');
@@ -1870,14 +2692,17 @@ io.on('connection', socket => {
   socket.on('alarms:mute', payload => {
     const muted = !!(payload?.mute);
     if (lastTelemetry) lastTelemetry.alarms_muted = muted;
+    const visible = !!(espOnline && lastTelemetry?.terapiaActiva);
     io.emit('telemetry', {
-      cm: lastTelemetry?.cm ?? null, distance: lastTelemetry?.cm ?? null,
-      distance_cm: lastTelemetry?.cm ?? null,
-      pct: lastTelemetry?.pct ?? null, illumination: lastTelemetry?.pct ?? null,
-      illumination_pct: lastTelemetry?.pct ?? null, pwm: lastTelemetry?.pwm ?? null,
+      cm: visible ? (lastTelemetry?.cm ?? null) : null, distance: visible ? (lastTelemetry?.cm ?? null) : null,
+      distance_cm: visible ? (lastTelemetry?.cm ?? null) : null,
+      pct: visible ? (lastTelemetry?.pct ?? null) : null, illumination: visible ? (lastTelemetry?.pct ?? null) : null,
+      illumination_pct: visible ? (lastTelemetry?.pct ?? null) : null, pwm: visible ? (lastTelemetry?.pwm ?? null) : null,
       modo_actual: lastTelemetry?.modo ?? null,
-      temp_bebe: lastTemps?.bebe ?? null, temp_ambiente: lastTemps?.ambiente ?? null,
-      estado: lastStatus?.estado ?? null, alarms_muted: muted,
+      temp_bebe: visible ? (lastTemps?.bebe ?? null) : null, temp_ambiente: visible ? (lastTemps?.ambiente ?? null) : null,
+      estado: visible ? (lastStatus?.estado ?? null) : 'sin_datos', alarms_muted: muted,
+      terapiaActiva: visible, esp32_connected: espOnline,
+      fanOn: lastTelemetry?.fanOn ?? null, fanMode: lastTelemetry?.fanMode ?? null, fanAutoHot: lastTelemetry?.fanAutoHot ?? null,
     });
   });
 
@@ -1891,10 +2716,25 @@ io.on('connection', socket => {
   });
 
   socket.on('lamp:move', async payload => {
-    const dir = String(payload?.dir || '').toLowerCase();
-    if (!['subir','bajar'].includes(dir)) return;
-    await sendCommandToESP({ type: 'height', dir });
-    io.emit('lamp:command', { type: 'height', dir });
+    const raw = String(payload?.dir || '').toLowerCase().trim();
+    const map = {
+      subir: 'subir', up: 'subir', u: 'subir',
+      bajar: 'bajar', down: 'bajar', d: 'bajar',
+      izq: 'izq', izquierda: 'izq', left: 'izq', l: 'izq',
+      der: 'der', derecha: 'der', right: 'der', r: 'der',
+      stop: 'stop', s: 'stop'
+    };
+    const dir = map[raw];
+    if (!dir) return;
+    await sendCommandToESP({ type: 'move', dir });
+    io.emit('lamp:command', { type: 'move', dir });
+  });
+
+  socket.on('fan:set', async payload => {
+    const state = String(payload?.state || '').toLowerCase().trim();
+    if (!['on','off','auto','1','0'].includes(state)) return;
+    const result = await sendCommandToESP({ type: 'fan', state });
+    io.emit('fan:updated', { state, ok: !!result.sent, reason: result.reason || null });
   });
 
   socket.on('disconnect', () => {
@@ -1915,10 +2755,13 @@ initDB()
     server.listen(CONFIG.PORT, '0.0.0.0', () => {
       const ip = getLocalIp() || 'localhost';
       console.log('======================================================');
-      console.log(`  NEOLIGHT Server v3.2`);
+      console.log(`  NEOLIGHT Server v3.3`);
       console.log(`  Local:   http://localhost:${CONFIG.PORT}`);
       console.log(`  Red:     http://${ip}:${CONFIG.PORT}`);
-      console.log(`  ESP32:   POST http://${ip}:${CONFIG.PORT}/api/esp32-data`);
+      console.log(`  ESP32:   backend recibe POST http://${ip}:${CONFIG.PORT}/api/esp32-data`);
+      console.log(CONFIG.ESP32_MASTER_URL
+        ? `  ESP32:   backend consulta GET ${CONFIG.ESP32_MASTER_URL}/data`
+        : '  ESP32:   consulta directa desactivada (sin ESP32_MASTER_URL); se espera que el equipo envíe datos');
       console.log('======================================================');
     });
   })

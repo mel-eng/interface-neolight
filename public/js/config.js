@@ -7,6 +7,20 @@
 export let API_URL = window.location.origin || "";
 if (!API_URL || API_URL.startsWith("file:")) API_URL = "http://localhost:3000";
 
+
+// URL del stream ESP32-S3-CAM. Se carga desde /api/client-config al iniciar el panel.
+export let CAMERA_STREAM_URL = "http://192.168.4.50/stream";
+export async function loadClientConfig() {
+  try {
+    const res = await fetch(`${API_URL}/api/client-config`);
+    const data = await res.json();
+    if (data?.camStreamUrl) CAMERA_STREAM_URL = data.camStreamUrl;
+    return data || {};
+  } catch (_) {
+    return { camStreamUrl: CAMERA_STREAM_URL };
+  }
+}
+
 // Storage keys
 export const SESSION_KEY        = "fototerapia_session";
 export const LOGIN_KEY          = "fototerapia_login";
@@ -19,6 +33,7 @@ export const state = {
   currentRole:    null,   // 'doctor' | 'tutor' | 'admin'
   currentTutorId: null,   // ID de la cuenta tutor
   doctorId:       null,   // Doctor ID (cuando rol = doctor)
+  currentSuperuserId: null, // Cuenta administradora (rol = admin)
   pacienteData:   null,   // objeto paciente completo
   controlData:    null,   // control_autorizaciones
   dashboardLocked:false,  // bloqueo local de controles del panel tutor
@@ -69,6 +84,14 @@ export function normalizeMode(raw) {
 export function doctorHeaders(extra = {}) {
   return state.currentRole === "doctor" && state.doctorId
     ? { "x-doctor-id": String(state.doctorId), ...extra }
+    : { ...extra };
+}
+
+
+/** Retorna headers con superuser_id para llamadas administrativas */
+export function superuserHeaders(extra = {}) {
+  return state.currentRole === "superuser" && state.currentSuperuserId
+    ? { "x-superuser-id": String(state.currentSuperuserId), ...extra }
     : { ...extra };
 }
 

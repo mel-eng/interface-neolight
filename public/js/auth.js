@@ -5,7 +5,7 @@
 // =========================================================
 
 import { $, state, SESSION_KEY, LOGIN_KEY, DOCTOR_CODE_CACHE } from "./config.js";
-import { verifyHospitalCode, fetchDoctors, registerDoctor, registerTutor, login, fetchCurrentDoctorState, fetchCurrentTutorState } from "./api.js";
+import { verifyHospitalCode, fetchDoctors, registerDoctor, registerTutor, login, fetchCurrentDoctorState, fetchCurrentTutorState, fetchCurrentSuperuserState } from "./api.js";
 
 // =========================================================
 // REFERENCIAS DOM
@@ -322,17 +322,20 @@ export async function doLogin() {
       msg.textContent = friendlyError(data, "Credenciales inválidas.");
       return;
     }
-    const resolvedRole = data.role === "doctor" || data.role === "admin"
-      ? "doctor"
-      : data.role === "tutor"
-        ? "tutor"
-        : data.paciente ? "tutor" : (data.doctor ? "doctor" : null);
+    const resolvedRole = data.role === "superuser" || data.role === "admin"
+      ? "superuser"
+      : data.role === "doctor"
+        ? "doctor"
+        : data.role === "tutor"
+          ? "tutor"
+          : data.paciente ? "tutor" : (data.superuser ? "superuser" : (data.doctor ? "doctor" : null));
     if (!resolvedRole) { msg.textContent = "Respuesta inválida del servidor."; return; }
 
     const snapshot = {
       paciente:     data.paciente     || null,
       tutor:        data.tutor        || null,
       doctor:       data.doctor       || null,
+      superuser:    data.superuser    || null,
       last_session: data.last_session || null,
       plan:         data.plan         || null,
       session:      data.session      || null,
@@ -365,12 +368,14 @@ export function doLogout(showMsg = false) {
   state.currentRole    = null;
   state.currentTutorId = null;
   state.doctorId       = null;
+  state.currentSuperuserId = null;
   state.pacienteData   = null;
   state.controlData    = null;
 
   try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
 
   const lb = $("logoutBtn"); if (lb) lb.style.display = "none";
+  document.body.classList.remove("superuser-mode");
   closeAuthModal();
   import("./main.js").then(({ setNavMode, navigate }) => {
     setNavMode("public");
@@ -403,7 +408,10 @@ export async function bootstrapFromStorage() {
     const ss = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
     if (ss) {
       let fresh = null;
-      if (ss.chosenRole === "doctor" && ss.doctor?.id) {
+      if (ss.chosenRole === "superuser" && ss.superuser?.id) {
+        const res = await fetchCurrentSuperuserState(ss.superuser.id);
+        if (res.ok) fresh = { ...res.data, chosenRole: "superuser" };
+      } else if (ss.chosenRole === "doctor" && ss.doctor?.id) {
         const res = await fetchCurrentDoctorState(ss.doctor.id);
         if (res.ok) fresh = { ...res.data, chosenRole: "doctor" };
       } else if (ss.chosenRole === "tutor" && ss.tutor?.id) {
