@@ -37,7 +37,38 @@ export const state = {
   pacienteData:   null,   // objeto paciente completo
   controlData:    null,   // control_autorizaciones
   dashboardLocked:false,  // bloqueo local de controles del panel tutor
+  token:          null,   // sesión entregada por el servidor
 };
+
+// =========================================================
+// SESIÓN: el token que entrega el servidor al iniciar sesión
+// =========================================================
+const TOKEN_KEY = "neolight_token";
+
+export function getToken() {
+  if (state.token) return state.token;
+  try { state.token = localStorage.getItem(TOKEN_KEY) || null; } catch (_) { state.token = null; }
+  return state.token;
+}
+
+export function setToken(token) {
+  state.token = token || null;
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch (_) {}
+}
+
+/** fetch hacia el servidor con la sesión incluida. Avisa si la sesión venció. */
+export async function apiFetch(path, options = {}) {
+  const token = getToken();
+  const headers = { ...(options.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  if (response.status === 401 && token)
+    window.dispatchEvent(new CustomEvent("neolight:session-expired"));
+  return response;
+}
 
 // =========================================================
 // HELPERS DE UTILIDAD

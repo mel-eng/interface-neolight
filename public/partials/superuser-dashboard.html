@@ -92,7 +92,7 @@
         <div class="su-stat-grid">
           <article class="su-stat-card su-stat-mint">
             <span class="su-stat-icon" data-icon="device"></span>
-            <div><small>Equipos operativos</small><strong id="suStatEquipment">1 de 2</strong><span>Uno pendiente de verificación</span></div>
+            <div><small>Equipos operativos</small><strong id="suStatEquipment">—</strong><span id="suStatEquipmentHint">Cargando…</span></div>
           </article>
           <article class="su-stat-card su-stat-lavender">
             <span class="su-stat-icon" data-icon="clock"></span>
@@ -249,12 +249,12 @@
             <article class="su-card su-led-card">
               <div class="su-card-head"><div><span class="su-card-kicker">Emisión</span><h3>Prueba de matriz LED</h3></div><span class="su-status-pill neutral" id="suLedStatus">En reposo</span></div>
               <div class="su-led-visual"><div class="su-led-rays" id="suLedRays"></div><div class="su-led-panel"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-              <div class="su-level-buttons" id="suLedLevels"><button type="button" data-led="0">0%</button><button type="button" data-led="25">25%</button><button type="button" data-led="50">50%</button><button type="button" data-led="75">75%</button><button type="button" data-led="100">100%</button></div>
+              <div class="su-level-buttons" id="suLedLevels"><button type="button" data-led="0">Reposo · 0 %</button><button type="button" data-led="80">Convencional · 80 %</button><button type="button" data-led="100">Intensivo · 100 %</button></div>
             </article>
             <article class="su-card">
               <div class="su-card-head"><div><span class="su-card-kicker">Respuesta</span><h3>Lectura durante la prueba</h3></div></div>
               <div class="su-reading-list">
-                <div><span>LDR 1</span><b id="suLedLdr1">—</b></div><div><span>LDR 2</span><b id="suLedLdr2">—</b></div><div><span>Promedio lumínico</span><b id="suLedAverage">—</b></div><div><span>Temperatura ambiente</span><b id="suLedTemp">—</b></div><div><span>Ventilador</span><b id="suLedFan">Sin datos</b></div>
+                <div><span>Intensidad ordenada</span><b id="suLedPwm">—</b></div><div><span>Luz medida (LDR)</span><b id="suLedAverage">—</b></div><div><span>Temperatura ambiente</span><b id="suLedTemp">—</b></div>
               </div>
               <button class="su-button primary full" id="suAutomaticLedTest" type="button"><span data-icon="play"></span>Prueba automática</button>
             </article>
@@ -271,10 +271,7 @@
             <article class="su-card">
               <div class="su-card-head"><div><span class="su-card-kicker">Salidas auxiliares</span><h3>Alarmas y ventilación</h3></div></div>
               <div class="su-output-tests">
-                <button type="button" data-output-test="buzzer"><span data-icon="volume"></span><p><b>Buzzer</b><small>Prueba sonora local</small></p><em>Probar</em></button>
-                <button type="button" data-output-test="fan-on"><span data-icon="fan"></span><p><b>Ventilador</b><small>Encendido manual</small></p><em>Encender</em></button>
-                <button type="button" data-output-test="fan-auto"><span data-icon="refresh"></span><p><b>Modo automático</b><small>Control por temperatura</small></p><em>Activar</em></button>
-                <button type="button" data-output-test="fan-off"><span data-icon="power"></span><p><b>Detener salida</b><small>Ventilador en reposo</small></p><em>Apagar</em></button>
+                <button type="button" data-output-test="buzzer"><span data-icon="volume"></span><p><b>Buzzer</b><small>Hace sonar el buzzer de la lámpara</small></p><em>Probar</em></button>
               </div>
             </article>
           </div>
@@ -299,7 +296,7 @@
           </article>
 
           <article class="su-card">
-            <div class="su-card-head"><div><span class="su-card-kicker">Registro local</span><h3>Guardar mantenimiento</h3></div></div>
+            <div class="su-card-head"><div><span class="su-card-kicker">Registro</span><h3>Guardar mantenimiento</h3></div></div>
             <form class="su-form" id="suMaintenanceForm">
               <label><span>Tipo</span><select id="suMaintenanceType"><option value="preventivo">Preventivo</option><option value="correctivo">Correctivo</option><option value="inspeccion">Inspección general</option></select></label>
               <label><span>Resultado</span><select id="suMaintenanceResult"><option value="aprobado">Aprobado</option><option value="observacion">Aprobado con observaciones</option><option value="no_aprobado">No aprobado</option></select></label>

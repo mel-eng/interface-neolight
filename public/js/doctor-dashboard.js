@@ -10,6 +10,7 @@ import { playNotificationSound, showRealtimeToast } from "./socket.js";
 import { renderDoctorCharts, renderDoctorAlerts } from "./doctor-analytics.js";
 import { renderDoctorPdfData, bindDoctorReportButton } from "./doctor-report.js";
 import { bindDoctorSections, bindPlanCalculator } from "./doctor-navigation.js";
+import { fetchMySignature, openSignatureDialog, signatureBlockHtml } from "./signature.js";
 
 let doctorEventsBound = false;
 let searchTimer = null;
@@ -31,6 +32,7 @@ export function initDoctorDashboard(sessionSnapshot) {
   const hello = $("dashHelloDoctor");
   if (hello) hello.textContent = `Hola, ${formatDoctorDisplayName(doctor, "Dr(a). -")}`;
   renderDoctorProfile(doctor);
+  loadDoctorSignature();
 
   loadDoctorDashboard();
   bindDoctorRealtimeEvents();
@@ -44,6 +46,9 @@ export function initDoctorDashboard(sessionSnapshot) {
 
     bindPlanCalculator();
     bindDoctorSections();
+    $("doctorSignatureEdit")?.addEventListener("click", () => openSignatureDialog({
+      onSaved: firma => { renderDoctorSignature(firma); showDoctorFeedback("Firma guardada.", "ok"); },
+    }));
     bindDoctorReportButton(() => ({
       doctor: currentDoctor,
       patients: currentDoctorReport.patients,
@@ -101,6 +106,7 @@ function bindDoctorRealtimeEvents() {
       cm: t.cm ?? t.distance_cm ?? null,
       led: t.pwm ?? t.pct ?? null,
       tamb: t.temp_ambiente ?? null,
+      pacienteId: t.paciente_id ?? null,
     });
   });
   window.addEventListener("neolight:esp32-status", event => {
@@ -253,10 +259,7 @@ async function handleModeDecision(id, accept) {
   try {
     const { ok, data } = await decideModeRequest(id, accept);
     if (!ok) {
-      const message = data?.error === "esp32_manual_no_habilitado"
-        ? "No se pudo activar el control manual porque el ESP32 esclavo no está conectado. La solicitud seguirá pendiente."
-        : (data?.message || data?.error || "No se pudo resolver la solicitud de modo.");
-      showDoctorFeedback(message, "danger");
+      showDoctorFeedback(`${data?.message || "No se pudo resolver la solicitud."} La solicitud sigue pendiente.`, "danger");
     }
   } catch (_) {
     showDoctorFeedback("No se pudo conectar con el servidor.", "danger");
@@ -313,6 +316,19 @@ function renderPatients(list) {
   });
 }
 
+// La firma se guarda junto al doctor para ponerla al pie de los reportes.
+async function loadDoctorSignature() {
+  renderDoctorSignature(await fetchMySignature());
+}
+
+function renderDoctorSignature(firma) {
+  if (currentDoctor) currentDoctor.firma = firma || null;
+  const img = $("doctorSignatureImg"), empty = $("doctorSignatureEmpty"), button = $("doctorSignatureEdit");
+  if (img) { img.hidden = !firma; if (firma) img.src = firma; }
+  if (empty) empty.hidden = !!firma;
+  if (button) button.textContent = firma ? "Cambiar firma" : "Registrar firma";
+}
+
 function renderDoctorProfile(doctor = null) {
   const fullName = formatDoctorDisplayName(doctor, "Dr(a)");
   const initials = fullName.split(/\s+/).slice(0, 2).map(part => part[0] || "").join("").toUpperCase() || "DR";
@@ -323,11 +339,12 @@ function renderDoctorProfile(doctor = null) {
   setText("doctorProfileCenter", doctor?.centro || doctor?.hospital || "Centro médico neonatal");
 }
 
-function renderDoctorHeroState(patients = [], alerts = {}) {
-  const activePatient = patients.find(p => Number(p.sesiones_activas || 0) > 0) || patients[0] || null;
-  const activeName = activePatient ? `${activePatient.nombre || ""} ${activePatient.apellidos || ""}`.trim() : "Sin selección";
-  setText("doctorSelectedPatient", activeName || "Sin selección");
-  setText("doctorCurrentMode", (alerts.sessions || []).find(s => s.modo_final || s.modo_programado)?.modo_final || (alerts.sessions || []).find(s => s.modo_programado)?.modo_programado || "Sin datos");
+function renderDoctorHeroState(patients = []) {
+  // Paciente que está usando la lámpara: el que tiene sesión abierta o el que informa la telemetría.
+  const inLamp = patients.find(p => Number(p.sesiones_activas || 0) > 0)
+    || patients.find(p => lampState.online && String(p.id) === String(lampState.pacienteId)) || null;
+  setText("doctorSelectedPatient", inLamp ? `${inLamp.nombre || ""} ${inLamp.apellidos || ""}`.trim() : "Ninguno");
+  if (!lampState.online) setText("doctorCurrentMode", "—");
 }
 
 function renderDoctorRightRail(patients = [], alerts = {}) {
@@ -337,7 +354,7 @@ function renderDoctorRightRail(patients = [], alerts = {}) {
 }
 
 // Estado real de la lámpara: se alimenta de la telemetría en vivo, no de textos fijos.
-const lampState = { online: false, modo: null, cm: null, led: null, tamb: null };
+const lampState = { online: false, modo: null, cm: null, led: null, tamb: null, pacienteId: null };
 
 function updateLampState(patch = {}) {
   Object.assign(lampState, patch);
@@ -360,7 +377,7 @@ function renderDoctorSystemStatus() {
     chip.classList.toggle("is-on", lampState.online);
     chip.classList.toggle("is-off", !lampState.online);
   }
-  if (lampState.online && lampState.modo) setText("doctorCurrentMode", modo);
+  setText("doctorCurrentMode", modo);
 
   const box = $("doctorSystemStatus");
   if (!box) return;
@@ -560,7 +577,6 @@ function showClinicalRecordModal({ patient, plan, sessions, alarms, events }) {
     ["Reposo",  modeCounts.reposo,      "#cfc8dc"],
     ["Conv.",   modeCounts.convencional, "#6f9db3"],
     ["Intens.", modeCounts.intensivo,    "#7a57d1"],
-    ["Auto",    modeCounts.automatico,   "#e3b23c"],
   ];
   const ledBadge = dominantMode === "intensivo" ? "badge-warn" : dominantMode === "convencional" ? "badge-ok" : "badge-neutral";
 
@@ -598,7 +614,7 @@ function showClinicalRecordModal({ patient, plan, sessions, alarms, events }) {
             <div class="cr-hero-code">${escapeHtml(patient.codigo || "Sin código")}</div>
             <div class="cr-hero-tags">
               <span class="cr-tag cr-tag-state" style="--state-color:${stateColor}">${escapeHtml(humanLabel(patient.estado_clinico || "ok"))}</span>
-              <span class="cr-tag">${patient.dias_nacido != null ? `${patient.dias_nacido} días de vida` : "Edad no registrada"}</span>
+              <span class="cr-tag">${ageLabel(patient)}</span>
               ${plan ? `<span class="cr-tag">${escapeHtml((plan.modo_recomendado || "—").toUpperCase())}</span>` : ""}
             </div>
             <div class="cr-hero-meta-grid">
@@ -758,6 +774,8 @@ function showClinicalRecordModal({ patient, plan, sessions, alarms, events }) {
             </div>`).join("") : `<div class="cr-empty">Sin historial disponible.</div>`}
         </div>
       </div>
+
+      ${signatureBlockHtml(currentDoctor)}
 
       <div class="cr-footer">
         <span>NEOLIGHT· ${escapeHtml(fullName)} · ${new Date().toLocaleDateString("es")}</span>
@@ -925,17 +943,25 @@ async function saveControl(patientId, tutorId) {
     tutor_id: tutorId || null,
   });
   if (!res.ok) {
-    const message = res.data?.error === "esp32_manual_no_habilitado"
-      ? "No se pudo habilitar el control manual porque el ESP32 esclavo no está conectado."
-      : (res.data?.message || "No se pudieron guardar permisos.");
-    return showDoctorFeedback(message, "danger");
+    return showDoctorFeedback(res.data?.message || "No se pudieron guardar los permisos.", "danger");
   }
-  showDoctorFeedback("Permisos actualizados.", "ok");
+  showDoctorFeedback(value("controlMode") === "manual"
+    ? "Control manual autorizado. El tutor debe activar la clave en el equipo."
+    : "Permisos actualizados.", "ok");
 }
 
 async function setDoctorMode(patientId, mode) {
   const res = await doctorSetMode(patientId, mode);
-  showDoctorFeedback(res.ok ? `Modo ${mode} enviado.` : (res.data?.message || "No se pudo cambiar el modo."), res.ok ? "ok" : "danger");
+  showDoctorFeedback(res.ok ? `Modo ${humanLabel(mode).toLowerCase()} enviado a la lámpara.` : (res.data?.message || "No se pudo cambiar el modo."), res.ok ? "ok" : "danger");
+}
+
+function ageLabel(patient) {
+  let days = patient?.dias_nacido;
+  if (days == null && patient?.fecha_nac) {
+    const born = new Date(patient.fecha_nac);
+    if (!Number.isNaN(born.getTime())) days = Math.max(0, Math.floor((Date.now() - born.getTime()) / 86_400_000));
+  }
+  return days == null ? "Edad no registrada" : `${days} ${days === 1 ? "día" : "días"} de vida`;
 }
 
 function numberOrNull(id) {

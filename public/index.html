@@ -217,7 +217,7 @@
                 <h1 id="dashHelloPatient">Hola, —</h1>
                 <div class="pt-hero-tags">
                   <span>Paciente: <b id="pacienteNombreTop">—</b></span>
-                  <span>Modo: <b id="pacModoActual">REPOSO</b></span>
+                  <span>Modo: <b id="pacModoActual">Reposo</b></span>
                   <span id="patientGeneralStatus">Sistema en observación</span>
                 </div>
               </div>
@@ -275,7 +275,7 @@
                     <div class="pt-wlbl">Intensidad LED</div>
                     <div class="pt-wval" id="patientLightLevel">—</div>
                     <div class="patient-sensor-bar"><i id="patientLightBar"></i></div>
-                    <em id="patientLightStatus">Esperando LDR</em>
+                    <em id="patientLightStatus">Sin terapia activa</em>
                   </div>
                 </div>
                 <div class="pt-metric-widget">
@@ -284,7 +284,7 @@
                     <div class="pt-wlbl">Distancia lámpara</div>
                     <div class="pt-wval" id="patientDistance">—</div>
                     <div class="patient-sensor-bar"><i id="patientDistanceBar"></i></div>
-                    <em id="patientDistanceStatus">Esperando HC-SR04</em>
+                    <em id="patientDistanceStatus">Sin terapia activa</em>
                   </div>
                 </div>
                 <div class="pt-metric-widget">
@@ -339,15 +339,15 @@
         <section class="patient-section" data-section="solicitudes">
           <div class="pt-section-hdr">
             <h2>Modo de terapia</h2>
-            <p>Solicita cambios de modo al médico a cargo</p>
+            <p>Reposo y el modo de tu plan se aplican al instante. Otro modo se envía como solicitud al doctor.</p>
           </div>
 
           <div class="patient-two-col">
-            <div class="patient-card locked" id="cardModo">
+            <div class="patient-card" id="cardModo">
               <h3>Modo de terapia</h3>
               <div class="patient-mode-row">
                 <span>Modo actual</span>
-                <span class="badge">REPOSO</span>
+                <span class="badge" id="pacModoBadge">Reposo</span>
               </div>
               <div class="patient-mode-actions">
                 <button class="btn btn-primary" id="pacBtnReposo" data-modo="reposo">Reposo</button>
@@ -356,6 +356,10 @@
               </div>
               <div class="ctrl-manual">
                 <div class="ctrl-manual-lbl">Control manual de lámpara</div>
+                <div class="manual-status" id="manualStatusBox" data-step="request" aria-live="polite">
+                  <div><strong>Control manual bloqueado</strong><span>El doctor debe autorizar el control manual.</span></div>
+                  <button class="btn-mini" id="manualRequestBtn" type="button">Solicitar control manual</button>
+                </div>
                 <div class="ctrl-pad">
                   <button class="dpad up" type="button" data-manual-move="up" aria-label="Subir lámpara">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
@@ -556,7 +560,7 @@
             <h2 id="dashHelloDoctor">Hola, Dr(a). —</h2>
             <p>Monitoreo de fototerapia neonatal</p>
             <div class="dp-hero-meta">
-              <span>Paciente seleccionado: <b id="doctorSelectedPatient">Sin selección</b></span>
+              <span>Paciente en la lámpara: <b id="doctorSelectedPatient">Ninguno</b></span>
               <span>Modo actual: <b id="doctorCurrentMode">Sin datos</b></span>
               <span class="dp-hero-status is-off" id="doctorLampStatus">Lámpara sin conexión</span>
             </div>
@@ -767,6 +771,12 @@
           <div class="doctor-profile-meta" id="doctorProfileLicense">Matrícula: —</div>
           <div class="doctor-profile-meta">Rol: Personal médico</div>
           <div class="doctor-profile-meta" id="doctorProfileCenter">Centro médico neonatal</div>
+          <div class="doctor-signature-box">
+            <span class="doctor-signature-lbl">Mi firma</span>
+            <img id="doctorSignatureImg" alt="Tu firma registrada" hidden>
+            <span id="doctorSignatureEmpty" class="doctor-signature-empty">Todavía no registraste tu firma</span>
+            <button class="btn-mini" id="doctorSignatureEdit" type="button">Registrar firma</button>
+          </div>
         </div>
 
         <div class="doctor-rail-card">
@@ -966,6 +976,11 @@
             <input id="docPass" class="input" type="password" placeholder="Mínimo 5 caracteres">
             <button type="button" class="eye-btn" data-target="docPass">👁</button>
           </div>
+        </div>
+        <div class="hint-box"><strong>Paso 3: Firma</strong><br><small>Aparecerá al pie de los reportes que emitas.</small></div>
+        <div class="sig-field">
+          <canvas id="docSignaturePad" class="sig-pad" width="600" height="200" aria-label="Dibuja tu firma aquí"></canvas>
+          <div class="sig-actions"><span>Firma con el dedo o el mouse</span><button type="button" class="btn-mini" id="docSignatureClear">Borrar</button></div>
         </div>
         <button class="btn btn-primary btn-full"   id="registerDoctorBtn">Crear cuenta (Doctor)</button>
         <button class="btn btn-secondary btn-full" id="backToChooser3">Volver</button>

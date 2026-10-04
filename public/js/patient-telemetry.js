@@ -24,20 +24,28 @@ export function updatePatientSensorCards(data = {}, { getCurrentMode, onModeChan
   const currentMode = normalizeMode(modeRaw) || normalizeMode(getCurrentMode?.()) || "reposo";
 
   if (!isPatientTelemetryVisible(data, currentMode)) {
-    clearPatientSensorCards(data?.esp32_connected === false ? "ESP desconectado" : "Sin terapia activa");
+    clearPatientSensorCards(data?.esp32_connected === false ? "Lámpara sin conexión" : "Sin terapia activa");
     renderPatientCharts();
     return;
   }
 
-  const distance = Number(data.cm ?? data.distance_cm ?? data.distance);
-  const light = Number(data.pct ?? data.percent ?? data.illumination_pct ?? data.illumination ?? data.intensidad_led_pct);
-  const babyTemperature = Number(data.bebe ?? data.temp_bebe ?? data.temp_body_c);
-  const ambientTemperature = Number(data.ambiente ?? data.temp_ambiente ?? data.temp_amb_c);
-  const pwm = Number(data.pwm ?? data.pwm_led);
+  // null significa "sin lectura": Number(null) daría 0 y mostraría un valor falso.
+  const num = value => (value == null || value === "" ? NaN : Number(value));
+  const distance = num(data.cm ?? data.distance_cm);
+  const measuredLight = num(data.pct ?? data.illumination_pct);      // luz que miden los sensores LDR
+  const pwm = num(data.pwm ?? data.pwm_led);                          // intensidad que la lámpara entrega a los LED
+  const babyTemperature = num(data.temp_bebe ?? data.bebe);
+  const ambientTemperature = num(data.temp_ambiente ?? data.ambiente);
 
-  if (Number.isFinite(light)) updatePatientLight(light);
-  if (Number.isFinite(distance)) updatePatientDistance(distance);
+  if (Number.isFinite(pwm)) updatePatientLight(pwm, measuredLight);
+  else if (Number.isFinite(measuredLight)) updatePatientLight(measuredLight, NaN);
+  if (data.ultraFail) {
+    setText("patientDistance", "—");
+    setText("patientDistanceStatus", "El sensor de distancia no responde");
+    setProgress("patientDistanceBar", 0);
+  } else if (Number.isFinite(distance)) updatePatientDistance(distance, data.ventana, data.en_ventana);
   if (Number.isFinite(babyTemperature)) updatePatientBabyTemp(babyTemperature);
+  else { setText("patientBabyTemp", "—"); setText("patientBabyTempStatus", "Sin sensor de temperatura corporal"); }
   if (Number.isFinite(ambientTemperature)) updatePatientAmbientTemp(ambientTemperature);
   if (Number.isFinite(pwm)) updatePatientPWM(pwm);
   renderPatientCharts();
@@ -59,8 +67,8 @@ export function clearPatientSensorCards(reason = "Sin terapia activa") {
   setText("patientHeroPWM", "—");
   setText("patientLightStatus", reason);
   setText("patientDistanceStatus", reason);
-  setText("patientBabyTempStatus", reason === "ESP desconectado" ? "Sin lectura" : reason);
-  setText("patientAmbientTempStatus", reason === "ESP desconectado" ? "Sin lectura" : reason);
+  setText("patientBabyTempStatus", reason);
+  setText("patientAmbientTempStatus", reason);
   setProgress("patientLightBar", 0);
   setProgress("patientDistanceBar", 0);
 }
@@ -76,20 +84,24 @@ function updatePatientPWM(value) {
   setText("patientHeroPWM", `${percentage} %`);
 }
 
-function updatePatientLight(value) {
+function updatePatientLight(value, measured) {
   const percentage = clamp(Math.round(value), 0, 100);
   setText("patientLightLevel", `${percentage}%`);
-  setText("patientLightStatus", percentage >= 60 && percentage <= 95 ? "Dentro del rango terapéutico" : "Revisar intensidad LED");
+  setText("patientLightStatus", percentage === 0
+    ? "LED apagados: la lámpara está fuera de la distancia segura"
+    : Number.isFinite(measured) ? `Luz medida por los sensores: ${Math.round(measured)} %` : "LED encendidos");
   setProgress("patientLightBar", percentage);
   pushSeries(sensorSeries.light, percentage);
 }
 
-function updatePatientDistance(value) {
+// La ventana segura (mínimo y máximo) la envía el servidor según el modo de la lámpara.
+function updatePatientDistance(value, ventana = null, enVentana = null) {
   const centimeters = Math.round(value);
   setText("patientDistance", `${centimeters} cm`);
-  const status = centimeters >= 25 && centimeters <= 45
-    ? "Distancia correcta"
-    : centimeters < 20 ? "Peligro: muy cerca" : "Fuera de rango";
+  let status = "Distancia medida";
+  if (ventana && enVentana === true) status = `Correcta (rango ${ventana.min}–${ventana.max} cm)`;
+  else if (ventana && centimeters < ventana.min) status = `Muy cerca (mínimo ${ventana.min} cm)`;
+  else if (ventana && centimeters > ventana.max) status = `Muy lejos (máximo ${ventana.max} cm)`;
   setText("patientDistanceStatus", status);
   setProgress("patientDistanceBar", clamp((centimeters / 60) * 100, 0, 100));
   pushSeries(sensorSeries.distance, centimeters);
@@ -105,7 +117,7 @@ function updatePatientBabyTemp(value) {
 function updatePatientAmbientTemp(value) {
   const temperature = Number(value);
   setText("patientAmbientTemp", `${temperature.toFixed(1)}°C`);
-  setText("patientAmbientTempStatus", temperature > 30 ? "Ambiente elevado · activar ventilación" : "Lectura ambiental");
+  setText("patientAmbientTempStatus", temperature > 30 ? "Ambiente caluroso" : "Ambiente normal");
   pushSeries(sensorSeries.ambient, temperature);
 }
 

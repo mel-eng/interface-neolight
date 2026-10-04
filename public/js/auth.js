@@ -4,8 +4,9 @@
 // keypad de código, logout y restauración de sesión
 // =========================================================
 
-import { $, state, SESSION_KEY, LOGIN_KEY, DOCTOR_CODE_CACHE } from "./config.js";
-import { verifyHospitalCode, fetchDoctors, registerDoctor, registerTutor, login, fetchCurrentDoctorState, fetchCurrentTutorState, fetchCurrentSuperuserState } from "./api.js";
+import { $, state, SESSION_KEY, LOGIN_KEY, setToken, getToken } from "./config.js";
+import { verifyHospitalCode, fetchDoctors, registerDoctor, registerTutor, login, logoutRequest, fetchCurrentDoctorState, fetchCurrentTutorState, fetchCurrentSuperuserState } from "./api.js";
+import { createSignaturePad } from "./signature.js";
 
 // =========================================================
 // REFERENCIAS DOM
@@ -108,6 +109,8 @@ function bindEyeButtons() {
 // DOCTOR CODE KEYPAD
 // =========================================================
 let codeBuf = "";
+let verifiedCode = "";          // el servidor vuelve a comprobarlo al registrar
+let doctorSignaturePad = null;
 const CODE_LEN = 6;
 
 function renderDots() {
@@ -129,7 +132,7 @@ async function doVerifyCode() {
   try {
     const { ok, data } = await verifyHospitalCode(codeBuf);
     if (!ok) { msg.textContent = data?.error || "Código inválido."; return false; }
-    try { localStorage.setItem(DOCTOR_CODE_CACHE, "1"); } catch (_) {}
+    verifiedCode = codeBuf;
     return true;
   } catch (_) {
     msg.textContent = "No se pudo verificar (sin servidor).";
@@ -279,17 +282,19 @@ async function doRegisterDoctor() {
   if (!usuario || usuario === "—") { msg.textContent = "No se pudo generar usuario."; return; }
   if (pass.length < 5) { msg.textContent = "La contraseña debe tener al menos 5 caracteres."; return; }
 
-  let okCache = "0";
-  try { okCache = localStorage.getItem(DOCTOR_CODE_CACHE) || "0"; } catch (_) {}
-  if (okCache !== "1") { msg.textContent = "Acceso no autorizado (verifica código)."; return; }
+  if (!verifiedCode) { msg.textContent = "Primero ingresa el código de acceso hospitalario."; return; }
+  if (!doctorSignaturePad || doctorSignaturePad.isEmpty()) { msg.textContent = "Dibuja tu firma en el recuadro."; return; }
 
   setButtonBusy("registerDoctorBtn", true, "Registrando...");
   try {
     const { ok, data } = await registerDoctor({
       nombre, apellidos, genero, telefono, correo,
       matricula, especialidad, usuario, contrasena: pass,
+      codigo: verifiedCode, firma: doctorSignaturePad.toDataURL(),
     });
     if (!ok) { msg.textContent = friendlyError(data, "No se pudo registrar doctor."); return; }
+    verifiedCode = "";
+    doctorSignaturePad.clear();
     const u = $("usuario"); if (u) u.value = usuario;
     showAuthView("loginView");
     const lm = $("loginMsg"); if (lm) lm.textContent = `Doctor registrado. Usuario: ${usuario}`;
@@ -344,6 +349,7 @@ export async function doLogin() {
       chosenRole:   resolvedRole,
     };
 
+    setToken(data.token);
     try { localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot)); } catch (_) {}
     if ($("rememberMe")?.checked) {
       try { localStorage.setItem(LOGIN_KEY, JSON.stringify({ usuario: user })); } catch (_) {}
@@ -373,6 +379,7 @@ export function doLogout(showMsg = false) {
   state.controlData    = null;
 
   try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
+  if (getToken()) logoutRequest().catch(() => {}).finally(() => setToken(null));
 
   const lb = $("logoutBtn"); if (lb) lb.style.display = "none";
   document.body.classList.remove("superuser-mode");
@@ -406,6 +413,7 @@ export async function bootstrapFromStorage() {
   // Restaurar sesión
   try {
     const ss = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    if (ss && !getToken()) { localStorage.removeItem(SESSION_KEY); return; }
     if (ss) {
       let fresh = null;
       if (ss.chosenRole === "superuser" && ss.superuser?.id) {
@@ -436,6 +444,24 @@ export function initAuth() {
   if (authBound) return;
   authBound = true;
   bindEyeButtons();
+
+  const signatureCanvas = $("docSignaturePad");
+  if (signatureCanvas) {
+    doctorSignaturePad = createSignaturePad(signatureCanvas);
+    $("docSignatureClear")?.addEventListener("click", () => doctorSignaturePad.clear());
+  }
+
+  // El servidor avisó que la sesión ya no vale: se vuelve al inicio.
+  let expiring = false;
+  window.addEventListener("neolight:session-expired", () => {
+    if (expiring || !state.currentRole) return;
+    expiring = true;
+    setToken(null);
+    doLogout(false);
+    openAuthModal("loginView");
+    const lm = $("loginMsg"); if (lm) lm.textContent = "Tu sesión venció. Ingresa de nuevo.";
+    window.setTimeout(() => { expiring = false; }, 1500);
+  });
 
   authBackdrop?.addEventListener("click", closeAuthModal);
   authCloseBtn?.addEventListener("click", closeAuthModal);

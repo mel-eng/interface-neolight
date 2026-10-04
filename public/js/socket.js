@@ -4,7 +4,7 @@
 // pacientes online/offline y comandos de modo/altura
 // =========================================================
 
-import { API_URL, $ } from "./config.js";
+import { API_URL, $, getToken } from "./config.js";
 
 let ioSocket = null;
 let alarmsMutedUI = false;
@@ -243,7 +243,19 @@ function isPayloadForCurrentPatient(payload = {}) {
 export function initSocket() {
   if (ioSocket) return ioSocket;
   try {
-    ioSocket = io(API_URL, { transports: ["websocket"], reconnection: true });
+    ioSocket = io(API_URL, {
+      transports: ["websocket"], reconnection: true,
+      auth: callback => callback({ token: getToken() }),      // el servidor solo acepta conexiones con sesión
+    });
+
+    ioSocket.on("connect_error", error => {
+      if (error?.message === "sesion_requerida") window.dispatchEvent(new CustomEvent("neolight:session-expired"));
+    });
+    // La lámpara rechazó una orden: se explica el motivo en vez de fallar en silencio.
+    ioSocket.on("lamp:denied", payload => {
+      showRealtimeToast(payload?.message || "La lámpara no aceptó la orden.", "warn");
+      dispatchRealtimeEvent("lamp-denied", payload || {});
+    });
 
     ioSocket.on("connect",    () => {
       setESPStatus("Esperando…", "warn");

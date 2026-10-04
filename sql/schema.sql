@@ -364,3 +364,107 @@ CREATE TABLE IF NOT EXISTS estado_dispositivo (
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Estado técnico de conexión del ESP32 por paciente';
+
+-- 11. EQUIPOS (lámparas registradas)
+CREATE TABLE IF NOT EXISTS equipos (
+  id                 INT AUTO_INCREMENT PRIMARY KEY,
+  codigo             VARCHAR(40)  NOT NULL,
+  descripcion        VARCHAR(255) NULL,
+  ubicacion          VARCHAR(120) NULL,
+  estado             ENUM('operativo','en_uso','sin_verificar','advertencia','mantenimiento','fuera_servicio','desconectado')
+                     NOT NULL DEFAULT 'sin_verificar',
+  notas              TEXT         NULL,
+  paciente_actual_id INT          NULL COMMENT 'Paciente que está usando la lámpara ahora',
+  ultima_prueba_at   DATETIME     NULL,
+  last_seen_at       DATETIME     NULL COMMENT 'Última vez que el equipo envió datos',
+  created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  UNIQUE KEY uq_equipo_codigo (codigo),
+  KEY ix_equipo_paciente (paciente_actual_id),
+
+  CONSTRAINT fk_equipo_paciente FOREIGN KEY (paciente_actual_id) REFERENCES pacientes(id)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Inventario de lámparas NEOLIGHT';
+
+-- 12. MANTENIMIENTOS
+CREATE TABLE IF NOT EXISTS mantenimientos (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  equipo_id     INT          NOT NULL,
+  cuenta_id     INT          NULL,
+  tipo          ENUM('preventivo','correctivo','inspeccion') NOT NULL DEFAULT 'preventivo',
+  resultado     VARCHAR(40)  NOT NULL,
+  responsable   VARCHAR(120) NULL,
+  observaciones TEXT         NULL,
+  detalle       JSON         NULL COMMENT 'Lista de control y datos adicionales',
+  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  KEY ix_mant_equipo_time (equipo_id, created_at),
+
+  CONSTRAINT fk_mant_equipo FOREIGN KEY (equipo_id) REFERENCES equipos(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_mant_cuenta FOREIGN KEY (cuenta_id) REFERENCES cuentas(id)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Revisiones preventivas y correctivas de cada equipo';
+
+-- 13. PRUEBAS DE DIAGNÓSTICO
+CREATE TABLE IF NOT EXISTS pruebas_diagnostico (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  equipo_id  INT         NOT NULL,
+  cuenta_id  INT         NULL,
+  tipo       VARCHAR(60) NOT NULL,
+  resultado  VARCHAR(60) NOT NULL,
+  detalle    JSON        NULL,
+  created_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  KEY ix_diag_equipo_time (equipo_id, created_at),
+
+  CONSTRAINT fk_diag_equipo FOREIGN KEY (equipo_id) REFERENCES equipos(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_diag_cuenta FOREIGN KEY (cuenta_id) REFERENCES cuentas(id)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Pruebas técnicas ejecutadas desde el panel de superusuario';
+
+-- 14. SOLICITUDES DE MODO Y DE CONTROL MANUAL
+CREATE TABLE IF NOT EXISTS solicitudes_modo (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  paciente_id  INT NOT NULL,
+  doctor_id    INT NOT NULL,
+  tutor_id     INT NOT NULL,
+  modo         VARCHAR(30) NOT NULL COMMENT 'reposo, convencional, intensivo o manual_control',
+  tipo         ENUM('mode_change','manual_control') NOT NULL DEFAULT 'mode_change',
+  motivo       VARCHAR(255) NULL,
+  status       ENUM('pending','accepted','rejected') NOT NULL DEFAULT 'pending',
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  resolved_at  DATETIME  NULL,
+
+  KEY ix_sol_doctor_status (doctor_id, status),
+  KEY ix_sol_paciente (paciente_id),
+
+  CONSTRAINT fk_sol_paciente FOREIGN KEY (paciente_id) REFERENCES pacientes(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_sol_doctor FOREIGN KEY (doctor_id) REFERENCES cuentas(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_sol_tutor FOREIGN KEY (tutor_id) REFERENCES cuentas(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Solicitudes del tutor que el doctor aprueba o rechaza';
+
+-- 15. SESIONES DE ACCESO (login)
+CREATE TABLE IF NOT EXISTS sesiones_login (
+  token_hash   CHAR(64)  NOT NULL PRIMARY KEY COMMENT 'SHA-256 del token; el token real nunca se guarda',
+  cuenta_id    INT       NOT NULL,
+  rol          ENUM('doctor','tutor','admin') NOT NULL,
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at   DATETIME  NOT NULL,
+
+  KEY ix_login_cuenta (cuenta_id),
+  KEY ix_login_expira (expires_at),
+
+  CONSTRAINT fk_login_cuenta FOREIGN KEY (cuenta_id) REFERENCES cuentas(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Sesiones iniciadas. Permiten comprobar quién hace cada petición';

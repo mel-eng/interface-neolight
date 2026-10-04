@@ -87,7 +87,6 @@ function renderSessionModeChart(sessions = []) {
     ["Reposo", counts.reposo, "#cfc8dc"],
     ["Conv.", counts.convencional, "#6f9db3"],
     ["Intens.", counts.intensivo, "#7a57d1"],
-    ["Auto", counts.automatico, "#e3b23c"],
   ];
   box.innerHTML = `<div class="doc-bars">${rows.map(([label, value, color]) => `
     <div class="doc-bar-item">

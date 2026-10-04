@@ -3,7 +3,8 @@
 // Reporte imprimible del seguimiento del paciente.
 // =========================================================
 
-import { $ } from "./config.js";
+import { $, state } from "./config.js";
+import { signatureBlockHtml } from "./signature.js";
 
 export function downloadPatientPdfReport() {
   renderPatientPdfReport();
@@ -26,7 +27,7 @@ export function renderPatientPdfReport() {
     <div class="pdf-header">
       <div>
         <div class="pdf-brand">NEOLIGHT</div>
-        <h1>Reporte de seguimiento paciente</h1>
+        <h1>Reporte de seguimiento del paciente</h1>
         <p>Generado: ${escapeText(new Date().toLocaleString("es"))}</p>
       </div>
       <div class="pdf-doctor-box">
@@ -52,7 +53,8 @@ export function renderPatientPdfReport() {
     </section>
     <section class="pdf-section"><h2>Progreso terapia</h2><div class="pdf-empty">${escapeText($("pacienteProgreso")?.textContent || "-")}</div></section>
     <section class="pdf-section"><h2>Historial</h2><table class="pdf-table">${$("patientHistoryRows")?.innerHTML || "<tr><td>Sin datos</td></tr>"}</table></section>
-    <section class="pdf-section"><h2>Alertas</h2><div class="pdf-empty">${escapeText($("patientAlarmsList")?.innerText || "Sin alertas")}</div></section>`;
+    <section class="pdf-section"><h2>Alertas</h2><div class="pdf-empty">${escapeText($("patientAlarmsList")?.innerText || "Sin alertas")}</div></section>
+    ${signatureBlockHtml(state.patientDoctorSignature)}`;
 }
 
 function pdfKpi(label, value) {

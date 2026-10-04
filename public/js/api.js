@@ -3,13 +3,13 @@
 // Centraliza TODAS las llamadas fetch al backend
 // =========================================================
 
-import { API_URL, doctorHeaders, tutorHeaders } from "./config.js";
+import { apiFetch, doctorHeaders, tutorHeaders } from "./config.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 /** Wrapper base fetch → devuelve { ok, data, status } */
 async function req(url, opts = {}) {
-  const res  = await fetch(`${API_URL}${url}`, opts);
+  const res  = await apiFetch(url, opts);
   const text = await res.text().catch(() => "");
   let data = {};
   try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { raw: text }; }
@@ -156,10 +156,6 @@ export const fetchSessionDetail = sesionId =>
 export const fetchMeasurements = sesionId =>
   req(`/api/sessions/${sesionId}/measurements`);
 
-/** Compatibilidad legacy: guarda sesión sin start/finish explícito */
-export const saveSessionLegacy = payload =>
-  req("/api/sesiones", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(payload) });
-
 // =========================================================
 // CONTROL Y MODOS
 // =========================================================
@@ -212,18 +208,15 @@ export const muteAlarm = (alarmId, until = null) =>
 export const fetchEvents = pacienteId =>
   req(`/api/patients/${pacienteId}/events`);
 
-export const fetchESP32State = () =>
-  req("/api/esp32/state");
-
-export const registerAlarm = payload =>
-  req("/api/alarmas", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(payload) });
+export const logoutRequest = () =>
+  req("/api/logout", { method: "POST", headers: JSON_HEADERS, body: "{}" });
 
 // =========================================================
 // EXPORTACIÓN EXCEL
 // =========================================================
 
 export async function exportExcel(pacienteId) {
-  const res = await fetch(`${API_URL}/api/export/${pacienteId}`);
+  const res = await apiFetch(`/api/export/${pacienteId}`);
   if (!res.ok) throw new Error("export_failed");
   const blob = await res.blob();
   const url  = URL.createObjectURL(blob);

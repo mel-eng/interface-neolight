@@ -3,7 +3,8 @@
 // Construcción y descarga del reporte imprimible del médico.
 // =========================================================
 
-import { $, escapeHtml, normalizeMode, formatDoctorDisplayName } from "./config.js";
+import { $, escapeHtml, normalizeMode, formatDoctorDisplayName, humanLabel } from "./config.js";
+import { signatureBlockHtml } from "./signature.js";
 
 export function renderDoctorPdfData({ doctor = null, patients = [], requests = [], alerts = {} } = {}) {
   const report = $("doctorPdfReport");
@@ -16,17 +17,12 @@ export function renderDoctorPdfData({ doctor = null, patients = [], requests = [
   const events = alerts.events || [];
   const alarms = alerts.recent || [];
   const chartsHtml = renderPdfCharts(patients, sessions, alarms);
-  const systemRows = [
-    ["MySQL", "Conexión por API"],
-    ["ESP32", "Sistema activo / pendiente de telemetría"],
-    ["Socket.IO", "Tiempo real habilitado"],
-  ];
 
   report.innerHTML = `
     <div class="pdf-header">
       <div>
         <div class="pdf-brand">NEOLIGHT</div>
-        <h1>Resumen del perfil doctor</h1>
+        <h1>Resumen clínico del médico</h1>
         <p>Generado: ${escapeHtml(generatedAt)}</p>
       </div>
       <div class="pdf-doctor-box">
@@ -50,11 +46,11 @@ export function renderDoctorPdfData({ doctor = null, patients = [], requests = [
 
     <section class="pdf-section">
       <h2>Pacientes recientes</h2>
-      ${pdfTable(["Código", "Nombre", "Días nacido", "Estado clínico", "Tutor"], patients.slice(0, 12).map(patient => [
+      ${pdfTable(["Código", "Nombre", "Días de vida", "Estado clínico", "Tutor"], patients.slice(0, 12).map(patient => [
         patient.codigo || "—",
         `${patient.nombre || ""} ${patient.apellidos || ""}`.trim() || "Paciente",
         patient.dias_nacido ?? "—",
-        patient.estado_clinico || "—",
+        humanLabel(patient.estado_clinico),
         `${patient.tutor_nombre || ""} ${patient.tutor_apellidos || ""}`.trim() || "—",
       ]))}
     </section>
@@ -73,7 +69,7 @@ export function renderDoctorPdfData({ doctor = null, patients = [], requests = [
       ${pdfTable(["Fecha", "Paciente", "Tipo", "Detalle"], events.slice(0, 8).map(event => [
         formatDate(event.created_at),
         event.patientName || event.patientCode || "—",
-        event.tipo || "—",
+        humanLabel(event.tipo),
         event.descripcion || event.actor || "—",
       ]))}
     </section>
@@ -83,9 +79,9 @@ export function renderDoctorPdfData({ doctor = null, patients = [], requests = [
       ${pdfTable(["Fecha", "Paciente", "Modo", "Duración", "Estado"], sessions.slice(0, 8).map(session => [
         formatDate(session.fecha || session.created_at),
         session.patientName || session.patientCode || "—",
-        session.modo_final || session.modo_programado || "—",
+        humanLabel(session.modo_final || session.modo_programado),
         secondsLabel(session.duracion_s),
-        session.status || "—",
+        humanLabel(session.status),
       ]))}
     </section>
 
@@ -94,16 +90,13 @@ export function renderDoctorPdfData({ doctor = null, patients = [], requests = [
       ${pdfTable(["Fecha", "Paciente", "Tipo", "Severidad", "Mensaje"], alarms.slice(0, 8).map(alarm => [
         formatDate(alarm.created_at),
         alarm.patientName || alarm.patientCode || "—",
-        alarm.tipo || "—",
-        alarm.severidad || "—",
+        humanLabel(alarm.tipo),
+        humanLabel(alarm.severidad),
         alarm.mensaje || alarm.valor_medido || "—",
       ]))}
     </section>
 
-    <section class="pdf-section">
-      <h2>Estado del sistema</h2>
-      ${pdfTable(["Componente", "Estado"], systemRows)}
-    </section>`;
+    ${signatureBlockHtml(doctor)}`;
 }
 
 export function downloadDoctorPdfReport(context = {}) {
@@ -150,7 +143,6 @@ function renderPdfCharts(patients = [], sessions = [], alarms = []) {
       ["Reposo", modeCounts.reposo],
       ["Conv.", modeCounts.convencional],
       ["Intens.", modeCounts.intensivo],
-      ["Auto", modeCounts.automatico],
     ])}
     ${pdfBarChart("Alertas recientes", [
       ["Críticas", alertCounts.criticas],

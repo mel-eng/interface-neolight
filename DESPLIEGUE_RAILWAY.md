@@ -31,6 +31,7 @@ La primera línea deja de subir `node_modules` y `.env`; no los borra de tu comp
 |---|---|
 | `MYSQL_URL` | `${{MySQL.MYSQL_URL}}` |
 | `HOSPITAL_CODE` | un código nuevo, distinto al que estaba en GitHub |
+| `DEVICE_KEY` | una clave larga inventada; la misma se pone en el firmware del maestro |
 
    No agregar `ESP32_MASTER_URL` ni `PORT`.
 4. Settings → Networking → Generate Domain. Ese es el link de la interfaz.
@@ -47,5 +48,5 @@ La base nueva empieza vacía. Para tener superusuario: registrar una cuenta norm
 
 ## Todavía no funciona en la nube
 
-- Telemetría y comandos de la lámpara: falta actualizar el firmware del maestro para que envíe los datos al servidor.
+- Telemetría y comandos de la lámpara: el servidor ya está listo (ver `PROTOCOLO_EQUIPO.md`); falta actualizar el firmware del maestro.
 - Cámara: sigue siendo solo local.

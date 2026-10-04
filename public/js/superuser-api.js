@@ -1,10 +1,10 @@
-import { API_URL, superuserHeaders } from "./config.js";
+import { apiFetch, superuserHeaders } from "./config.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 async function req(path, options = {}) {
   try {
-    const response = await fetch(`${API_URL}${path}`, options);
+    const response = await apiFetch(path, options);
     const text = await response.text();
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { raw: text }; }
@@ -36,8 +36,3 @@ export const updateDoctorStatus = (doctorId, status, reassignTo = null) =>
 
 export const fetchTelemetry = () => req("/api/telemetry/latest");
 export const fetchHealth = () => req("/api/health");
-export const setFanState = state => req("/api/fan", {
-  method: "POST",
-  headers: JSON_HEADERS,
-  body: JSON.stringify({ state }),
-});

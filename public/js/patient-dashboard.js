@@ -22,6 +22,7 @@ import {
 import { saveSession, initTimer } from "./sessions.js";
 import { doLogout } from "./auth.js";
 import { downloadPatientPdfReport } from "./patient-report.js";
+import { fetchPatientDoctorSignature } from "./signature.js";
 import { bindCameraToggle } from "./patient-camera.js";
 import { showStatusOverlay, hideOverlay, showInlineMessage } from "./patient-overlays.js";
 import { loadRecentAlarms, loadPatientHistory, controlLabel, labelGenero } from "./patient-history.js";
@@ -45,6 +46,8 @@ const dashboardState = {
   unlockVerifier: null,
   unlockTtlMs: null,
   unlockUntil: null,
+  lampOnline: false,     // la lámpara está enviando datos
+  lampManual: false,     // en el equipo se ingresó la clave física MODE-ARRIBA-ABAJO-MODE
   esp32: {
     connected: false,
     portOpen: false,
@@ -69,31 +72,6 @@ let _lastTutorStateRefresh = 0;
 let _modeRequestPending = false;
 let _manualControlRequestPending = false;
 let _sectionsBound = false;
-
-function updateFanUI(data = {}) {
-  const on = data?.fanOn === true || String(data?.fanOn).toLowerCase() === "true";
-  const mode = String(data?.fanMode || "AUTO").toUpperCase();
-  const hot = data?.fanAutoHot === true || String(data?.fanAutoHot).toLowerCase() === "true";
-  const btn = $("fanToggleBtn");
-  const status = $("fanStatusText");
-  if (btn) {
-    btn.classList.toggle("is-on", on);
-    btn.dataset.state = on ? "on" : "off";
-    btn.textContent = on ? "Ventilador ON" : "Ventilador OFF";
-  }
-  if (status) status.textContent = `Ventilador: ${on ? "encendido" : "apagado"} · ${mode}${hot ? " · temp. alta" : ""}`;
-}
-
-async function setFanState(stateValue) {
-  try {
-    const res = await fetch(`${API_URL}/api/fan?state=${encodeURIComponent(stateValue)}`);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.ok) throw new Error(data?.error || "fan_error");
-    showRealtimeToast(stateValue === "auto" ? "Ventilador en automático" : `Ventilador ${stateValue === "on" ? "encendido" : "apagado"}`, "ok");
-  } catch (_) {
-    showRealtimeToast("No se pudo controlar el ventilador", "warn");
-  }
-}
 
 const MODE_ERROR_MESSAGES = {
   control_bloqueado: "El doctor mantiene bloqueado el cambio de modo.",
@@ -134,6 +112,8 @@ export async function initPatientDashboard(sessionSnapshot) {
 
   bindPatientEvents(paciente?.id);
   loadPatientHistory(paciente?.id);
+  // Firma del doctor a cargo, para el pie del reporte PDF.
+  if (paciente?.id) fetchPatientDoctorSignature(paciente.id).then(doctorSignature => { state.patientDoctorSignature = doctorSignature; });
   scheduleTutorPolling();
 }
 
@@ -401,6 +381,8 @@ function renderClinicalData(paciente, tutor, dispositivo, control) {
 }
 
 function renderActivePlan(plan) {
+  // Terapia acumulada: lo que el plan lleva cumplido (lo calcula el servidor al cerrar cada sesión).
+  setText("patientTherapyAccumulated", secondsLabel(Number(plan?.tiempo_acumulado_s || 0)));
   if (!plan) {
     setText("pacientePlan", "Sin plan activo");
     setText("pacienteProgreso", "-");
@@ -417,8 +399,8 @@ function renderActivePlan(plan) {
   const total = plan.horas_totales ?? plan.horas_meta ?? 0;
   const pct = plan.porcentaje_progreso ?? plan.porcentaje_avance ?? 0;
   const sessions = Number(plan.sesiones_realizadas || 0);
-  setText("pacientePlan", `${total} h (${plan.modo_programado || plan.modo_recomendado})`);
-  setText("pacienteProgreso", `${done} / ${total} h (${pct}%) - ${sessions} sesion(es)`);
+  setText("pacientePlan", `${total} h (${humanLabel(plan.modo_programado || plan.modo_recomendado)})`);
+  setText("pacienteProgreso", `${done} / ${total} h (${pct}%) · ${sessions} ${sessions === 1 ? "sesión" : "sesiones"}`);
   setText("patientTherapyGoal", `${done}h / ${total}h`);
   setText("patientTherapyPct", `${Math.round(Number(plan.porcentaje_avance || 0))}%`);
   setText("patientProgressChartText", `${Math.round(Number(plan.porcentaje_avance || 0))}%`);
@@ -427,18 +409,9 @@ function renderActivePlan(plan) {
   setProgress("patientPlanProgressBar", Number(plan.porcentaje_avance || 0));
 }
 
-function renderSessionTimer(paciente, lastSession, session) {
-  const serverSecs = Number(lastSession?.duracion_s || 0);
-  let localMs = 0;
-
-  try {
-    localMs = Number(localStorage.getItem(STORAGE_KEY(paciente?.id)) || "0");
-  } catch (_) {}
-
-  initTimer(Math.max(serverSecs * 1000, localMs), session?.id || null);
-  const totalLabel = secondsLabel(Math.max(serverSecs, Math.floor(localMs / 1000)));
-  setText("patientTherapyAccumulated", totalLabel);
-  setText("patientHeroTime", totalLabel);
+function renderSessionTimer(_paciente, _lastSession, session) {
+  // El cronómetro muestra la sesión en curso según el servidor.
+  initTimer(session || null);
 }
 
 function renderLastSessionTemps(lastSession) {
@@ -449,8 +422,6 @@ function renderLastSessionTemps(lastSession) {
 
   if (babyTemp != null) setText("tempBebe", `${Number(babyTemp).toFixed(1)} C`);
   if (roomTemp != null) setText("tempAmbiente", `${Number(roomTemp).toFixed(1)} C`);
-  if (babyTemp != null) updatePatientBabyTemp(babyTemp);
-  if (roomTemp != null) updatePatientAmbientTemp(roomTemp);
 }
 
 function applyControlUI(ctrl) {
@@ -464,27 +435,28 @@ function applyControlUI(ctrl) {
   renderControlOverlays(permission);
 }
 
-function renderModeControls(permission) {
+function renderModeControls() {
+  // Los modos se pueden pedir siempre que la lámpara esté conectada:
+  // reposo y el modo del plan se aplican de inmediato; otro modo va como solicitud al doctor.
   getModeButtons().forEach(btn => {
-    if (!btn) return;
-
-    const mode = normalizeMode(btn.dataset.modo);
-    const reposoLibre = mode === "reposo";
-    const disabled = _modeRequestPending || (!reposoLibre && !permission.canChange);
-
+    const disabled = _modeRequestPending || !dashboardState.lampOnline;
     btn.disabled = disabled;
-    btn.title = disabled && !reposoLibre ? permission.detail : "";
-    btn.style.opacity = disabled ? "0.45" : "1";
+    btn.style.opacity = disabled ? "0.5" : "1";
+    btn.title = !dashboardState.lampOnline ? "La lámpara no está conectada." : "";
     btn.setAttribute("aria-disabled", String(disabled));
   });
 
   const cardAltura = $("cardAltura");
   if (cardAltura) cardAltura.style.display = "none";
 
+  const manual = getManualState();
   getManualControlButtons().forEach(btn => {
-    btn.disabled = !permission.canChange;
-    btn.setAttribute("aria-disabled", String(!permission.canChange));
-    btn.title = permission.canChange ? "" : permission.detail;
+    // Detener siempre está disponible con la lámpara conectada.
+    const isStop = btn.dataset.manualMove === "stop";
+    const disabled = isStop ? !dashboardState.lampOnline : !manual.ready;
+    btn.disabled = disabled;
+    btn.setAttribute("aria-disabled", String(disabled));
+    btn.title = disabled ? manual.detail : "";
   });
 }
 
@@ -497,32 +469,42 @@ function getManualControlButtons() {
 }
 
 function updateDashboardLockUI() {
-  const cardModo = $("cardModo");
-  if (!cardModo) return;
-
-  cardModo.classList.toggle("locked", dashboardState.dashboardLocked);
-  cardModo.setAttribute("aria-disabled", String(dashboardState.dashboardLocked));
+  $("cardModo")?.classList.remove("locked");
 }
 
-function renderControlOverlays(permission) {
-  if (permission.canChange) {
-    hideOverlay("modoOverlay");
-  } else {
-    showStatusOverlay("cardModo", "modoOverlay", {
-      title: permission.title,
-      message: permission.detail,
-      kind: permission.reason === "expired" ? "warn" : "status",
-      actionText: _manualControlRequestPending ? "Solicitud pendiente" : "Solicitar control manual",
-      actionDisabled: _manualControlRequestPending,
-      onAction: requestManualControl,
-    });
-  }
+/**
+ * El control manual necesita dos cosas: que el doctor lo autorice y que en el
+ * equipo se ingrese la clave física. Esta función dice en qué paso se está.
+ */
+function getManualState() {
+  const permission = getBackendPermission();
+  if (!dashboardState.lampOnline)
+    return { ready: false, step: "offline", title: "Lámpara sin conexión", detail: "Los controles se habilitan cuando la lámpara vuelva a conectarse.", canRequest: false };
+  if (!permission.canChange)
+    return { ready: false, step: "request", title: permission.reason === "expired" ? "La autorización venció" : "Control manual bloqueado",
+             detail: "El doctor debe autorizar el control manual.", canRequest: true };
+  if (!dashboardState.lampManual)
+    return { ready: false, step: "key", title: "Autorizado por el doctor",
+             detail: "Ahora activa el control en el equipo: presiona MODE, ARRIBA, ABAJO y MODE.", canRequest: false };
+  return { ready: true, step: "ready", title: "Control manual activo", detail: "Puedes mover la lámpara. El equipo se detiene solo en los límites de distancia segura.", canRequest: false };
+}
 
-  showInlineMessage("pacModoMsg", {
-    visible: !permission.canChange,
-    message: permission.detail,
-    kind: "status",
-  });
+function renderControlOverlays() {
+  hideOverlay("modoOverlay");                       // la tarjeta ya no se tapa: los modos siempre se pueden pedir
+  const manual = getManualState();
+  const box = $("manualStatusBox");
+  if (box) {
+    box.dataset.step = manual.step;
+    const title = box.querySelector("strong"), detail = box.querySelector("span"), action = $("manualRequestBtn");
+    if (title) title.textContent = manual.title;
+    if (detail) detail.textContent = manual.detail;
+    if (action) {
+      action.hidden = !manual.canRequest;
+      action.disabled = _manualControlRequestPending;
+      action.textContent = _manualControlRequestPending ? "Solicitud enviada, esperando al doctor" : "Solicitar control manual";
+    }
+  }
+  showInlineMessage("pacModoMsg", { visible: false, message: "", kind: "status" });
 }
 
 // =========================================================
@@ -556,20 +538,26 @@ function bindSocketStatusUI() {
   });
 
   socket.on("lamp:port", st => {
+    setLampState({ online: !!st?.open, manual: st?.open ? dashboardState.lampManual : false });
     setESP32State({
       portOpen: !!st?.open,
       label: st?.open ? "Conectada" : "Sin conexión",
       kind: st?.open ? "ok" : "warn",
     });
     setText("patientMasterStatus", st?.open ? "Conectada" : "Sin conexión");
-    if (!st?.open) clearPatientSensorCards("ESP desconectado");
+    if (!st?.open) clearPatientSensorCards("Lámpara sin conexión");
   });
 
   socket.on("telemetry", payload => {
     const data = payload || {};
-    updateFanUI(data);
-    if (!isPatientTelemetryVisible(data, dashboardState.modoActual)) {
-      clearPatientSensorCards(data?.esp32_connected === false ? "ESP desconectado" : "Sin terapia activa");
+    setLampState({ online: data.esp32_connected !== false, manual: !!data.manual });
+    const otherPatient = data.paciente_id && dashboardState.pacienteId && String(data.paciente_id) !== String(dashboardState.pacienteId);
+    if (otherPatient) {
+      // La lámpara está en uso con otro paciente: sus lecturas no corresponden a este panel.
+      clearPatientSensorCards("Lámpara en uso con otro paciente");
+      updateHUD({});
+    } else if (!isPatientTelemetryVisible(data, dashboardState.modoActual)) {
+      clearPatientSensorCards(data?.esp32_connected === false ? "Lámpara sin conexión" : "Sin terapia activa");
       updateHUD({});
       updateTemps({});
     } else {
@@ -602,6 +590,14 @@ function bindSocketStatusUI() {
       kind: payload.esp32_connected ? "ok" : "err",
     });
   });
+}
+
+function setLampState({ online, manual }) {
+  const changed = online !== dashboardState.lampOnline || manual !== dashboardState.lampManual;
+  dashboardState.lampOnline = !!online;
+  dashboardState.lampManual = !!manual;
+  setText("patientSlaveStatus", !online ? "Sin conexión" : manual ? "Control manual" : "Automáticos");
+  if (changed) { renderModeControls(); renderControlOverlays(); }
 }
 
 function refreshESP32Status() {
@@ -645,121 +641,82 @@ function renderESP32Status() {
 
 function setModoUI(modo) {
   setModeState(modo);
-  setText("pacModoActual", modo.toUpperCase());
-  setText("patientRailMode", modo.toUpperCase());
+  setText("pacModoActual", humanLabel(modo));
+  setText("pacModoBadge", humanLabel(modo));
+  setText("patientRailMode", humanLabel(modo));
 
   Object.entries(DOM.modeByButton).forEach(([mode, id]) => {
     const btn = $(id);
     if (!btn) return;
-
+    btn.classList.add("btn");
     btn.classList.toggle("btn-primary", mode === modo);
-    btn.classList.toggle("btn", mode !== modo);
+    btn.setAttribute("aria-pressed", String(mode === modo));
   });
 }
 
 async function solicitarModo(modo) {
   const normalizado = normalizeMode(modo);
-  if (_modeRequestPending) return;
-  if (!normalizado) return;
+  if (_modeRequestPending || !normalizado) return;
   if (normalizado === dashboardState.modoActual) {
     showModeMessage("Ese modo ya está activo.", "status");
     return;
   }
 
-  // Reposo es seguro: no requiere solicitud médica especial.
-  if (normalizado === "reposo") {
-    _modeRequestPending = true;
-    renderModeControls(getModePermission());
-    try {
-      const { ok, data } = await tutorRequestMode(state.currentUserId, "reposo");
-      if (!ok) {
-        const sent = socketEmitMode("reposo");
-        if (!sent) {
-          showModeMessage(MODE_ERROR_MESSAGES[data?.error] || data?.message || "No se pudo enviar modo reposo.", "danger");
-          return;
-        }
-      }
-      setModoUI("reposo");
-      showModeMessage("Modo reposo enviado.", "ok");
-    } catch (_) {
-      const sent = socketEmitMode("reposo");
-      showModeMessage(sent ? "Modo reposo enviado." : "No se pudo enviar modo reposo.", sent ? "ok" : "danger");
-    } finally {
-      _modeRequestPending = false;
-      renderModeControls(getModePermission());
-    }
-    return;
-  }
-
-  const permission = getModePermission();
-
-  if (!permission.canChange) {
-    showModeMessage(permission.detail, permission.reason === "expired" ? "warn" : "danger");
-    renderControlOverlays(permission);
-    return;
-  }
-
   _modeRequestPending = true;
-  renderModeControls(permission);
+  renderModeControls();
   try {
     const { ok, data } = await tutorRequestMode(state.currentUserId, normalizado);
     if (!ok) {
-      _modeRequestPending = false;
-      showModeMessage(MODE_ERROR_MESSAGES[data?.error] || data?.message || "No se pudo solicitar el cambio de modo.", "danger");
-      renderModeControls(getModePermission());
-      return;
+      showModeMessage(data?.message || MODE_ERROR_MESSAGES[data?.error] || "No se pudo cambiar el modo.", "danger");
+    } else if (data.status === "applied") {
+      setModoUI(normalizado);
+      showModeMessage(`Modo ${humanLabel(normalizado).toLowerCase()} enviado a la lámpara.`, "ok");
+    } else {
+      showModeMessage(`Solicitud de modo ${humanLabel(normalizado).toLowerCase()} enviada al doctor.`, "ok");
     }
-
-    showModeMessage(`Solicitud de modo ${normalizado} enviada al doctor.`, "ok");
   } catch (_) {
+    showModeMessage("No se pudo conectar con el servidor.", "danger");
+  } finally {
     _modeRequestPending = false;
-    showModeMessage("No se pudo enviar la solicitud al doctor.", "danger");
-    renderModeControls(getModePermission());
+    renderModeControls();
   }
 }
 
 async function requestManualControl() {
   if (_manualControlRequestPending) return;
   const pacienteId = dashboardState.pacienteId || state.currentUserId;
-  if (!pacienteId) {
-    showModeMessage("No se pudo identificar el paciente.", "danger");
-    return;
-  }
+  if (!pacienteId) return;
 
   _manualControlRequestPending = true;
-  renderControlOverlays(getModePermission());
+  renderControlOverlays();
   try {
     const { ok, data } = await tutorRequestMode(pacienteId, "manual_control");
     if (!ok) {
-      showModeMessage(MODE_ERROR_MESSAGES[data?.error] || data?.message || "No se pudo enviar la solicitud al doctor.", "danger");
-      return;
+      _manualControlRequestPending = false;
+      showModeMessage(data?.message || MODE_ERROR_MESSAGES[data?.error] || "No se pudo enviar la solicitud al doctor.", "danger");
+    } else {
+      showModeMessage("Solicitud enviada. Te avisaremos cuando el doctor responda.", "ok");
     }
-    showModeMessage("Solicitud enviada al doctor. Esperando aprobación en tiempo real.", "ok");
   } catch (_) {
     _manualControlRequestPending = false;
     showModeMessage("No se pudo enviar la solicitud al doctor.", "danger");
-    renderControlOverlays(getModePermission());
   }
+  renderControlOverlays();
 }
 
 function sendManualMove(dir) {
-  const permission = getModePermission();
-  if (!permission.canChange) {
-    showModeMessage(permission.detail, permission.reason === "expired" ? "warn" : "danger");
-    renderControlOverlays(permission);
+  const manual = getManualState();
+  if (dir !== "stop" && !manual.ready) {
+    showModeMessage(manual.detail, "warn");
     return;
   }
   const sent = socketEmitMove(dir);
-  showModeMessage(sent ? `Comando ${dir} enviado.` : "ESP32 no conectado.", sent ? "ok" : "warn");
+  if (!sent) showModeMessage("No hay conexión con el servidor.", "warn");
 }
 function showModeMessage(message, kind) {
   showInlineMessage("pacModoMsg", { visible: true, message, kind });
-
-  window.setTimeout(() => {
-    if (getModePermission().canChange) {
-      showInlineMessage("pacModoMsg", { visible: false, message: "", kind });
-    }
-  }, 3500);
+  window.clearTimeout(showModeMessage.timer);
+  showModeMessage.timer = window.setTimeout(() => showInlineMessage("pacModoMsg", { visible: false, message: "", kind }), 4500);
 }
 
 // =========================================================
@@ -789,9 +746,7 @@ function bindControlRefresh() {
 
     setControlState(data.control);
     applyControlUI(dashboardState.control);
-    if (data.control?.modo_actual) {
-      showModeMessage(`Modo actualizado: ${String(data.control.modo_actual).toUpperCase()}.`, "ok");
-    }
+    if (normalizeMode(data.control?.modo_actual)) setModoUI(normalizeMode(data.control.modo_actual));
   });
   window.addEventListener("neolight:mode-request-resolved", event => {
     const payload = event.detail || {};
@@ -802,7 +757,7 @@ function bindControlRefresh() {
 
     const accepted = payload.status === "accepted";
     if (payload.request_type === "manual_control" || payload.mode === "manual_control") {
-      showModeMessage(accepted ? "Control manual aprobado. Ya puedes usar los controles durante esta sesión." : "Solicitud de control manual rechazada.", accepted ? "ok" : "warn");
+      showModeMessage(accepted ? "El doctor autorizó el control manual. Falta activar la clave en el equipo." : "El doctor rechazó la solicitud de control manual.", accepted ? "ok" : "warn");
       showRealtimeToast(accepted ? "Control manual aprobado" : "Control manual rechazado", accepted ? "ok" : "warn");
     } else if (payload.mode) {
       showModeMessage(accepted ? `Cambio a modo ${payload.mode} aprobado.` : `Cambio a modo ${payload.mode} rechazado.`, accepted ? "ok" : "warn");
@@ -834,19 +789,13 @@ function bindPatientEvents(pacienteId) {
   getManualControlButtons().forEach(btn => {
     btn.addEventListener("click", () => sendManualMove(btn.dataset.manualMove));
   });
+  $("manualRequestBtn")?.addEventListener("click", requestManualControl);
 
   $("muteAlarmsBtn")?.addEventListener("click", () => {
     const next = !isAlarmsMuted();
     socketEmitMute(next);
     updateMuteButtonFromState(next);
   });
-
-  $("fanToggleBtn")?.addEventListener("click", () => {
-    const currentlyOn = $("fanToggleBtn")?.classList.contains("is-on");
-    setFanState(currentlyOn ? "off" : "on");
-  });
-
-  $("fanAutoBtn")?.addEventListener("click", () => setFanState("auto"));
 
   $("saveExitBtn")?.addEventListener("click", async () => {
     await saveSession();

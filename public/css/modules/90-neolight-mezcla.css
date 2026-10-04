@@ -147,7 +147,7 @@ html body #view-dashboard-doctor .dp-hero-meta span {
   background:rgb(var(--nl-surface-rgb) / .7) !important; color:var(--nl-ink) !important; border:0 !important; border-radius:999px !important;
   padding:5px 12px !important; font-size:.84rem !important; font-weight:600 !important;
 }
-html body #view-dashboard-doctor .dp-hero-meta span b { font-weight:800; text-transform:capitalize; }
+html body #view-dashboard-doctor .dp-hero-meta span b { font-weight:800; }
 html body #view-dashboard-doctor .dp-hero-status.is-on { background:var(--nl-ok-soft) !important; color:var(--nl-ok) !important; }
 html body #view-dashboard-doctor .dp-hero-status.is-off { background:var(--nl-surface) !important; color:var(--nl-muted) !important; }
 html body #view-dashboard-doctor .dp-hero-copy { flex:1 1 100%; padding-right:130px; }
@@ -485,3 +485,54 @@ html body .su-page-title, html body .su-topbar h1 { font-family:var(--nl-font) !
   html body #view-dashboard-doctor .dp-hero-meta span:first-child { display:none !important; }
 }
 html body #view-dashboard-patient #statusCard, html body #view-dashboard-patient #sceneBox { display:none !important; }
+
+/* ---------- H. AJUSTES v4: firma, control manual y tarjetas laterales ---------- */
+
+/* recuadro para dibujar la firma */
+.sig-field { margin:8px 0 12px; }
+.sig-pad {
+  display:block; width:100%; height:auto; aspect-ratio:3/1; background:var(--nl-surface);
+  border:2px dashed var(--nl-lila); border-radius:14px; touch-action:none; cursor:crosshair;
+}
+.sig-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:6px; color:var(--nl-muted); font-size:.86rem; }
+
+/* firma en el perfil del doctor */
+html body #view-dashboard-doctor .doctor-signature-box { margin-top:12px; padding-top:12px; border-top:1px solid var(--nl-line); display:grid; gap:8px; }
+html body #view-dashboard-doctor .doctor-signature-lbl { font-size:.82rem; font-weight:800; color:var(--nl-muted); }
+html body #view-dashboard-doctor .doctor-signature-box img { width:100%; max-height:84px; object-fit:contain; background:var(--nl-surface-2); border-radius:10px; padding:6px; }
+html body #view-dashboard-doctor .doctor-signature-empty { font-size:.86rem; color:var(--nl-warn); background:var(--nl-warn-soft); border-radius:10px; padding:8px 10px; }
+html body [hidden] { display:none !important; }
+
+/* estado del control manual del tutor */
+.manual-status {
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px;
+  background:var(--nl-surface-2); border-radius:14px; padding:12px 14px; margin:8px 0 12px;
+}
+.manual-status strong { display:block; font-weight:800; color:var(--nl-ink); }
+.manual-status span { display:block; font-size:.9rem; color:var(--nl-muted); }
+.manual-status[data-step="key"]   { background:var(--nl-sun); }
+.manual-status[data-step="key"] strong, .manual-status[data-step="key"] span { color:var(--nl-sun-ink); }
+.manual-status[data-step="ready"] { background:var(--nl-ok-soft); }
+.manual-status[data-step="ready"] strong, .manual-status[data-step="ready"] span { color:var(--nl-ok); }
+html body #view-dashboard-patient .control-overlay { display:none !important; }
+html body #view-dashboard-patient #cardModo, html body #view-dashboard-patient #cardModo * { filter:none !important; }
+html body #view-dashboard-patient #cardModo button:disabled { opacity:.45 !important; cursor:not-allowed; }
+html body #view-dashboard-patient .patient-mode-actions { display:flex; flex-wrap:wrap; gap:10px; }
+
+/* las tarjetas laterales no se encogen ni se recortan */
+html body #view-dashboard-patient .patient-right-rail > *, html body #view-dashboard-doctor .doctor-right-rail > * {
+  flex:none !important; max-height:none !important; height:auto !important; overflow:visible !important;
+}
+
+/* marca del panel del tutor: deja lugar a la campanita */
+html body #view-dashboard-patient .nl-brand { padding-right:44px; gap:8px; }
+html body #view-dashboard-patient .nl-brand img { width:30px !important; height:30px !important; }
+html body #view-dashboard-patient .nl-brand b { font-size:.86rem; letter-spacing:.1em; }
+html body #view-dashboard-patient .nl-brand small { font-size:.68rem; }
+html body #view-dashboard-patient .pt-sidebar-bell { top:12px !important; right:8px !important; }
+html body #view-dashboard-patient .pt-bell-btn { width:34px !important; height:34px !important; }
+@media (max-width:860px) { html body #view-dashboard-patient .nl-brand { padding-right:2px; } }
+html body .btn-mini { letter-spacing:0 !important; }
+html body #view-dashboard-patient .pt-hero-tags span b { text-transform:none !important; }
+html body #view-dashboard-patient .patient-mode-row .badge { background:var(--nl-accent-soft) !important; color:var(--nl-lila-ink) !important; border:0 !important; border-radius:999px !important; padding:4px 12px !important; font-weight:800 !important; text-transform:none !important; letter-spacing:0 !important; font-size:.86rem !important; }
+html body #view-dashboard-patient .patient-mode-actions .btn { flex:1 1 130px; min-width:0; padding-inline:12px !important; }

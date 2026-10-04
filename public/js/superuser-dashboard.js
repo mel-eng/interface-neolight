@@ -7,10 +7,12 @@ import {
   updateDoctorStatus,
   fetchTelemetry,
   fetchHealth,
-  setFanState,
 } from "./superuser-api.js";
 import {
   loadWorkspace,
+  hydrateWorkspace,
+  createEquipment,
+  isPrimaryEquipment,
   saveWorkspace,
   getEquipment,
   updateEquipment,
@@ -87,7 +89,7 @@ const formatHours = seconds => {
   if (hours < 1 && hours > 0) return `${Math.round(hours * 60)} min`;
   return `${hours.toLocaleString("es-BO", { maximumFractionDigits:1 })} h`;
 };
-const normalizeTelemetry = payload => payload?.data || payload || null;
+const normalizeTelemetry = payload => payload ? { ...(payload.data || {}), ...(payload.raw || {}), esp32_connected: !!payload.espOnline } : null;
 const fullName = person => `${person?.nombre || ""} ${person?.apellidos || ""}`.trim() || "Sin nombre";
 const doctorTitle = doctor => String(doctor?.genero || doctor?.doctor_genero || "").toLowerCase() === "femenino" ? "Dra." : "Dr.";
 const doctorName = doctor => doctor ? `${doctorTitle(doctor)} ${fullName({ nombre:doctor.nombre || doctor.doctor_nombre, apellidos:doctor.apellidos || doctor.doctor_apellidos })}` : "Sin asignar";
@@ -182,7 +184,7 @@ function updateSelectedEquipmentUI() {
   status.textContent = statusLabel;
   status.className = `su-status-pill ${statusClass}`;
   $("suHomeLastTest").textContent = equipment.lastTest ? formatDateTime(equipment.lastTest) : "No registrada";
-  if (equipment.id === "neo-01") {
+  if (isPrimaryEquipment(workspace, equipment)) {
     const online = !!serverState.telemetry?.esp32_connected || !!serverState.overview?.equipment?.espOnline;
     $("suHomeConnection").textContent = online ? "Conectado" : "Sin conexión";
     $("suHomeLastSeen").textContent = online ? "Ahora" : "—";
@@ -192,22 +194,20 @@ function updateSelectedEquipmentUI() {
   }
 }
 
+function setHint(id, text) { const el = $(id); if (el) el.textContent = text; }
+
 function renderOverview() {
   const overview = serverState.overview;
   const stats = overview?.stats || {};
-  $("suStatEquipment").textContent = `${overview?.equipment?.operational ?? 1} de ${overview?.equipment?.registered ?? workspace.equipments.length}`;
+  $("suStatEquipment").textContent = `${overview?.equipment?.operational ?? 0} de ${overview?.equipment?.registered ?? workspace.equipments.length}`;
+  const pending = workspace.equipments.filter(item => !["operativo","en_uso"].includes(item.status)).length;
+  setHint("suStatEquipmentHint", pending ? `${pending} pendiente${pending === 1 ? "" : "s"} de verificación` : "Todos verificados");
   $("suStatHours").textContent = formatHours(stats.duration_s || 0);
   $("suStatPatients").textContent = String(stats.patients || 0);
   $("suStatAlerts").textContent = String(stats.alerts || 0);
   $("suNotificationBadge").textContent = String(stats.alerts || 0);
   $("suNotificationBadge").dataset.empty = stats.alerts ? "false" : "true";
 
-  const first = workspace.equipments.find(item => item.id === "neo-01");
-  if (first && overview) {
-    first.sessions = Number(stats.sessions || 0);
-    first.hours = Number(stats.duration_s || 0) / 3600;
-    saveWorkspace(workspace);
-  }
 
   renderCalendar();
   renderAlerts();
@@ -348,14 +348,14 @@ function renderEquipmentList() {
   host.innerHTML = workspace.equipments.map(equipment => {
     const [label, cls] = statusPresentation(equipment.status);
     const selected = equipment.id === workspace.selectedEquipment;
-    const online = equipment.id === "neo-01" && (!!serverState.telemetry?.esp32_connected || !!serverState.overview?.equipment?.espOnline);
+    const online = isPrimaryEquipment(workspace, equipment) && (!!serverState.telemetry?.esp32_connected || !!serverState.overview?.equipment?.espOnline);
     return `<article class="su-equipment-card ${selected ? "selected" : ""}">
       <div class="su-device-illustration"><span class="su-device-light"></span><span class="su-device-arm"></span><span class="su-device-base"></span></div>
       <div class="su-equipment-card-main">
         <h3>${escapeHtml(equipment.name)} <span class="su-status-pill ${cls}">${label}</span></h3>
         <p>${escapeHtml(equipment.description)}</p>
         <div class="su-equipment-detail-grid"><span><small>Ubicación</small><b>${escapeHtml(equipment.location || "Sin definir")}</b></span><span><small>Horas de uso</small><b>${Number(equipment.hours || 0).toLocaleString("es-BO",{maximumFractionDigits:1})} h</b></span><span><small>Sesiones</small><b>${Number(equipment.sessions || 0)}</b></span><span><small>Última prueba</small><b>${equipment.lastTest ? escapeHtml(formatDate(equipment.lastTest)) : "No realizada"}</b></span></div>
-        <div class="su-equipment-health"><div class="su-health-item"><span>${icon("ruler")}</span><b>Sensores</b><small>${equipment.id === "neo-01" ? (online ? "En línea" : "Sin datos") : "No verificados"}</small></div><div class="su-health-item"><span>${icon("activity")}</span><b>Actuadores</b><small>${equipment.id === "neo-01" ? "Configurados" : "Pendientes"}</small></div><div class="su-health-item"><span>${icon("sun")}</span><b>Matriz LED</b><small>${equipment.id === "neo-01" ? "Disponible" : "Pendiente"}</small></div><div class="su-health-item"><span>${icon("camera")}</span><b>Cámara</b><small>${equipment.id === "neo-01" ? "Configurable" : "Pendiente"}</small></div></div>
+        <div class="su-equipment-health"><div class="su-health-item"><span>${icon("ruler")}</span><b>Sensores</b><small>${isPrimaryEquipment(workspace, equipment) ? (online ? "En línea" : "Sin datos") : "No verificados"}</small></div><div class="su-health-item"><span>${icon("activity")}</span><b>Actuadores</b><small>${isPrimaryEquipment(workspace, equipment) ? "Configurados" : "Pendientes"}</small></div><div class="su-health-item"><span>${icon("sun")}</span><b>Matriz LED</b><small>${isPrimaryEquipment(workspace, equipment) ? "Disponible" : "Pendiente"}</small></div><div class="su-health-item"><span>${icon("camera")}</span><b>Cámara</b><small>${isPrimaryEquipment(workspace, equipment) ? "Configurable" : "Pendiente"}</small></div></div>
       </div>
       <div class="su-equipment-card-actions"><button class="su-button primary" type="button" data-select-equipment="${equipment.id}" data-open-diagnostic>Inspeccionar equipo</button><button class="su-button ghost" type="button" data-equipment-details="${equipment.id}">Ver detalles</button></div>
     </article>`;
@@ -365,32 +365,29 @@ function renderEquipmentList() {
 
 function sensorDefinitions() {
   const t = serverState.telemetry || {};
-  const ldr1 = t.ldr1 ?? t.ldr_1 ?? null;
-  const ldr2 = t.ldr2 ?? t.ldr_2 ?? null;
+  const online = !!t.esp32_connected;
+  const num = value => (value == null || value === "" ? NaN : Number(value));
+  const reading = (value, digits, unit) => Number.isFinite(num(value)) ? `${num(value).toFixed(digits)} ${unit}` : "Sin lectura";
   return [
-    { name:"Distancia", icon:"ruler", value:Number.isFinite(Number(t.cm ?? t.distance_cm)) ? `${Number(t.cm ?? t.distance_cm).toFixed(1)} cm` : "Sin lectura", ok:Number.isFinite(Number(t.cm ?? t.distance_cm)), meta:"HC-SR04" },
-    { name:"Temp. corporal", icon:"thermometer", value:Number.isFinite(Number(t.temp_bebe)) ? `${Number(t.temp_bebe).toFixed(1)} °C` : "Sin lectura", ok:Number.isFinite(Number(t.temp_bebe)), meta:"NTC corporal" },
-    { name:"Temp. ambiente", icon:"thermometer", value:Number.isFinite(Number(t.temp_ambiente)) ? `${Number(t.temp_ambiente).toFixed(1)} °C` : "Sin lectura", ok:Number.isFinite(Number(t.temp_ambiente)), meta:"NTC ambiente" },
-    { name:"LDR 1", icon:"sun", value:Number.isFinite(Number(ldr1)) ? `${Number(ldr1).toFixed(0)} %` : "No enviado", ok:Number.isFinite(Number(ldr1)), meta:"Lectura individual" },
-    { name:"LDR 2", icon:"sun", value:Number.isFinite(Number(ldr2)) ? `${Number(ldr2).toFixed(0)} %` : "No enviado", ok:Number.isFinite(Number(ldr2)), meta:"Lectura individual" },
-    { name:"Iluminación promedio", icon:"activity", value:Number.isFinite(Number(t.pct ?? t.illumination_pct)) ? `${Number(t.pct ?? t.illumination_pct).toFixed(0)} %` : "Sin lectura", ok:Number.isFinite(Number(t.pct ?? t.illumination_pct)), meta:"Promedio del sistema" },
+    { name:"Distancia", icon:"ruler", value:t.ultraFail ? "Sin eco" : reading(t.cm ?? t.distance_cm, 0, "cm"), ok:online && !t.ultraFail && Number.isFinite(num(t.cm ?? t.distance_cm)), meta:"Ultrasonido HC-SR04" },
+    { name:"Temp. ambiente", icon:"thermometer", value:reading(t.temp_ambiente, 1, "°C"), ok:online && Number.isFinite(num(t.temp_ambiente)), meta:"Termistor NTC" },
+    { name:"Luz medida", icon:"sun", value:reading(t.pct ?? t.illumination_pct, 0, "%"), ok:online && Number.isFinite(num(t.pct ?? t.illumination_pct)), meta:"Promedio de los dos LDR" },
+    { name:"Intensidad LED", icon:"activity", value:reading(t.pwm, 0, "%"), ok:online && Number.isFinite(num(t.pwm)), meta:"Salida PWM a la matriz" },
+    { name:"Actuadores", icon:"activity", value:t.slave === true ? "Conectados" : t.slave === false ? "Sin respuesta" : "Sin lectura", ok:online && t.slave === true, meta:"ESP32 esclavo" },
+    { name:"Control manual", icon:"ruler", value:!online ? "Sin lectura" : t.manual ? "Activo (clave ingresada)" : "Bloqueado", ok:online, meta:"Clave física en el equipo" },
   ];
 }
 
 function renderSensors() {
   const host = $("suSensorGrid");
   if (!host) return;
-  const available = selectedEquipment()?.id === "neo-01";
+  const available = isPrimaryEquipment(workspace, selectedEquipment());
   const defs = sensorDefinitions().map(sensor => available ? sensor : { ...sensor, value:"No verificado", ok:false });
   host.innerHTML = defs.map(sensor => `<article class="su-sensor-card ${sensor.ok ? "" : "error"}"><div class="su-sensor-card-head"><span class="su-sensor-icon">${icon(sensor.icon)}</span><span class="su-sensor-state"><i></i>${sensor.ok ? "Detectado" : "Sin dato"}</span></div><h3>${escapeHtml(sensor.name)}</h3><strong class="su-sensor-value">${escapeHtml(sensor.value)}</strong><div class="su-sensor-meta"><span>${escapeHtml(sensor.meta)}</span><span>${sensor.ok ? "Correcto" : "Pendiente"}</span></div></article>`).join("");
-  const ldr = defs.filter(item => item.name.startsWith("LDR"));
-  $("suLedLdr1").textContent = ldr[0]?.value || "—";
-  $("suLedLdr2").textContent = ldr[1]?.value || "—";
-  const avg = defs.find(item => item.name.includes("promedio"));
-  $("suLedAverage").textContent = avg?.value || "—";
+  $("suLedAverage").textContent = defs.find(item => item.name === "Luz medida")?.value || "—";
+  $("suLedPwm").textContent = defs.find(item => item.name === "Intensidad LED")?.value || "—";
   const temp = defs.find(item => item.name === "Temp. ambiente");
   $("suLedTemp").textContent = temp?.value || "—";
-  $("suLedFan").textContent = serverState.telemetry?.fanOn === true ? "Encendido" : serverState.telemetry?.fanOn === false ? "Apagado" : "Sin datos";
 }
 
 function renderMaintenance() {
@@ -426,7 +423,7 @@ function renderMaintenanceHistory() {
 }
 
 function disableUnsafeControls() {
-  const isPrimary = selectedEquipment()?.id === "neo-01";
+  const isPrimary = isPrimaryEquipment(workspace, selectedEquipment());
   qa("[data-move]").forEach(button => button.disabled = !(testMode && isPrimary));
   qa("[data-led]").forEach(button => button.disabled = !(testMode && isPrimary));
   $("suAutomaticLedTest").disabled = !(testMode && isPrimary);
@@ -439,7 +436,7 @@ function disableUnsafeControls() {
 
 function toggleTestMode() {
   const equipment = selectedEquipment();
-  if (equipment.id !== "neo-01") {
+  if (!isPrimaryEquipment(workspace, equipment)) {
     showToast("Este equipo está sin verificar. Selecciona NEOLIGHT-01 para habilitar controles.", "warn");
     return;
   }
@@ -585,7 +582,7 @@ async function testSensors() {
   button.disabled = true; button.textContent = "Comprobando...";
   const result = await fetchTelemetry();
   button.disabled = false; button.innerHTML = `${icon("play")}Iniciar prueba`;
-  if (!result.ok || !result.data?.data) {
+  if (!result.ok || !result.data?.espOnline) {
     addDiagnosticTest(workspace,{equipmentId:workspace.selectedEquipment,type:"sensores",result:"sin_respuesta"});
     showToast("No se recibieron lecturas del equipo.", "warn");
     return;
@@ -602,36 +599,35 @@ async function testSensors() {
 function runMovement(direction) {
   if (!testMode) { showToast("Activa primero el modo de prueba.", "warn"); return; }
   const sent = socketEmitMove(direction);
-  if (!sent) { showToast("Socket.IO no está conectado; no se envió el movimiento.", "error"); return; }
+  if (!sent) { showToast("Sin conexión con el servidor; no se envió el movimiento.", "error"); return; }
   addDiagnosticTest(workspace,{equipmentId:workspace.selectedEquipment,type:"actuador",direction,result:"comando_enviado"});
-  showToast(direction === "stop" ? "Movimiento detenido." : `Comando ${direction} enviado.`);
+  showToast(direction === "stop" ? "Orden de detener enviada." : `Orden ${direction} enviada. Si el equipo la rechaza, verás el motivo.`);
 }
 
+// La lámpara tiene tres niveles reales: reposo (0 %), convencional (80 %) e intensivo (100 %).
 function setLedLevel(level) {
   if (!testMode) { showToast("Activa primero el modo de prueba.", "warn"); return; }
+  const mode = level === 0 ? "reposo" : level === 80 ? "convencional" : "intensivo";
   qa("[data-led]").forEach(button => button.classList.toggle("active", Number(button.dataset.led) === level));
   $("suLedRays").classList.toggle("active", level > 0);
   $("suLedRays").style.opacity = String(Math.max(.08,level/100));
-  $("suLedStatus").textContent = level ? `${level}% seleccionado` : "En reposo";
+  $("suLedStatus").textContent = level ? `${level} % · modo ${mode}` : "En reposo";
   $("suLedStatus").className = `su-status-pill ${level ? "success" : "neutral"}`;
-  if (level === 0) socketEmitMode("reposo");
-  else if (level === 100) socketEmitMode("intensivo");
-  else showToast("Nivel visual preparado. El control PWM directo aún debe enlazarse con el firmware.", "warn");
-  addDiagnosticTest(workspace,{equipmentId:workspace.selectedEquipment,type:"matriz_led",level,result:"nivel_seleccionado"});
+  if (!socketEmitMode(mode)) { showToast("Sin conexión con el servidor; no se envió el modo.", "error"); return; }
+  addDiagnosticTest(workspace,{equipmentId:workspace.selectedEquipment,type:"matriz_led",level,mode,result:"comando_enviado"});
 }
 
 async function automaticLedTest() {
+  if (!testMode) { showToast("Activa primero el modo de prueba.", "warn"); return; }
   const button = $("suAutomaticLedTest");
   button.disabled = true;
-  const levels = [25,50,75,100,0];
-  for (const level of levels) {
+  for (const level of [80,100,0]) {
     setLedLevel(level);
-    await new Promise(resolve => setTimeout(resolve,600));
+    await new Promise(resolve => setTimeout(resolve,4000));     // tiempo para que la lámpara cambie y se vea
   }
   button.disabled = false;
-  addDiagnosticTest(workspace,{equipmentId:workspace.selectedEquipment,type:"matriz_led_automatica",result:"secuencia_interfaz_completada"});
   updateEquipment(workspace,workspace.selectedEquipment,{lastTest:new Date().toISOString()});
-  showToast("Secuencia de prueba completada. Los niveles intermedios quedan pendientes del endpoint PWM.", "success");
+  showToast("Secuencia terminada: convencional, intensivo y reposo.", "success");
 }
 
 async function startCamera() {
@@ -655,26 +651,14 @@ function stopCamera() {
   $("suCameraStatus").className = "su-status-pill neutral";
 }
 
-function playLocalBuzzerTest() {
-  try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioContextClass();
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-    oscillator.frequency.value = 720; oscillator.type = "sine";
-    gain.gain.setValueAtTime(.04,ctx.currentTime); gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.35);
-    oscillator.connect(gain); gain.connect(ctx.destination); oscillator.start(); oscillator.stop(ctx.currentTime+.38);
-    showToast("Prueba sonora de interfaz ejecutada. El buzzer físico requiere un comando dedicado.", "warn");
-  } catch (_) { showToast("El navegador bloqueó la prueba sonora.", "error"); }
-}
-
-async function handleOutputTest(kind) {
+function handleOutputTest(kind) {
   if (!testMode) { showToast("Activa el modo de prueba antes de controlar salidas.", "warn"); return; }
-  if (kind === "buzzer") { playLocalBuzzerTest(); return; }
-  const stateValue = kind === "fan-on" ? "on" : kind === "fan-auto" ? "auto" : "off";
-  const result = await setFanState(stateValue);
-  if (!result.ok) { showToast("No se pudo enviar el comando al ventilador.", "error"); return; }
-  showToast(`Ventilador configurado en ${stateValue}.`);
+  if (kind !== "buzzer") return;
+  const socket = getSocket();
+  if (!socket?.connected) { showToast("Sin conexión con el servidor.", "error"); return; }
+  socket.emit("lamp:beep");
+  addDiagnosticTest(workspace,{equipmentId:workspace.selectedEquipment,type:"buzzer",result:"comando_enviado"});
+  showToast("Orden enviada: el buzzer de la lámpara debe sonar.");
 }
 
 function submitMaintenance(event) {
@@ -693,11 +677,28 @@ function submitMaintenance(event) {
   else updateEquipment(workspace,workspace.selectedEquipment,{lastTest:new Date().toISOString()});
   event.currentTarget.reset();
   renderMaintenance(); renderCalendar(); renderEquipmentList(); updateSelectedEquipmentUI();
-  showToast("Mantenimiento guardado localmente. Se migrará a la base de datos en la siguiente etapa.");
+  showToast("Mantenimiento guardado.");
 }
 
 function openRegisterEquipmentModal() {
-  openModal({ kicker:"Inventario", title:"Registrar equipo local", body:`<p class="su-modal-copy">Este registro quedará en el navegador hasta que creemos la tabla de equipos en MySQL.</p><div class="su-form"><label><span>Código del equipo</span><input id="suEquipmentCode" placeholder="NEOLIGHT-03"></label><label><span>Ubicación</span><input id="suEquipmentLocation" placeholder="Laboratorio de pruebas"></label><label><span>Observaciones</span><textarea id="suEquipmentNotes" rows="4"></textarea></label></div>`, actions:[{label:"Cancelar",onClick:closeModal},{label:"Registrar localmente",className:"primary",onClick:()=>{const name=$("suEquipmentCode")?.value.trim().toUpperCase();if(!name){showToast("Ingresa un código de equipo.","warn");return;}const id=name.toLowerCase().replace(/[^a-z0-9]+/g,"-");if(workspace.equipments.some(item=>item.id===id||item.name===name)){showToast("Ese equipo ya existe.","warn");return;}workspace.equipments.push({id,name,status:"sin_verificar",description:"Equipo registrado localmente y pendiente de verificación.",location:$("suEquipmentLocation")?.value.trim()||"Sin definir",sessions:0,hours:0,lastTest:null,notes:$("suEquipmentNotes")?.value.trim()});saveWorkspace(workspace);const select=$("suGlobalEquipment");select.insertAdjacentHTML("beforeend",`<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`);closeModal();renderEquipmentList();showToast("Equipo registrado localmente.");}}] });
+  openModal({
+    kicker:"Inventario", title:"Registrar equipo",
+    body:`<p class="su-modal-copy">El equipo queda guardado en el sistema, pendiente de verificación.</p><div class="su-form"><label><span>Código del equipo</span><input id="suEquipmentCode" placeholder="NEOLIGHT-02"></label><label><span>Ubicación</span><input id="suEquipmentLocation" placeholder="Laboratorio de pruebas"></label><label><span>Observaciones</span><textarea id="suEquipmentNotes" rows="4"></textarea></label></div>`,
+    actions:[
+      { label:"Cancelar", onClick:closeModal },
+      { label:"Registrar equipo", className:"primary", onClick:async () => {
+        const name = $("suEquipmentCode")?.value.trim().toUpperCase();
+        if (!name) { showToast("Ingresa un código de equipo.", "warn"); return; }
+        const result = await createEquipment(workspace, {
+          name, status:"sin_verificar", description:"Equipo pendiente de verificación.",
+          location:$("suEquipmentLocation")?.value.trim() || "", notes:$("suEquipmentNotes")?.value.trim() || "",
+        });
+        if (!result.ok) { showToast(result.data?.message || "No se pudo registrar el equipo.", "error"); return; }
+        closeModal(); setupEquipmentSelector(); renderEquipmentList(); updateSelectedEquipmentUI();
+        showToast("Equipo registrado.");
+      } },
+    ],
+  });
 }
 
 function bindEvents() {
@@ -744,7 +745,9 @@ function bindEvents() {
   });
 
   window.addEventListener("neolight:telemetry", event => {
-    serverState.telemetry = normalizeTelemetry(event.detail);
+    // En vivo llegan las lecturas visibles; las de reposo (diagnóstico) vienen de la consulta periódica.
+    const live = Object.fromEntries(Object.entries(event.detail || {}).filter(([, value]) => value != null));
+    serverState.telemetry = { ...(serverState.telemetry || {}), ...live };
     renderSensors(); updateSelectedEquipmentUI(); updateSyncStatus();
   });
   window.addEventListener("neolight:esp32-status", event => {
@@ -778,7 +781,8 @@ function updateSyncStatus() {
   if (backend && equipmentOnline) { host.classList.add("online"); host.querySelector("span").textContent="Servidor y equipo sincronizados"; }
   else if (backend) { host.querySelector("span").textContent="Servidor activo · equipo sin conexión"; }
   else { host.classList.add("offline"); host.querySelector("span").textContent="Servidor sin respuesta"; }
-  $("suSlaveConnection").textContent = getSocket()?.connected ? "Socket conectado" : "Sin conexión Socket.IO";
+  const slave = serverState.telemetry?.slave;
+  $("suSlaveConnection").textContent = !equipmentOnline ? "Lámpara sin conexión" : slave === true ? "Esclavo conectado" : slave === false ? "Esclavo sin respuesta" : "Sin datos";
 }
 
 async function loadUsers() {
@@ -801,9 +805,10 @@ async function refreshTelemetry() {
 }
 
 async function loadRemoteData() {
-  const [overviewResult] = await Promise.all([fetchSuperuserOverview(),loadUsers(),refreshTelemetry()]);
+  const [overviewResult] = await Promise.all([fetchSuperuserOverview(),loadUsers(),refreshTelemetry(),hydrateWorkspace(workspace)]);
+  setupEquipmentSelector();
   if (overviewResult.ok) serverState.overview = overviewResult.data;
-  else showToast("El panel visual cargó, pero los datos administrativos requieren una cuenta con rol admin y MySQL activo.", "warn");
+  else showToast("No se pudieron cargar los datos administrativos.", "warn");
   renderOverview(); renderEquipmentList(); renderMaintenance();
 }
 
