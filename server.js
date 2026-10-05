@@ -248,6 +248,9 @@ function sendServerError(res, e, context = 'SERVER_ERROR', safeMessage = 'No se 
 
 const app    = express();
 app.set('trust proxy', 1);            // Railway pone un proxy delante: así se ve la IP real
+
+// Dirección corta que lleva el QR de la lámpara: abre el teclado del acceso técnico.
+app.get('/t', (_req, res) => res.redirect('/#tecnico'));
 const server = http.createServer(app);
 const io     = new SocketIOServer(server, { cors: { origin: '*', methods: ['GET','POST','PUT'] } });
 

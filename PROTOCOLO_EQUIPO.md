@@ -86,7 +86,10 @@ Para ese modo el maestro necesitaría además las rutas `/lock`, `/mute?s=` y `/
 La combinación **MODE, DERECHA, MODE** en el panel hace que el esclavo muestre en su
 pantalla un QR fijo que apunta a:
 
-    https://neolight.up.railway.app/#tecnico
+    HTTPS://NEOLIGHT.UP.RAILWAY.APP/T
+
+(en mayúsculas para que el QR sea pequeño y entre en la pantalla; el servidor lo
+redirige a `/#tecnico`).
 
 El QR por sí solo no da acceso. Mientras el QR está en pantalla, el maestro agrega a su
 telemetría el campo `"tec": 1` (y `"tec": 0` el resto del tiempo). Cuando el servidor ve
@@ -101,5 +104,10 @@ Reglas del servidor:
 - Cinco códigos incorrectos bloquean el teclado 5 minutos.
 - En la nube el campo `tec` se ignora si no hay `DEVICE_KEY` configurada.
 
-Firmware pendiente: esclavo → detectar la combinación, dibujar el QR y avisar al maestro
-(por ejemplo con el mensaje `TEC`); maestro → enviar `"tec": 1` durante 2 minutos.
+El esclavo avisa al maestro con `TEC_ON` (lo repite cada 5 s) y `TEC_OFF` al cerrar el QR.
+
+## Peso de la cuna
+
+La cuna se conecta al WiFi `NEOLIGHT` y llama una vez por segundo a
+`http://192.168.4.1/peso?g=<gramos>`. El maestro lo incluye en su telemetría como
+`"peso_g"` (o `null` si no llegó peso en los últimos 8 s).
