@@ -599,3 +599,8 @@ html body #view-dashboard-doctor .dp-hero-meta span.antifaz-chip[data-tone="warn
 html body #view-dashboard-patient .pt-hero-tags span.antifaz-chip[data-tone="bad"],
 html body #view-dashboard-doctor .dp-hero-meta span.antifaz-chip[data-tone="bad"]{background:var(--nl-danger)!important;color:#fff!important}
 html body .antifaz-chip[data-tone="bad"]::before{background:#fff!important}
+
+/* Botones principales del superusuario: siempre visibles (texto blanco sobre violeta) */
+html body.superuser-mode .su-button.primary{background:var(--nl-accent)!important;color:#fff!important;border-color:transparent!important}
+html body.superuser-mode .su-button.primary:hover{background:var(--nl-accent-dark)!important}
+html body.superuser-mode .su-button.primary:disabled{opacity:.55!important}
