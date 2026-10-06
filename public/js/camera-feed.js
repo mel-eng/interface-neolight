@@ -2,14 +2,14 @@
 // public/js/camera-feed.js
 // Imagen de la cámara de la lámpara.
 // La cámara manda fotos al servidor; aquí se pide la última
-// una y otra vez y se muestra en un <img>. No es video fluido:
-// son fotos seguidas (una o dos por segundo), y funciona desde
-// cualquier lugar con internet.
+// una y otra vez y se muestra en un <img>. Mientras alguien mira,
+// el servidor le pide a la cámara fotos más seguidas para que se
+// vea como video. Funciona desde cualquier lugar con internet.
 // =========================================================
 
 import { apiFetch } from "./config.js";
 
-const PERIOD_MS = 600;
+const PERIOD_MS = 150;        // se pregunta seguido; el servidor solo manda la foto si es nueva
 const GIVE_UP_MS = 6000;      // sin fotos durante este tiempo = "sin cámara"
 
 /**
@@ -22,6 +22,7 @@ export function startCameraFeed(img, { onState } = {}) {
   let timer = null;
   let lastUrl = null;
   let lastOk = 0;
+  let lastN = 0;
   let state = "";
   const started = Date.now();
 
@@ -31,9 +32,12 @@ export function startCameraFeed(img, { onState } = {}) {
   const tick = async () => {
     if (stopped) return;
     try {
-      const res = await apiFetch("/api/cam/latest.jpg", { cache: "no-store" });
+      const res = await apiFetch(`/api/cam/latest.jpg?after=${lastN}`, { cache: "no-store" });
       if (stopped) return;
-      if (res.ok) {
+      if (res.status === 204) {
+        lastOk = Date.now();                 // la cámara sigue viva, solo no hay foto nueva todavía
+      } else if (res.ok) {
+        lastN = Number(res.headers.get("X-Frame-N")) || 0;
         const blob = await res.blob();
         if (stopped) return;
         const url = URL.createObjectURL(blob);

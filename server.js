@@ -79,6 +79,7 @@ const CONFIG = {
   TECH_WINDOW_S:    Number(process.env.TECH_WINDOW_S) || 120,
   CAM_MS_TERAPIA:   Number(process.env.CAM_MS_TERAPIA) || 500,
   CAM_MS_REPOSO:    Number(process.env.CAM_MS_REPOSO) || 1000,
+  CAM_MS_VIDEO:     Number(process.env.CAM_MS_VIDEO) || 200,
   ELEVENLABS_API_KEY:  process.env.ELEVENLABS_API_KEY  || '',
   ELEVENLABS_VOICE_ID: process.env.ELEVENLABS_VOICE_ID || '',
   ELEVENLABS_MODEL:    process.env.ELEVENLABS_MODEL    || 'eleven_multilingual_v2',
@@ -1275,7 +1276,12 @@ let camFramesTotal = 0;
 const camOnline = () => !!camFrame && Date.now() - camFrame.ts < CAM_OFFLINE_MS;
 
 // Cada cuánto debe mandar fotos la cámara: más seguido durante la terapia.
-const camIntervalMs = () => (lastTelemetry?.terapiaActiva && espOnline ? CONFIG.CAM_MS_TERAPIA : CONFIG.CAM_MS_REPOSO);
+// Si alguien está mirando la cámara en la interfaz, se piden fotos lo más seguido posible
+// para que se vea como video; si nadie mira, se ahorra internet.
+let camLastViewer = 0;
+const camWatched = () => Date.now() - camLastViewer < 4000;
+const camIntervalMs = () => camWatched() ? CONFIG.CAM_MS_VIDEO
+  : (lastTelemetry?.terapiaActiva && espOnline ? CONFIG.CAM_MS_TERAPIA : CONFIG.CAM_MS_REPOSO);
 
 app.post('/api/cam/frame',
   express.raw({ type: ['image/jpeg', 'application/octet-stream'], limit: '600kb' }),
@@ -1310,6 +1316,9 @@ app.get('/api/cam/latest.jpg', async (req, res) => {
   try {
     if (!(await canSeeCamera(req.auth))) return res.status(403).json({ ok: false, error: 'no_autorizado' });
     if (!camOnline()) return res.status(404).json({ ok: false, error: 'sin_camara', message: 'La cámara no está enviando imágenes.' });
+    camLastViewer = Date.now();
+    // El navegador dice cuál fue la última foto que recibió: si no hay una más nueva, no se reenvía.
+    if (Number(req.query.after) === camFrame.n) return res.status(204).set('X-Frame-N', String(camFrame.n)).end();
     res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store', 'X-Frame-N': String(camFrame.n) });
     res.send(camFrame.buf);
   } catch (e) { return sendServerError(res, e, 'CAM_LATEST'); }
