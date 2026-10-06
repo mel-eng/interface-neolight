@@ -238,7 +238,8 @@ CREATE TABLE IF NOT EXISTS alarmas (
                       'irradiancia_baja',
                       'esp_desconectado','esp32_desconectado',
                       'sesion_interrumpida','modo_no_autorizado',
-                      'otro'
+                      'otro',
+                      'antifaz_desplazado','ojos_expuestos','antifaz_no_verificable','antifaz_sin_verificacion'
                     ) NOT NULL,
   severidad         ENUM('info','warning','critical') NOT NULL DEFAULT 'warning',
   valor_medido      VARCHAR(60)  NULL,
@@ -468,3 +469,28 @@ CREATE TABLE IF NOT EXISTS sesiones_login (
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Sesiones iniciadas. Permiten comprobar quién hace cada petición';
+
+
+-- 16. AJUSTES DEL SISTEMA (clave → valor)
+CREATE TABLE IF NOT EXISTS ajustes_sistema (
+  clave       VARCHAR(60)  NOT NULL PRIMARY KEY,
+  valor       VARCHAR(255) NOT NULL,
+  updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 17. EVENTOS DE VERIFICACIÓN DEL ANTIFAZ (con la foto del momento)
+CREATE TABLE IF NOT EXISTS antifaz_eventos (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  paciente_id   INT          NULL,
+  sesion_id     INT          NULL,
+  tipo          ENUM('apagado','aviso','ensayo') NOT NULL COMMENT 'apagado = la lámpara pasó a reposo; aviso = solo alerta',
+  motivo        VARCHAR(40)  NOT NULL COMMENT 'ojos_expuestos, desplazado, antifaz_ausente, nariz_cubierta, no_verificable, sin_camara, sin_verificacion',
+  capa          VARCHAR(20)  NOT NULL COMMENT 'marcador, ia o sistema',
+  mensaje       VARCHAR(255) NULL,
+  detalle       JSON         NULL COMMENT 'Lectura completa de la capa que lo detectó',
+  respuesta_ms  INT          NULL COMMENT 'Tiempo desde la foto hasta la orden de apagado',
+  foto          MEDIUMBLOB   NULL COMMENT 'JPEG del momento',
+  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_antifaz_paciente (paciente_id, created_at),
+  KEY ix_antifaz_sesion (sesion_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

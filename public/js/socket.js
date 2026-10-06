@@ -293,6 +293,14 @@ export function initSocket() {
       dispatchRealtimeEvent("esp32-status", payload || {});
     });
 
+    // Verificación del antifaz
+    ioSocket.on("antifaz:estado", payload => dispatchRealtimeEvent("antifaz-estado", payload || {}));
+    ioSocket.on("antifaz:alarma", payload => {
+      // El tutor solo recibe la alarma de su propio bebé.
+      if (identifiedPatientId && payload?.paciente_id && String(payload.paciente_id) !== String(identifiedPatientId)) return;
+      dispatchRealtimeEvent("antifaz-alarma", payload || {});
+    });
+
     ioSocket.on("alarm:new", payload => {
       console.warn("[ALARM]", payload?.tipo, payload?.severidad);
       if (isPayloadForCurrentPatient(payload || {}) || isPayloadForCurrentDoctor(payload || {})) {
@@ -300,7 +308,9 @@ export function initSocket() {
         const shouldSound = shouldPlayAlarmSound(payload || {});
         animatePatientAlarmUI(payload || {}, { sound: shouldSound });
         const label = payload?.mensaje || payload?.tipo || "Alarma del sistema";
-        showRealtimeToast(`Alerta: ${label}`, sev === "critical" ? "danger" : "warn");
+        // Las alarmas del antifaz ya muestran su propio aviso grande.
+        const isAntifaz = /antifaz|ojos_expuestos/.test(String(payload?.tipo || ""));
+        if (!isAntifaz) showRealtimeToast(`Alerta: ${label}`, sev === "critical" ? "danger" : "warn");
       }
       dispatchRealtimeEvent("alarm-new", payload || {});
     });

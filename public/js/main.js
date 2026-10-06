@@ -53,6 +53,7 @@ export async function enterFromSession(data) {
     return;
   }
   state.currentRole = role;
+  import("./antifaz.js").then(({ initAntifaz }) => initAntifaz(role)).catch(() => {});
 
 
   if (role === "superuser") {

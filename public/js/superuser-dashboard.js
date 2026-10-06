@@ -1,3 +1,4 @@
+import { getAntifaz, refreshAntifaz, setSupervision, testAI } from "./antifaz.js";
 import { startCameraFeed } from "./camera-feed.js";
 import { $, escapeHtml, loadClientConfig, state, humanLabel } from "./config.js";
 import { registerDoctor } from "./api.js";
@@ -661,6 +662,67 @@ function stopCamera() {
   $("suCameraStatus").className = "su-status-pill neutral";
 }
 
+// ---------- Verificación del antifaz ----------
+
+function renderAntifaz(a = getAntifaz()) {
+  const pill = $("suAntifazStatus");
+  if (!pill) return;
+  if (!a || !a.estado) { pill.textContent = "Sin datos"; pill.className = "su-status-pill neutral"; return; }
+  const bad = ["ojos_expuestos","antifaz_ausente","desplazado","nariz_cubierta"].includes(a.estado);
+  const warn = ["no_verificable","sin_camara","sin_verificacion"].includes(a.estado);
+  pill.textContent = a.etiqueta || a.estado;
+  pill.className = `su-status-pill ${a.estado === "ok" ? "success" : bad ? "danger" : warn ? "warning" : "neutral"}`;
+
+  const l = a.lectura;
+  const yesNo = (value, goodWhen) => value == null ? "—" : `<i data-good="${value === goodWhen}">${value ? "Sí" : "No"}</i>`;
+  const set = (key, html) => { const el = document.querySelector(`#suAntifazReading [data-k="${key}"] b`); if (el) el.innerHTML = html; };
+  set("rostro_visible", yesNo(l?.rostro_visible, true));
+  set("antifaz_presente", yesNo(l?.antifaz_presente, true));
+  set("ojos_visibles", yesNo(l?.ojos_visibles, false));
+  set("nariz_visible", yesNo(l?.nariz_visible, true));
+  set("confianza", l ? `${Math.round(l.confianza * 100)} %` : "—");
+  set("ms", l ? `${(l.ms / 1000).toFixed(1)} s` : "—");
+  $("suAntifazNota").textContent = l ? `«${l.nota}» · hace ${Math.max(0, Math.round((Date.now() - l.ts) / 1000))} s` : "Todavía no hay lecturas.";
+
+  const ia = a.ia || {};
+  const iaRow = document.querySelector('.su-antifaz-layers [data-layer="ia"]');
+  const iaOk = a.capas?.ia && !ia.error;
+  if (iaRow) iaRow.dataset.state = !a.capas?.ia ? "bad" : ia.error ? "warn" : "ok";
+  $("suAntifazIa").textContent = !a.capas?.ia ? "Falta la clave ANTHROPIC_API_KEY en Railway"
+    : ia.error ? `Error: ${ia.error}`
+    : `${ia.modelo} · ${ia.hoy} de ${ia.tope} consultas hoy`;
+  const note = $("suAntifazNote");
+  note.textContent = a.bloqueo
+    ? `Último apagado por seguridad: ${a.bloqueo.mensaje} La lámpara no se enciende sola.`
+    : a.on ? "Supervisión activada: con la lámpara en terapia se revisa el antifaz de forma continua."
+           : "Supervisión desactivada: la lámpara no se apagará por el antifaz.";
+  note.dataset.state = a.bloqueo ? "bad" : a.on ? "ok" : "warn";
+  $("suAntifazToggle").textContent = a.on ? "Desactivar supervisión" : "Activar supervisión";
+  void iaOk;
+}
+
+async function handleAntifazTest() {
+  const button = $("suAntifazTest");
+  button.disabled = true; button.textContent = "Consultando…";
+  const result = await testAI().catch(() => ({ ok:false, message:"Sin conexión con el servidor." }));
+  button.disabled = false; button.textContent = "Probar IA ahora";
+  if (!result.ok) { showToast(result.message || "La IA no respondió.", "error"); return; }
+  renderAntifaz();
+  showToast(`IA: ${result.etiqueta} (${Math.round(result.lectura.confianza * 100)} % · ${(result.lectura.ms / 1000).toFixed(1)} s)`, "success");
+  addDiagnosticTest(workspace,{equipmentId:workspace.selectedEquipment,type:"antifaz_ia",result:result.lectura.clase});
+}
+
+async function handleAntifazToggle() {
+  const a = getAntifaz();
+  const turnOn = !a?.on;
+  if (!turnOn && !window.confirm("Con la supervisión desactivada la lámpara NO se apagará si el antifaz se mueve. ¿Desactivar?")) return;
+  const result = await setSupervision(turnOn);
+  if (!result.ok) { showToast(result.message || "No se pudo cambiar.", "error"); return; }
+  await refreshAntifaz();
+  renderAntifaz();
+  showToast(turnOn ? "Supervisión del antifaz activada." : "Supervisión del antifaz desactivada.", turnOn ? "success" : "warn");
+}
+
 function handleOutputTest(kind) {
   if (!testMode) { showToast("Activa el modo de prueba antes de controlar salidas.", "warn"); return; }
   if (kind !== "buzzer") return;
@@ -726,6 +788,10 @@ function bindEvents() {
   $("suTestAllSensors")?.addEventListener("click", testSensors);
   $("suAutomaticLedTest")?.addEventListener("click", automaticLedTest);
   $("suTestCamera")?.addEventListener("click", startCamera);
+  $("suAntifazTest")?.addEventListener("click", handleAntifazTest);
+  $("suAntifazToggle")?.addEventListener("click", handleAntifazToggle);
+  window.addEventListener("neolight:antifaz", event => renderAntifaz(event.detail?.estado ? event.detail : null));
+  renderAntifaz();
   $("suStopCamera")?.addEventListener("click", stopCamera);
   $("suMaintenanceForm")?.addEventListener("submit", submitMaintenance);
   $("suCompleteChecklist")?.addEventListener("click", () => { qa("[data-maintenance-check]").forEach(input=>input.checked=true); updateMaintenanceProgress(); });

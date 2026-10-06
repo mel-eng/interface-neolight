@@ -129,3 +129,19 @@ la siguiente foto (500 con terapia en curso, 1000 en reposo; variables `CAM_MS_T
 
 La interfaz pide la última foto en `GET /api/cam/latest.jpg` (requiere sesión).
 Ajustes de imagen de la cámara (luz azul): `http://192.168.4.50/ajuste`, desde el WiFi NEOLIGHT.
+
+
+## Verificación del antifaz
+
+El servidor analiza las fotos de la cámara. Si confirma peligro (ojos visibles, antifaz
+ausente, nariz cubierta) envía `MODO=REPOSO` y `BEEP` por el canal normal de órdenes.
+
+Además, con la supervisión activada y terapia en curso, cada respuesta a la telemetría
+incluye `VIGIA=15`. El maestro debe recibirlo de forma continua: si pasan 15 s sin
+`VIGIA` durante una terapia, pasa solo a reposo (se cayó internet, el servidor o la
+verificación). `VIGIA=0` desarma el vigía (supervisión desactivada). Mientras el servidor
+no lo arme por primera vez tras encender, el vigía no actúa: sin internet la lámpara
+funciona como siempre.
+
+Después de un apagado por seguridad nada vuelve a encender la lámpara de forma
+automática: lo hace una persona desde la interfaz o el panel.

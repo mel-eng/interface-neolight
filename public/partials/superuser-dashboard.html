@@ -133,6 +133,21 @@
             </div>
           </article>
 
+          <article class="su-card su-connectivity-card">
+            <div class="su-card-head">
+              <div><span class="su-card-kicker">Conectividad del equipo</span><h3>Enlaces de la lámpara</h3></div>
+              <span class="su-status-pill neutral" id="suConnStatus">Sin datos</span>
+            </div>
+            <div class="su-check-list" id="suConnList">
+              <div data-conn="nube"><span data-icon="activity"></span><p><b>Lámpara → interfaz</b><small>Sin datos</small></p></div>
+              <div data-conn="wifi"><span data-icon="activity"></span><p><b>Red WiFi</b><small>Sin datos</small></p></div>
+              <div data-conn="esclavo"><span data-icon="activity"></span><p><b>Panel y actuadores (esclavo)</b><small>Sin datos</small></p></div>
+              <div data-conn="cuna"><span data-icon="activity"></span><p><b>Cuna / balanza</b><small>Sin datos</small></p></div>
+              <div data-conn="tecnico"><span data-icon="lock"></span><p><b>Acceso técnico por QR</b><small>Cerrado</small></p></div>
+            </div>
+            <p class="su-conn-help">Para agregar o cambiar la red: conéctate al WiFi <b>NEOLIGHT</b> de la lámpara y abre <b>192.168.4.1/wifi</b>. Las contraseñas se guardan solo en el equipo.</p>
+          </article>
+
           <article class="su-card su-calendar-card">
             <div class="su-card-head">
               <div><span class="su-card-kicker">Historial de uso</span><h3 id="suCalendarMonth">Mes actual</h3></div>
@@ -267,6 +282,27 @@
               <div class="su-card-head"><div><span class="su-card-kicker">Monitoreo visual</span><h3>Cámara ESP32-S3</h3></div><span class="su-status-pill neutral" id="suCameraStatus">No probada</span></div>
               <div class="su-camera-frame"><img id="suCameraPreview" alt="Vista de prueba de la cámara"><div id="suCameraPlaceholder"><span data-icon="camera"></span><p>La transmisión se cargará al iniciar la prueba.</p></div></div>
               <div class="su-card-actions"><button class="su-button primary" id="suTestCamera" type="button">Probar cámara</button><button class="su-button ghost" id="suStopCamera" type="button">Detener</button></div>
+            </article>
+            <article class="su-card su-antifaz-card">
+              <div class="su-card-head"><div><span class="su-card-kicker">Seguridad ocular</span><h3>Verificación del antifaz</h3></div><span class="su-status-pill neutral" id="suAntifazStatus">Sin datos</span></div>
+              <p class="su-antifaz-note" id="suAntifazNote">Apoyo a la supervisión de enfermería: si el antifaz se mueve o se ven los ojos, la lámpara pasa sola a reposo.</p>
+              <div class="su-antifaz-grid" id="suAntifazReading">
+                <div data-k="rostro_visible"><span>Rostro visible</span><b>—</b></div>
+                <div data-k="antifaz_presente"><span>Antifaz presente</span><b>—</b></div>
+                <div data-k="ojos_visibles"><span>Ojos visibles</span><b>—</b></div>
+                <div data-k="nariz_visible"><span>Nariz visible</span><b>—</b></div>
+                <div data-k="confianza"><span>Confianza</span><b>—</b></div>
+                <div data-k="ms"><span>Respuesta de la IA</span><b>—</b></div>
+              </div>
+              <p class="su-antifaz-quote" id="suAntifazNota">Todavía no hay lecturas.</p>
+              <div class="su-check-list su-antifaz-layers">
+                <div data-layer="marcador" data-state="off"><span data-icon="activity"></span><p><b>Capa 1 · Marcador ArUco</b><small>Pendiente (etapa 3)</small></p></div>
+                <div data-layer="ia"><span data-icon="activity"></span><p><b>Capa 2 · IA de visión</b><small id="suAntifazIa">Sin datos</small></p></div>
+              </div>
+              <div class="su-card-actions">
+                <button class="su-button primary" id="suAntifazTest" type="button">Probar IA ahora</button>
+                <button class="su-button ghost" id="suAntifazToggle" type="button">Desactivar supervisión</button>
+              </div>
             </article>
             <article class="su-card">
               <div class="su-card-head"><div><span class="su-card-kicker">Salidas auxiliares</span><h3>Alarmas y ventilación</h3></div></div>

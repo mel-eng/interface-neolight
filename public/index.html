@@ -219,6 +219,7 @@
                   <span>Paciente: <b id="pacienteNombreTop">—</b></span>
                   <span>Modo: <b id="pacModoActual">Reposo</b></span>
                   <span id="patientGeneralStatus">Sistema en observación</span>
+                  <span class="antifaz-chip" id="ptAntifazChip" data-tone="off" hidden></span>
                 </div>
               </div>
               <button class="pt-cam-btn" id="ptCamToggle" type="button" aria-pressed="false" title="Activar cámara ESP32-S3">
@@ -563,6 +564,7 @@
               <span>Paciente en la lámpara: <b id="doctorSelectedPatient">Ninguno</b></span>
               <span>Modo actual: <b id="doctorCurrentMode">Sin datos</b></span>
               <span class="dp-hero-status is-off" id="doctorLampStatus">Lámpara sin conexión</span>
+              <span class="antifaz-chip" id="doctorAntifazStatus" data-tone="off" hidden></span>
             </div>
           </div>
           <div class="dp-hdr-right">
