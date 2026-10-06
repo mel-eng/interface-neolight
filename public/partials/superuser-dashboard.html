@@ -296,8 +296,16 @@
               </div>
               <p class="su-antifaz-quote" id="suAntifazNota">Todavía no hay lecturas.</p>
               <div class="su-check-list su-antifaz-layers">
-                <div data-layer="marcador" data-state="off"><span data-icon="activity"></span><p><b>Capa 1 · Marcador ArUco</b><small>Pendiente (etapa 3)</small></p></div>
+                <div data-layer="marcador" data-state="off"><span data-icon="activity"></span><p><b>Capa 1 · Marcador ArUco</b><small id="suAntifazMarker">Sin calibrar</small></p></div>
                 <div data-layer="ia"><span data-icon="activity"></span><p><b>Capa 2 · IA de visión</b><small id="suAntifazIa">Sin datos</small></p></div>
+              </div>
+              <div class="su-antifaz-map" aria-label="Posición del marcador respecto a la zona calibrada">
+                <svg id="suAntifazMap" viewBox="0 0 100 75" preserveAspectRatio="xMidYMid meet"></svg>
+                <ul><li><i class="z"></i>Zona calibrada</li><li><i class="m"></i>Marcador ahora</li></ul>
+              </div>
+              <div class="su-card-actions su-antifaz-actions">
+                <button class="su-button primary" id="suAntifazCalibrate" type="button">Calibrar: el antifaz está bien puesto</button>
+                <button class="su-button ghost" id="suAntifazMarkerTest" type="button">Probar marcador</button>
               </div>
               <div class="su-card-actions">
                 <button class="su-button primary" id="suAntifazTest" type="button">Probar IA ahora</button>

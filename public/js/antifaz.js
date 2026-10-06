@@ -11,14 +11,15 @@ import { $, apiFetch } from "./config.js";
 // tono: ok | warn | bad | off
 const TONES = {
   ok: "ok", revisando: "off", en_espera: "off", inactivo: "off",
-  ojos_expuestos: "bad", antifaz_ausente: "bad", desplazado: "bad", nariz_cubierta: "bad",
+  ojos_expuestos: "bad", antifaz_ausente: "bad", desplazado: "bad", marcador_ausente: "bad", nariz_cubierta: "bad",
   no_verificable: "warn", sin_camara: "warn", sin_verificacion: "warn",
 };
 // Lo que lee la familia: corto y sin tecnicismos.
 const FAMILY_TEXT = {
   ok: "Antifaz verificado", revisando: "Revisando antifaz", en_espera: "Supervisión de antifaz lista",
   ojos_expuestos: "Revisar antifaz: lámpara apagada", antifaz_ausente: "Revisar antifaz: lámpara apagada",
-  desplazado: "Revisar antifaz: lámpara apagada", nariz_cubierta: "Revisar antifaz: lámpara apagada",
+  desplazado: "Revisar antifaz: lámpara apagada", marcador_ausente: "Revisar antifaz: lámpara apagada",
+  nariz_cubierta: "Revisar antifaz: lámpara apagada",
   no_verificable: "No se ve el rostro del bebé", sin_camara: "Cámara sin imagen", sin_verificacion: "Antifaz sin verificar",
 };
 
@@ -160,6 +161,20 @@ export async function setSupervision(on) {
 
 export async function testAI() {
   const res = await apiFetch("/api/antifaz/probar", { method: "POST" });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok && data.antifaz) { current = data.antifaz; paint(); }
+  return { ok: res.ok, lectura: data?.lectura, etiqueta: data?.etiqueta, message: data?.message };
+}
+
+export async function calibrate() {
+  const res = await apiFetch("/api/antifaz/calibrar", { method: "POST" });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok && data.antifaz) { current = data.antifaz; paint(); }
+  return { ok: res.ok, zona: data?.zona, aviso: data?.aviso, message: data?.message };
+}
+
+export async function testMarker() {
+  const res = await apiFetch("/api/antifaz/probar-marcador", { method: "POST" });
   const data = await res.json().catch(() => ({}));
   if (res.ok && data.antifaz) { current = data.antifaz; paint(); }
   return { ok: res.ok, lectura: data?.lectura, etiqueta: data?.etiqueta, message: data?.message };

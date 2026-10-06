@@ -1,4 +1,4 @@
-import { getAntifaz, refreshAntifaz, setSupervision, testAI } from "./antifaz.js";
+import { calibrate, getAntifaz, refreshAntifaz, setSupervision, testAI, testMarker } from "./antifaz.js";
 import { startCameraFeed } from "./camera-feed.js";
 import { $, escapeHtml, loadClientConfig, state, humanLabel } from "./config.js";
 import { registerDoctor } from "./api.js";
@@ -668,7 +668,7 @@ function renderAntifaz(a = getAntifaz()) {
   const pill = $("suAntifazStatus");
   if (!pill) return;
   if (!a || !a.estado) { pill.textContent = "Sin datos"; pill.className = "su-status-pill neutral"; return; }
-  const bad = ["ojos_expuestos","antifaz_ausente","desplazado","nariz_cubierta"].includes(a.estado);
+  const bad = ["ojos_expuestos","antifaz_ausente","desplazado","marcador_ausente","nariz_cubierta"].includes(a.estado);
   const warn = ["no_verificable","sin_camara","sin_verificacion"].includes(a.estado);
   pill.textContent = a.etiqueta || a.estado;
   pill.className = `su-status-pill ${a.estado === "ok" ? "success" : bad ? "danger" : warn ? "warning" : "neutral"}`;
@@ -691,6 +691,20 @@ function renderAntifaz(a = getAntifaz()) {
   $("suAntifazIa").textContent = !a.capas?.ia ? "Falta la clave ANTHROPIC_API_KEY en Railway"
     : ia.error ? `Error: ${ia.error}`
     : `${ia.modelo} · ${ia.hoy} de ${ia.tope} consultas hoy`;
+  // Capa 1: marcador
+  const mk = a.marcador || {};
+  const ml = mk.lectura;
+  const mRow = document.querySelector('.su-antifaz-layers [data-layer="marcador"]');
+  const mBad = mk.estado === "desplazado" || mk.estado === "marcador_ausente";
+  if (mRow) mRow.dataset.state = !mk.calibrado ? "off" : mk.error ? "warn" : mBad ? "bad" : "ok";
+  $("suAntifazMarker").textContent = !mk.calibrado ? "Sin calibrar: coloca bien el antifaz y toca «Calibrar»"
+    : mk.error ? `Error: ${mk.error}`
+    : !ml ? "Calibrado · esperando lectura"
+    : !ml.encontrado ? "Marcador no visible en la última foto"
+    : `${ml.clase === "ok" ? "En su zona" : "Fuera de su zona"} · se movió ${ml.desvio ?? "—"} lados (máx. ${mk.tolerancia}) · giro ${ml.giro ?? "—"}° · ${ml.lado_px} px · ${ml.ms} ms`;
+  drawAntifazMap(mk);
+  $("suAntifazCalibrate").textContent = mk.calibrado ? "Volver a calibrar" : "Calibrar: el antifaz está bien puesto";
+
   const note = $("suAntifazNote");
   note.textContent = a.bloqueo
     ? `Último apagado por seguridad: ${a.bloqueo.mensaje} La lámpara no se enciende sola.`
@@ -699,6 +713,44 @@ function renderAntifaz(a = getAntifaz()) {
   note.dataset.state = a.bloqueo ? "bad" : a.on ? "ok" : "warn";
   $("suAntifazToggle").textContent = a.on ? "Desactivar supervisión" : "Activar supervisión";
   void iaOk;
+}
+
+// Dibujo esquemático: la foto es 4:3; las coordenadas vienen como fracción del ancho.
+function drawAntifazMap(mk) {
+  const svg = $("suAntifazMap");
+  if (!svg) return;
+  const z = mk.zona, l = mk.lectura;
+  let html = `<rect x="0.5" y="0.5" width="99" height="74" rx="4" class="frame"/>`;
+  if (z) {
+    html += `<circle cx="${z.cx * 100}" cy="${z.cy * 100}" r="${z.lado * 100 * (mk.tolerancia || 0.6)}" class="zone"/>`;
+    html += `<circle cx="${z.cx * 100}" cy="${z.cy * 100}" r="0.9" class="zone-dot"/>`;
+  }
+  if (l?.encontrado && l.esquinas) {
+    const ok = !z || l.clase === "ok";
+    html += `<polygon points="${l.esquinas.map(p => `${p[0] * 100},${p[1] * 100}`).join(" ")}" class="marker ${ok ? "ok" : "bad"}"/>`;
+  }
+  if (!z) html += `<text x="50" y="40" text-anchor="middle" class="hint">Sin calibrar</text>`;
+  else if (l && !l.encontrado) html += `<text x="50" y="70" text-anchor="middle" class="hint bad">Marcador no visible</text>`;
+  svg.innerHTML = html;
+}
+
+async function handleAntifazCalibrate() {
+  const button = $("suAntifazCalibrate");
+  button.disabled = true;
+  const result = await calibrate().catch(() => ({ ok:false, message:"Sin conexión con el servidor." }));
+  button.disabled = false;
+  if (!result.ok) { showToast(result.message || "No se pudo calibrar.", "error"); return; }
+  renderAntifaz();
+  showToast(result.aviso || "Zona del antifaz calibrada.", result.aviso ? "warn" : "success");
+  addDiagnosticTest(workspace,{equipmentId:workspace.selectedEquipment,type:"antifaz_calibracion",result:"calibrado"});
+}
+
+async function handleAntifazMarkerTest() {
+  const result = await testMarker().catch(() => ({ ok:false, message:"Sin conexión con el servidor." }));
+  if (!result.ok) { showToast(result.message || "No se pudo probar.", "error"); return; }
+  renderAntifaz();
+  const l = result.lectura;
+  showToast(l.encontrado ? `Marcador visible · ${l.lado_px} px · ${l.ms} ms` : "No se ve el marcador en la foto actual.", l.encontrado ? "success" : "warn");
 }
 
 async function handleAntifazTest() {
@@ -789,6 +841,8 @@ function bindEvents() {
   $("suAutomaticLedTest")?.addEventListener("click", automaticLedTest);
   $("suTestCamera")?.addEventListener("click", startCamera);
   $("suAntifazTest")?.addEventListener("click", handleAntifazTest);
+  $("suAntifazCalibrate")?.addEventListener("click", handleAntifazCalibrate);
+  $("suAntifazMarkerTest")?.addEventListener("click", handleAntifazMarkerTest);
   $("suAntifazToggle")?.addEventListener("click", handleAntifazToggle);
   window.addEventListener("neolight:antifaz", event => renderAntifaz(event.detail?.estado ? event.detail : null));
   renderAntifaz();

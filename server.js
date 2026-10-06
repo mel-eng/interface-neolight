@@ -27,6 +27,7 @@ import crypto          from 'crypto';
 import { fileURLToPath } from 'url';
 import { Server as SocketIOServer } from 'socket.io';
 import ExcelJS         from 'exceljs';
+import { detectarMarcador } from './aruco-layer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -77,7 +78,7 @@ const CONFIG = {
   SUPERUSER_PASS:   process.env.SUPERUSER_PASS || '',
   SUPERUSER_CODE:   process.env.SUPERUSER_CODE || process.env.HOSPITAL_CODE || '152436',
   TECH_WINDOW_S:    Number(process.env.TECH_WINDOW_S) || 120,
-  CAM_MS_TERAPIA:   Number(process.env.CAM_MS_TERAPIA) || 500,
+  CAM_MS_TERAPIA:   Number(process.env.CAM_MS_TERAPIA) || 300,
   CAM_MS_REPOSO:    Number(process.env.CAM_MS_REPOSO) || 1000,
   CAM_MS_VIDEO:     Number(process.env.CAM_MS_VIDEO) || 200,
   // Verificación del antifaz
@@ -92,6 +93,11 @@ const CONFIG = {
   ANTIFAZ_SIN_CAMARA_S:   Number(process.env.ANTIFAZ_SIN_CAMARA_S) || 8,
   ANTIFAZ_SIN_IA_S:       Number(process.env.ANTIFAZ_SIN_IA_S) || 25,
   ANTIFAZ_VIGIA_S:        Number(process.env.ANTIFAZ_VIGIA_S) || 15,
+  // Capa del marcador
+  ANTIFAZ_ZONA_TOL:       Number(process.env.ANTIFAZ_ZONA_TOL) || 0.6,        // cuánto puede moverse, en "lados" del marcador
+  ANTIFAZ_ANGULO_MAX:     Number(process.env.ANTIFAZ_ANGULO_MAX) || 35,       // grados de giro permitidos
+  ANTIFAZ_MARCADOR_FUERA: Number(process.env.ANTIFAZ_MARCADOR_FUERA) || 2,    // fotos seguidas fuera de zona para actuar
+  ANTIFAZ_MARCADOR_AUSENTE: Number(process.env.ANTIFAZ_MARCADOR_AUSENTE) || 3, // fotos seguidas sin marcador para actuar
   ELEVENLABS_API_KEY:  process.env.ELEVENLABS_API_KEY  || '',
   ELEVENLABS_VOICE_ID: process.env.ELEVENLABS_VOICE_ID || '',
   ELEVENLABS_MODEL:    process.env.ELEVENLABS_MODEL    || 'eleven_multilingual_v2',
@@ -743,6 +749,7 @@ let espOnline     = false;
 let lastEspTs     = 0;
 let offlineSince  = 0;
 let currentLampMode = 'reposo';
+let lastMedicionAt = 0;
 let activePatientId = null;    // paciente que está usando la lámpara (tabla equipos)
 let inactiveSince   = 0;       // desde cuándo la lámpara no está dando terapia
 const alarmCooldown = new Map();
@@ -1038,7 +1045,10 @@ async function processEsp32Telemetry(body = {}) {
     let sesion = await getActiveSession(paciente_id);
     if (!sesion) sesion = await autoStartSessionForTelemetry(paciente_id, modo);
 
-    if (sesion) {
+    // La lámpara puede informar dos veces por segundo; se guarda una medición por segundo.
+    const guardarMedicion = Date.now() - lastMedicionAt >= 900;
+    if (sesion && guardarMedicion) {
+      lastMedicionAt = Date.now();
       await pool.execute(
         `INSERT INTO mediciones
            (sesion_id, paciente_id, distance_cm, temp_bebe_c, temp_ambiente_c,
@@ -1383,6 +1393,7 @@ const ANTIFAZ_ETIQUETAS = {
   ojos_expuestos:   'Ojos expuestos',
   antifaz_ausente:  'Antifaz no detectado',
   desplazado:       'Antifaz desplazado',
+  marcador_ausente: 'Marcador del antifaz no visible',
   nariz_cubierta:   'El antifaz cubre la nariz',
   no_verificable:   'No verificable: no se ve el rostro',
   sin_camara:       'Sin cámara',
@@ -1392,12 +1403,13 @@ const ANTIFAZ_MENSAJES = {
   ojos_expuestos:   'Se ven los ojos del bebé. La lámpara se apagó por seguridad.',
   antifaz_ausente:  'No se detecta el antifaz y el rostro está visible. La lámpara se apagó por seguridad.',
   desplazado:       'El antifaz se desplazó de la zona de los ojos. La lámpara se apagó por seguridad.',
+  marcador_ausente: 'No se ve el marcador del antifaz: puede haberse caído o girado. La lámpara se apagó por seguridad.',
   nariz_cubierta:   'El antifaz bajó y cubre la nariz. La lámpara se apagó por seguridad.',
   sin_camara:       'La cámara dejó de enviar imágenes. La lámpara se apagó por seguridad.',
   sin_verificacion: 'No se pudo verificar el antifaz. La lámpara se apagó por seguridad.',
   no_verificable:   'No se ve el rostro del bebé: no es posible verificar el antifaz. Revisar posición.',
 };
-const ANTIFAZ_PELIGRO = new Set(['ojos_expuestos', 'antifaz_ausente', 'desplazado', 'nariz_cubierta']);
+const ANTIFAZ_PELIGRO = new Set(['ojos_expuestos', 'antifaz_ausente', 'desplazado', 'marcador_ausente', 'nariz_cubierta']);
 
 const antifaz = {
   on: true,                 // supervisión activada (se guarda en la base)
@@ -1411,12 +1423,16 @@ const antifaz = {
   avisoNoVerificable: false,
   bloqueo: null,            // { motivo, capa, ts, evento_id } tras un apagado por seguridad
   lectura: null,            // última lectura de la IA
+  iaEstado: null,           // conclusión confirmada de la IA: ok | <peligro> | no_verificable
+  // Capa 1: marcador
+  zona: null,               // { cx, cy, lado, angulo, ts } guardada al calibrar
+  m: { lectura: null, estado: null, racha: 0, rachaInicio: 0, ultimaFoto: 0, ultimoOk: 0, error: null },
   ia: { enCurso: false, proxima: 0, ultimoOk: 0, ultimoError: null, ultimaFoto: 0, ms: null, hoy: 0, dia: '' },
   pruebaHasta: 0,
 };
 
 const iaDisponible = () => !!CONFIG.ANTHROPIC_API_KEY;
-const capa1Disponible = () => false;        // la capa del marcador llega en la etapa 3
+const capa1Disponible = () => !!antifaz.zona;  // hay marcador calibrado
 const terapiaEnCurso = () => !!(espOnline && lastTelemetry?.terapiaActiva);
 
 function antifazPublico(detalle = false) {
@@ -1430,6 +1446,10 @@ function antifazPublico(detalle = false) {
   return { ...base,
     lectura: antifaz.lectura, racha: antifaz.racha, lecturas_necesarias: CONFIG.ANTIFAZ_LECTURAS,
     capas: { marcador: capa1Disponible(), ia: iaDisponible() },
+    marcador: { calibrado: !!antifaz.zona, zona: antifaz.zona, lectura: antifaz.m.lectura, estado: antifaz.m.estado,
+                racha: antifaz.m.racha, error: antifaz.m.error,
+                tolerancia: CONFIG.ANTIFAZ_ZONA_TOL, angulo_max: CONFIG.ANTIFAZ_ANGULO_MAX },
+    ia_estado: antifaz.iaEstado,
     ia: { modelo: CONFIG.ANTIFAZ_MODEL, ms: antifaz.ia.ms, hoy: antifaz.ia.hoy, tope: CONFIG.ANTIFAZ_IA_MAX_DIA,
           ultimo_ok_hace_s: antifaz.ia.ultimoOk ? Math.round((Date.now() - antifaz.ia.ultimoOk) / 1000) : null,
           error: antifaz.ia.ultimoError },
@@ -1447,7 +1467,7 @@ function setAntifazEstado(estado) {
 
 const ANTIFAZ_PROMPT = `Eres parte de un sistema de apoyo a enfermería en fototerapia neonatal. Recibes una foto tomada desde arriba de una cuna. La imagen puede verse azul por la luz de la lámpara, o en escala de grises. El paciente puede ser un bebé o un maniquí de simulación: trátalo igual.
 
-Durante la fototerapia el bebé debe llevar un antifaz (protector ocular opaco) que le tape los dos ojos. El antifaz puede llevar pegado un cuadrado con un patrón blanco y negro.
+Durante la fototerapia el bebé debe llevar un antifaz (protector ocular opaco, de tela o espuma, sujeto alrededor de la cabeza) que le tape los dos ojos por completo. El antifaz puede llevar pegado un cuadrado con un patrón blanco y negro. En las pruebas el antifaz puede ser casero: cuenta como antifaz cualquier cobertura opaca u oscura que tape los dos ojos, por ejemplo una banda de tela, cinta negra con forma de antifaz o unas gafas de cristales oscuros que no dejen ver los ojos. Unas gafas o lentes transparentes, a través de los que se ven los ojos, NO son un antifaz: en ese caso antifaz_presente es false y ojos_visibles es true.
 
 Observa la imagen y reporta SOLO lo que se ve, con la herramienta reportar_antifaz:
 - rostro_visible: se ve la cara de frente o casi de frente (aunque parte esté tapada por el antifaz). Es false si está boca abajo, totalmente de lado, tapado, o no hay nadie.
@@ -1548,6 +1568,51 @@ async function lecturaIA() {
   }
 }
 
+// ---------- Capa 1: marcador ArUco ----------
+
+const diffAngulo = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+
+// Compara la posición del marcador con la zona guardada al calibrar.
+function clasificarMarcador(l) {
+  if (!l.encontrado) return 'marcador_ausente';
+  const z = antifaz.zona;
+  const dist = Math.hypot(l.cx - z.cx, l.cy - z.cy);
+  l.desvio = +(dist / z.lado).toFixed(2);                 // cuántos "lados" del marcador se movió
+  l.giro = +diffAngulo(l.angulo, z.angulo).toFixed(1);
+  if (l.desvio > CONFIG.ANTIFAZ_ZONA_TOL || l.giro > CONFIG.ANTIFAZ_ANGULO_MAX) return 'desplazado';
+  return 'ok';
+}
+
+// Analiza la foto más reciente. Devuelve { lectura, foto } o null si no había foto nueva.
+function lecturaMarcador() {
+  const foto = camFrame;
+  if (!foto || foto.n === antifaz.m.ultimaFoto) return null;
+  antifaz.m.ultimaFoto = foto.n;
+  try {
+    const l = detectarMarcador(foto.buf);
+    l.ts = Date.now(); l.foto_n = foto.n; l.foto_ts = foto.ts;
+    l.clase = antifaz.zona ? clasificarMarcador(l) : (l.encontrado ? 'ok' : 'marcador_ausente');
+    antifaz.m.lectura = l;
+    antifaz.m.error = null;
+    antifaz.m.ultimoOk = Date.now();
+    return { lectura: l, foto };
+  } catch (e) {
+    antifaz.m.error = String(e.message || e).slice(0, 160);
+    return null;
+  }
+}
+
+// Estado general a partir de lo que concluyó cada capa.
+function estadoCombinado() {
+  const m = capa1Disponible() ? antifaz.m.estado : null;
+  const ia = antifaz.iaEstado;
+  if (ANTIFAZ_PELIGRO.has(m)) return m;
+  if (ANTIFAZ_PELIGRO.has(ia)) return ia;
+  if (ia === 'no_verificable') return 'no_verificable';
+  if (m === 'ok' || ia === 'ok') return 'ok';
+  return 'revisando';
+}
+
 // ---------- Apagado por seguridad ----------
 
 async function guardarEventoAntifaz({ tipo, motivo, capa, lectura = null, foto = null, respuesta_ms = null }) {
@@ -1607,6 +1672,46 @@ async function avisarNoVerificable(lectura, foto) {
 
 // ---------- Vigilancia ----------
 
+// La consulta a la IA tarda segundos: corre aparte para no frenar la capa del marcador.
+async function cicloIA() {
+  try {
+  const res = await lecturaIA();
+  if (!res) {                                    // la IA falló: reintentar sin apuro
+    antifaz.ia.proxima = Date.now() + CONFIG.ANTIFAZ_IA_MS;
+  } else {
+    const { lectura, foto } = res;
+    if (ANTIFAZ_PELIGRO.has(lectura.clase)) {
+      if (antifaz.racha === 0) antifaz.rachaInicio = lectura.ts - lectura.ms;
+      antifaz.racha += 1;
+      antifaz.noVerificables = 0;
+      const confirmado = antifaz.racha >= CONFIG.ANTIFAZ_LECTURAS;
+      // Con la lámpara encendida se confirma enseguida con la siguiente foto.
+      // Ya apagada no hay apuro: se vuelve al ritmo normal para no gastar consultas.
+      antifaz.ia.proxima = (terapiaEnCurso() && !confirmado) ? 0 : Date.now() + CONFIG.ANTIFAZ_IA_MS;
+      if (confirmado) {
+        antifaz.iaEstado = lectura.clase;
+        if (terapiaEnCurso()) await apagarPorSeguridad(lectura.clase, 'ia', { lectura, foto, inicio: antifaz.rachaInicio });
+      }
+    } else {
+      antifaz.racha = 0;
+      antifaz.ia.proxima = Date.now() + CONFIG.ANTIFAZ_IA_MS;
+      if (lectura.clase === 'no_verificable') {
+        antifaz.noVerificables += 1;
+        if (antifaz.noVerificables >= CONFIG.ANTIFAZ_LECTURAS) {
+          antifaz.iaEstado = 'no_verificable';
+          if (terapiaEnCurso()) await avisarNoVerificable(lectura, foto);
+        }
+      } else {
+        antifaz.noVerificables = 0; antifaz.avisoNoVerificable = false;
+        antifaz.iaEstado = 'ok';
+      }
+    }
+  }
+    const combinado = estadoCombinado();
+    if (antifaz.vigilando && (!antifaz.bloqueo || combinado === 'ok' || ANTIFAZ_PELIGRO.has(combinado))) setAntifazEstado(combinado);
+  } catch (e) { console.error('[ANTIFAZ] error en la IA:', e.message); }
+}
+
 let antifazTickBusy = false;
 async function antifazTick() {
   if (antifazTickBusy || !pool) return;
@@ -1622,7 +1727,8 @@ async function antifazTick() {
 
     if (vigilar && !antifaz.vigilando) {
       antifaz.vigilandoDesde = now; antifaz.racha = 0; antifaz.noVerificables = 0; antifaz.avisoNoVerificable = false;
-      antifaz.ia.proxima = 0;
+      antifaz.ia.proxima = 0; antifaz.iaEstado = null;
+      antifaz.m.racha = 0; antifaz.m.estado = null; antifaz.m.ultimoOk = now;
       if (terapia) antifaz.bloqueo = null;          // una persona volvió a encender la lámpara
     }
     if (terapia && antifaz.bloqueo && now - antifaz.bloqueo.ts > 6000) {
@@ -1647,59 +1753,48 @@ async function antifazTick() {
 
     if (antifaz.estado === 'sin_camara' && !antifaz.bloqueo) setAntifazEstado('revisando');
 
-    // 2) ¿Hay al menos una capa verificando?
+    // 2) Capa 1: marcador (cada foto nueva; tarda milisegundos)
+    if (capa1Disponible()) {
+      const rm = lecturaMarcador();
+      if (rm) {
+        const { lectura, foto } = rm;
+        if (lectura.clase === 'ok') {
+          antifaz.m.racha = 0; antifaz.m.estado = 'ok';
+        } else {
+          if (antifaz.m.racha === 0 || antifaz.m.clasePrev !== lectura.clase) { antifaz.m.racha = 0; antifaz.m.rachaInicio = foto.ts; }
+          antifaz.m.racha += 1;
+          const necesarias = lectura.clase === 'desplazado' ? CONFIG.ANTIFAZ_MARCADOR_FUERA : CONFIG.ANTIFAZ_MARCADOR_AUSENTE;
+          if (antifaz.m.racha >= necesarias) {
+            antifaz.m.estado = lectura.clase;
+            if (terapiaEnCurso()) return apagarPorSeguridad(lectura.clase, 'marcador', { lectura, foto, inicio: antifaz.m.rachaInicio });
+          }
+        }
+        antifaz.m.clasePrev = lectura.clase;
+      }
+    }
+
+    // 3) ¿Hay al menos una capa verificando? Si no, la lámpara no puede seguir encendida.
     const iaViva = iaDisponible() && iaBajoTope();
-    const ultimaVerificacion = Math.max(antifaz.ia.ultimoOk, antifaz.vigilandoDesde);
-    if (terapia && !capa1Disponible() && now - ultimaVerificacion > CONFIG.ANTIFAZ_SIN_IA_S * 1000)
+    const marcadorVivo = capa1Disponible() && !antifaz.m.error;
+    const ultimaVerificacion = Math.max(antifaz.ia.ultimoOk, marcadorVivo ? antifaz.m.ultimoOk : 0, antifaz.vigilandoDesde);
+    if (terapia && now - ultimaVerificacion > CONFIG.ANTIFAZ_SIN_IA_S * 1000)
       return apagarPorSeguridad('sin_verificacion', 'sistema');
-    if (!iaViva) { if (!antifaz.bloqueo && !capa1Disponible()) setAntifazEstado('sin_verificacion'); return; }
+    if (!iaViva && !marcadorVivo) { if (!antifaz.bloqueo) setAntifazEstado('sin_verificacion'); return; }
 
-    // 3) Capa 2: IA
-    if (antifaz.ia.enCurso || now < antifaz.ia.proxima || camFrame.n === antifaz.ia.ultimaFoto) {
-      if (antifaz.estado === 'en_espera' || antifaz.estado === 'inactivo') setAntifazEstado('revisando');
-      return;
-    }
-    const res = await lecturaIA();
-    if (!res) {                                    // la IA falló: reintentar sin apuro
-      antifaz.ia.proxima = Date.now() + CONFIG.ANTIFAZ_IA_MS;
-      if (!antifaz.bloqueo && antifaz.estado !== 'ok') setAntifazEstado('revisando');
-      return;
-    }
-    const { lectura, foto } = res;
+    // 4) Capa 2: IA (más lenta; se lanza aparte y no frena al marcador)
+    if (iaViva && !antifaz.ia.enCurso && now >= antifaz.ia.proxima && camFrame.n !== antifaz.ia.ultimaFoto) cicloIA();
+    if (!iaViva) antifaz.iaEstado = null;
 
-    if (ANTIFAZ_PELIGRO.has(lectura.clase)) {
-      if (antifaz.racha === 0) antifaz.rachaInicio = lectura.ts - lectura.ms;
-      antifaz.racha += 1;
-      const confirmado = antifaz.racha >= CONFIG.ANTIFAZ_LECTURAS;
-      // Con la lámpara encendida se confirma enseguida con la siguiente foto.
-      // Ya apagada no hay apuro: se vuelve al ritmo normal para no gastar consultas.
-      antifaz.ia.proxima = (terapiaEnCurso() && !confirmado) ? 0 : Date.now() + CONFIG.ANTIFAZ_IA_MS;
-      if (confirmado) {
-        if (terapiaEnCurso()) return apagarPorSeguridad(lectura.clase, 'ia', { lectura, foto, inicio: antifaz.rachaInicio });
-        if (!antifaz.bloqueo || antifaz.bloqueo.motivo !== lectura.clase) setAntifazEstado(lectura.clase);
-      }
-      return;
-    }
-
-    antifaz.racha = 0;
-    antifaz.ia.proxima = Date.now() + CONFIG.ANTIFAZ_IA_MS;
-    if (lectura.clase === 'no_verificable') {
-      antifaz.noVerificables += 1;
-      if (antifaz.noVerificables >= CONFIG.ANTIFAZ_LECTURAS) {
-        setAntifazEstado('no_verificable');
-        if (terapiaEnCurso()) await avisarNoVerificable(lectura, foto);
-      }
-      return;
-    }
-    antifaz.noVerificables = 0; antifaz.avisoNoVerificable = false;
-    setAntifazEstado('ok');
+    // 5) Estado general
+    const combinado = estadoCombinado();
+    if (!antifaz.bloqueo || combinado === 'ok' || ANTIFAZ_PELIGRO.has(combinado)) setAntifazEstado(combinado);
   } catch (e) {
     console.error('[ANTIFAZ] error en la vigilancia:', e.message);
   } finally {
     antifazTickBusy = false;
   }
 }
-setInterval(antifazTick, 400).unref();
+setInterval(antifazTick, 200).unref();
 
 // Orden que viaja en cada respuesta a la lámpara. Con la supervisión activada y terapia en
 // curso, la lámpara debe recibir "VIGIA" seguido; si deja de recibirlo, se apaga sola.
@@ -1712,8 +1807,10 @@ async function loadAntifazSettings() {
   try {
     const [rows] = await pool.query(`SELECT valor FROM ajustes_sistema WHERE clave = 'antifaz_supervision' LIMIT 1`);
     if (rows.length) antifaz.on = rows[0].valor !== 'off';
+    const [z] = await pool.query(`SELECT valor FROM ajustes_sistema WHERE clave = 'antifaz_zona' LIMIT 1`);
+    if (z.length) antifaz.zona = JSON.parse(z[0].valor);
   } catch (e) { console.warn('[ANTIFAZ] ajustes:', e.message); }
-  console.log(`[ANTIFAZ] Supervisión ${antifaz.on ? 'activada' : 'desactivada'} · IA ${iaDisponible() ? CONFIG.ANTIFAZ_MODEL : 'sin clave'}.`);
+  console.log(`[ANTIFAZ] Supervisión ${antifaz.on ? 'activada' : 'desactivada'} · IA ${iaDisponible() ? CONFIG.ANTIFAZ_MODEL : 'sin clave'} · marcador ${antifaz.zona ? 'calibrado' : 'sin calibrar'}.`);
 }
 
 // ---------- Rutas ----------
@@ -1752,6 +1849,50 @@ app.post('/api/antifaz/probar', async (req, res) => {
     if (!r) return res.status(502).json({ ok: false, error: 'ia_sin_respuesta', message: antifaz.ia.ultimoError || 'La IA no respondió.' });
     res.json({ ok: true, lectura: r.lectura, etiqueta: ANTIFAZ_ETIQUETAS[r.lectura.clase] || r.lectura.clase, antifaz: antifazPublico(true) });
   } catch (e) { return sendServerError(res, e, 'ANTIFAZ_PROBAR'); }
+});
+
+// Calibración: "el antifaz está bien puesto ahora". Guarda dónde se ve el marcador.
+app.post('/api/antifaz/calibrar', async (req, res) => {
+  try {
+    if (!esClinico(req.auth)) return res.status(403).json({ ok: false, error: 'no_autorizado' });
+    if (!camOnline()) return res.status(409).json({ ok: false, error: 'sin_camara', message: 'La cámara no está enviando imágenes.' });
+    const l = detectarMarcador(camFrame.buf);
+    if (!l.encontrado) return res.status(422).json({ ok: false, error: 'marcador_no_visible',
+      message: 'No se ve el marcador en la imagen. Revisa que esté pegado plano, enfocado y sin reflejos.' });
+    antifaz.zona = { cx: l.cx, cy: l.cy, lado: l.lado, angulo: l.angulo, lado_px: l.lado_px, ts: Date.now() };
+    antifaz.m.racha = 0; antifaz.m.estado = 'ok'; antifaz.m.ultimoOk = Date.now();
+    await pool.execute(
+      `INSERT INTO ajustes_sistema (clave, valor) VALUES ('antifaz_zona', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
+      [JSON.stringify(antifaz.zona)]);
+    await logEvent({ paciente_id: activePatientId, cuenta_id: req.auth.id, tipo: 'sistema',
+      descripcion: 'Zona del antifaz calibrada', metadata: antifaz.zona }).catch(() => {});
+    io.emit('antifaz:estado', antifazPublico());
+    res.json({ ok: true, zona: antifaz.zona, lectura: l, antifaz: antifazPublico(true),
+      aviso: l.lado_px < 40 ? `El marcador se ve pequeño (${l.lado_px} px). Conviene uno más grande o acercar la cámara.` : null });
+  } catch (e) { return sendServerError(res, e, 'ANTIFAZ_CALIBRAR'); }
+});
+
+app.delete('/api/antifaz/calibrar', async (req, res) => {
+  try {
+    if (!esClinico(req.auth)) return res.status(403).json({ ok: false, error: 'no_autorizado' });
+    antifaz.zona = null; antifaz.m.estado = null; antifaz.m.racha = 0;
+    await pool.execute(`DELETE FROM ajustes_sistema WHERE clave = 'antifaz_zona'`);
+    io.emit('antifaz:estado', antifazPublico());
+    res.json({ ok: true, antifaz: antifazPublico(true) });
+  } catch (e) { return sendServerError(res, e, 'ANTIFAZ_DESCALIBRAR'); }
+});
+
+// Prueba manual del marcador con la foto actual (no gasta consultas de IA).
+app.post('/api/antifaz/probar-marcador', (req, res) => {
+  try {
+    if (!esClinico(req.auth)) return res.status(403).json({ ok: false, error: 'no_autorizado' });
+    if (!camOnline()) return res.status(409).json({ ok: false, error: 'sin_camara', message: 'La cámara no está enviando imágenes.' });
+    const l = detectarMarcador(camFrame.buf);
+    l.ts = Date.now(); l.foto_n = camFrame.n;
+    l.clase = antifaz.zona ? clasificarMarcador(l) : (l.encontrado ? 'ok' : 'marcador_ausente');
+    antifaz.m.lectura = l;
+    res.json({ ok: true, lectura: l, etiqueta: ANTIFAZ_ETIQUETAS[l.clase] || l.clase, antifaz: antifazPublico(true) });
+  } catch (e) { return sendServerError(res, e, 'ANTIFAZ_PROBAR_MARCADOR'); }
 });
 
 app.get('/api/antifaz/eventos', async (req, res) => {

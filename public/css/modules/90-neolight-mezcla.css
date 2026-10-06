@@ -604,3 +604,25 @@ html body .antifaz-chip[data-tone="bad"]::before{background:#fff!important}
 html body.superuser-mode .su-button.primary{background:var(--nl-accent)!important;color:#fff!important;border-color:transparent!important}
 html body.superuser-mode .su-button.primary:hover{background:var(--nl-accent-dark)!important}
 html body.superuser-mode .su-button.primary:disabled{opacity:.55!important}
+
+/* Mapa del marcador del antifaz (superusuario) */
+html body .su-antifaz-map{display:grid!important;grid-template-columns:minmax(0,220px) 1fr!important;gap:12px!important;align-items:center!important;margin:12px 0 4px!important}
+html body .su-antifaz-map svg{width:100%!important;height:auto!important;display:block!important}
+html body .su-antifaz-map .frame{fill:var(--nl-surface-2);stroke:var(--nl-line);stroke-width:1}
+html body .su-antifaz-map .zone{fill:rgb(var(--nl-accent-rgb) / .12);stroke:var(--nl-accent);stroke-width:.8;stroke-dasharray:2 1.5}
+html body .su-antifaz-map .zone-dot{fill:var(--nl-accent)}
+html body .su-antifaz-map .marker{stroke-width:1.2;stroke-linejoin:round}
+html body .su-antifaz-map .marker.ok{fill:rgb(21 128 61 / .25);stroke:var(--nl-ok)}
+html body .su-antifaz-map .marker.bad{fill:rgb(192 21 42 / .25);stroke:var(--nl-danger)}
+html body .su-antifaz-map .hint{font:600 5px var(--nl-font);fill:var(--nl-muted)}
+html body .su-antifaz-map .hint.bad{fill:var(--nl-danger)}
+html body .su-antifaz-map ul{list-style:none!important;margin:0!important;padding:0!important;display:grid!important;gap:6px!important;font-size:.85rem!important;color:var(--nl-muted)!important}
+html body .su-antifaz-map li{display:flex!important;align-items:center!important;gap:8px!important}
+html body .su-antifaz-map i{width:14px;height:14px;border-radius:4px;flex:none}
+html body .su-antifaz-map i.z{border:2px dashed var(--nl-accent);border-radius:50%}
+html body .su-antifaz-map i.m{background:rgb(21 128 61 / .25);border:2px solid var(--nl-ok)}
+html body .su-antifaz-actions{flex-wrap:wrap!important}
+@media (max-width:560px){html body .su-antifaz-map{grid-template-columns:1fr!important}}
+html body .su-antifaz-layers [data-state="bad"]>span{background:var(--nl-danger-soft)!important;color:var(--nl-danger)!important}
+html body .su-antifaz-layers [data-state="warn"]>span{background:var(--nl-sun-soft)!important;color:var(--nl-sun-ink)!important}
+html body .su-antifaz-layers [data-state="off"]>span{background:var(--nl-surface-2)!important;color:var(--nl-faint)!important}
