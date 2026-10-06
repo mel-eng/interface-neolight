@@ -77,6 +77,8 @@ const CONFIG = {
   SUPERUSER_PASS:   process.env.SUPERUSER_PASS || '',
   SUPERUSER_CODE:   process.env.SUPERUSER_CODE || process.env.HOSPITAL_CODE || '152436',
   TECH_WINDOW_S:    Number(process.env.TECH_WINDOW_S) || 120,
+  CAM_MS_TERAPIA:   Number(process.env.CAM_MS_TERAPIA) || 500,
+  CAM_MS_REPOSO:    Number(process.env.CAM_MS_REPOSO) || 1000,
   ELEVENLABS_API_KEY:  process.env.ELEVENLABS_API_KEY  || '',
   ELEVENLABS_VOICE_ID: process.env.ELEVENLABS_VOICE_ID || '',
   ELEVENLABS_MODEL:    process.env.ELEVENLABS_MODEL    || 'eleven_multilingual_v2',
@@ -320,7 +322,7 @@ const PUBLIC_API = new Set([
   'POST /api/login', 'POST /api/register', 'POST /api/register-doctor',
   'POST /api/doctor/verify-code', 'GET /api/doctors', 'GET /api/health', 'GET /api/client-config',
   'POST /api/esp32-data', 'POST /api/esp32/telemetry', 'POST /api/superuser-access/code',
-  'POST /api/tech-access', 'GET /api/tech-access/status',          // el equipo usa su propia clave
+  'POST /api/tech-access', 'GET /api/tech-access/status', 'POST /api/cam/frame',          // el equipo usa su propia clave
 ]);
 
 app.use(async (req, res, next) => {
@@ -886,6 +888,8 @@ function parseTelemetryPayload(body) {
     pausado: boolFromEsp(body.pausado) === true,
     manual:  boolFromEsp(body.manual ?? body.manualHabilitado) === true,
     slave:   body.slave != null ? boolFromEsp(body.slave) === true : null,
+    rssi:    toNum(body.rssi),                              // señal del WiFi al que está conectada la lámpara
+    red:     typeof body.red === 'string' ? body.red.slice(0, 32) : null,
     sensor_ultra_fail: ultraNoEcho || Boolean(body.sensor_ultra_fail),
     sensor_body_fail:  Boolean(body.sensor_body_fail),
     sensor_amb_fail:   Boolean(body.sensor_amb_fail),
@@ -950,6 +954,7 @@ function visibleTelemetry() {
     alarms_muted: !!t?.alarms_muted,
     terapiaActiva: visible,
     esp32_connected: espOnline,
+    cam_online: camOnline(),
   };
 }
 
@@ -1073,6 +1078,9 @@ app.get(['/api/telemetry/latest', '/api/esp32/latest'], (req, res) => {
       temp_bebe: lastTelemetry.tBebe, temp_ambiente: lastTelemetry.tAmb, peso_g: lastTelemetry.peso,
       modo_actual: lastTelemetry.modo, manual: lastTelemetry.manual, slave: lastTelemetry.slave,
       ultraFail: lastTelemetry.sensor_ultra_fail,
+      rssi: lastTelemetry.rssi ?? null, red: lastTelemetry.red ?? null,
+      visto_hace_s: Math.max(0, Math.round((Date.now() - lastTelemetry.ts) / 1000)),
+      acceso_tecnico_s: techSecondsLeft(),
     };
   }
   res.json(payload);
@@ -1254,6 +1262,66 @@ app.post('/api/register', async (req, res) => {
     return sendDbError(res, e, 'REGISTER_ERROR');
   }
 });
+
+// ===================== CÁMARA: FOTOS DESDE LA LÁMPARA ========================
+//
+// La ESP32-S3-CAM manda una foto JPEG cada medio segundo o un segundo. El servidor
+// guarda solo la última (en memoria) y la interfaz la pide para mostrarla. Estas
+// mismas fotos son las que después revisa el sistema de verificación del antifaz.
+
+const CAM_OFFLINE_MS = 6000;
+let camFrame = null;            // { buf, ts, n }
+let camFramesTotal = 0;
+const camOnline = () => !!camFrame && Date.now() - camFrame.ts < CAM_OFFLINE_MS;
+
+// Cada cuánto debe mandar fotos la cámara: más seguido durante la terapia.
+const camIntervalMs = () => (lastTelemetry?.terapiaActiva && espOnline ? CONFIG.CAM_MS_TERAPIA : CONFIG.CAM_MS_REPOSO);
+
+app.post('/api/cam/frame',
+  express.raw({ type: ['image/jpeg', 'application/octet-stream'], limit: '600kb' }),
+  (req, res) => {
+    if (CONFIG.DEVICE_KEY && req.headers['x-device-key'] !== CONFIG.DEVICE_KEY)
+      return res.status(401).json({ ok: false, error: 'clave_de_equipo_invalida' });
+    const buf = req.body;
+    // Un JPEG empieza con FF D8 y termina con FF D9.
+    if (!Buffer.isBuffer(buf) || buf.length < 500 || buf[0] !== 0xFF || buf[1] !== 0xD8)
+      return res.status(400).json({ ok: false, error: 'imagen_invalida' });
+    const wasOnline = camOnline();
+    camFrame = { buf, ts: Date.now(), n: ++camFramesTotal };
+    if (!wasOnline) { console.log('[CÁMARA] Recibiendo fotos.'); io.emit('cam:status', { online: true }); }
+    io.emit('cam:frame', { n: camFrame.n, ts: camFrame.ts });
+    res.json({ ok: true, ms: camIntervalMs() });
+  });
+
+// ¿Puede esta cuenta ver la cámara? Doctor y superusuario sí; el tutor solo si su bebé está en la lámpara.
+async function canSeeCamera(auth) {
+  if (auth.rol !== 'tutor') return true;
+  if (!activePatientId) return true;
+  const [rows] = await pool.execute(`SELECT id FROM pacientes WHERE tutor_id = ? AND id = ? LIMIT 1`, [auth.id, activePatientId]);
+  return rows.length > 0;
+}
+
+app.get('/api/cam/status', (_req, res) => {
+  res.json({ ok: true, online: camOnline(), edad_ms: camFrame ? Date.now() - camFrame.ts : null,
+             bytes: camFrame?.buf.length ?? null, fotos: camFramesTotal });
+});
+
+app.get('/api/cam/latest.jpg', async (req, res) => {
+  try {
+    if (!(await canSeeCamera(req.auth))) return res.status(403).json({ ok: false, error: 'no_autorizado' });
+    if (!camOnline()) return res.status(404).json({ ok: false, error: 'sin_camara', message: 'La cámara no está enviando imágenes.' });
+    res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store', 'X-Frame-N': String(camFrame.n) });
+    res.send(camFrame.buf);
+  } catch (e) { return sendServerError(res, e, 'CAM_LATEST'); }
+});
+
+setInterval(() => {
+  if (camFrame && !camOnline() && !camFrame.avisado) {
+    camFrame.avisado = true;
+    console.log('[CÁMARA] Dejaron de llegar fotos.');
+    io.emit('cam:status', { online: false });
+  }
+}, 2000).unref();
 
 // ===================== SALUDO DE BIENVENIDA CON VOZ ========================
 //

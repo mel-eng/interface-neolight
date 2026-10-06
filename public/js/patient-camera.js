@@ -1,74 +1,55 @@
 // =========================================================
 // public/js/patient-camera.js
-// Activación, apagado y manejo de errores del stream de cámara.
+// Botón "Cámara" del panel del tutor: muestra la imagen real
+// de la lámpara o vuelve a la animación del bebé.
 // =========================================================
 
-import { $, CAMERA_STREAM_URL, loadClientConfig } from "./config.js";
+import { $ } from "./config.js";
+import { startCameraFeed } from "./camera-feed.js";
 
 export async function bindCameraToggle() {
   const button = $("ptCamToggle");
   const heroVideo = document.querySelector("#ptHeroMedia .pt-hero-video");
   const cameraImage = $("ptCameraStream");
   const cameraError = $("ptCamError");
-  if (!button || !cameraImage) return;
+  if (!button || !cameraImage || button.dataset.bound === "1") return;
+  button.dataset.bound = "1";
 
-  await loadClientConfig();
-  const streamUrl = CAMERA_STREAM_URL || "http://192.168.4.50/stream";
-  const errorTimeoutMs = 7000;
-  let errorTimer = null;
+  let stopFeed = null;
 
-  const setToggle = enabled => {
-    button.setAttribute("aria-pressed", enabled ? "true" : "false");
-  };
-
-  const hideError = () => {
+  const showError = visible => {
     if (!cameraError) return;
-    cameraError.style.display = "none";
-    cameraError.setAttribute("aria-hidden", "true");
-  };
-
-  const showError = () => {
-    clearTimeout(errorTimer);
-    errorTimer = null;
-    cameraImage.src = "";
-    cameraImage.style.display = "none";
-    cameraImage.onerror = null;
-    cameraImage.onload = null;
-    if (cameraError) {
-      cameraError.style.display = "flex";
-      cameraError.removeAttribute("aria-hidden");
-    }
-  };
-
-  const turnOn = () => {
-    setToggle(true);
-    hideError();
-    cameraImage.style.display = "none";
-    if (heroVideo) heroVideo.style.display = "none";
-
-    cameraImage.onerror = showError;
-    cameraImage.onload = () => {
-      clearTimeout(errorTimer);
-      errorTimer = null;
-      cameraImage.style.display = "block";
-    };
-    errorTimer = window.setTimeout(showError, errorTimeoutMs);
-    cameraImage.src = streamUrl;
+    cameraError.style.display = visible ? "flex" : "none";
+    visible ? cameraError.removeAttribute("aria-hidden") : cameraError.setAttribute("aria-hidden", "true");
   };
 
   const turnOff = () => {
-    setToggle(false);
-    clearTimeout(errorTimer);
-    errorTimer = null;
-    cameraImage.onerror = null;
-    cameraImage.onload = null;
-    cameraImage.src = "";
+    button.setAttribute("aria-pressed", "false");
+    stopFeed?.();
+    stopFeed = null;
     cameraImage.style.display = "none";
-    hideError();
+    showError(false);
     if (heroVideo) heroVideo.style.display = "";
+  };
+
+  const turnOn = () => {
+    button.setAttribute("aria-pressed", "true");
+    showError(false);
+    stopFeed = startCameraFeed(cameraImage, {
+      onState: state => {
+        const live = state === "live";
+        // Mientras no llegue una foto se deja la animación del bebé; sin cámara, el aviso.
+        cameraImage.style.display = live ? "block" : "none";
+        if (heroVideo) heroVideo.style.display = live || state !== "waiting" ? "none" : "";
+        showError(state === "offline" || state === "denied");
+      },
+    });
   };
 
   button.addEventListener("click", () => {
     button.getAttribute("aria-pressed") === "true" ? turnOff() : turnOn();
   });
+
+  // Al cerrar sesión se deja de pedir fotos.
+  window.addEventListener("neolight:session-expired", turnOff);
 }

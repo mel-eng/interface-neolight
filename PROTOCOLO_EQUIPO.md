@@ -111,3 +111,21 @@ El esclavo avisa al maestro con `TEC_ON` (lo repite cada 5 s) y `TEC_OFF` al cer
 La cuna se conecta al WiFi `NEOLIGHT` y llama una vez por segundo a
 `http://192.168.4.1/peso?g=<gramos>`. El maestro lo incluye en su telemetría como
 `"peso_g"` (o `null` si no llegó peso en los últimos 8 s).
+
+
+## Fotos de la cámara
+
+La ESP32-S3-CAM sigue conectada al WiFi `NEOLIGHT` (IP 192.168.4.50) y sale a internet a
+través del maestro, que comparte su conexión (NAPT). Manda cada foto con:
+
+    POST https://neolight.up.railway.app/api/cam/frame
+    Content-Type: image/jpeg
+    x-device-key: <DEVICE_KEY>
+    (cuerpo: el JPEG)
+
+El servidor responde `{"ok":true,"ms":500}`: `ms` es cuánto debe esperar la cámara antes de
+la siguiente foto (500 con terapia en curso, 1000 en reposo; variables `CAM_MS_TERAPIA` y
+`CAM_MS_REPOSO`). Si pasan 6 s sin fotos, la interfaz muestra "sin cámara".
+
+La interfaz pide la última foto en `GET /api/cam/latest.jpg` (requiere sesión).
+Ajustes de imagen de la cámara (luz azul): `http://192.168.4.50/ajuste`, desde el WiFi NEOLIGHT.

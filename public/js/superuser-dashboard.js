@@ -1,3 +1,4 @@
+import { startCameraFeed } from "./camera-feed.js";
 import { $, escapeHtml, loadClientConfig, state, humanLabel } from "./config.js";
 import { registerDoctor } from "./api.js";
 import {
@@ -630,22 +631,31 @@ async function automaticLedTest() {
   showToast("Secuencia terminada: convencional, intensivo y reposo.", "success");
 }
 
-async function startCamera() {
+let stopCameraFeed = null;
+
+function startCamera() {
   const img = $("suCameraPreview");
-  if (!cameraUrl) {
-    const config = await loadClientConfig();
-    cameraUrl = config?.camStreamUrl || "";
-  }
-  if (!cameraUrl) { showToast("No existe una URL de cámara configurada.", "warn"); return; }
-  $("suCameraStatus").textContent = "Conectando";
-  img.onload = () => { img.classList.add("active"); $("suCameraPlaceholder").style.display="none"; $("suCameraStatus").textContent="Activa"; $("suCameraStatus").className="su-status-pill success"; };
-  img.onerror = () => { img.classList.remove("active"); $("suCameraPlaceholder").style.display="block"; $("suCameraStatus").textContent="Sin respuesta"; $("suCameraStatus").className="su-status-pill warning"; showToast("La cámara no respondió.","warn"); };
-  img.src = `${cameraUrl}${cameraUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+  const pill = $("suCameraStatus");
+  stopCameraFeed?.();
+  pill.textContent = "Conectando";
+  pill.className = "su-status-pill neutral";
+  stopCameraFeed = startCameraFeed(img, {
+    onState: state => {
+      const live = state === "live";
+      img.classList.toggle("active", live);
+      $("suCameraPlaceholder").style.display = live ? "none" : "block";
+      pill.textContent = live ? "Activa" : state === "waiting" ? "Conectando" : "Sin imágenes";
+      pill.className = `su-status-pill ${live ? "success" : state === "waiting" ? "neutral" : "warning"}`;
+      if (state === "offline") showToast("La cámara no está enviando imágenes.", "warn");
+    },
+  });
 }
 
 function stopCamera() {
   const img = $("suCameraPreview");
-  img.src = ""; img.classList.remove("active");
+  stopCameraFeed?.();
+  stopCameraFeed = null;
+  img.classList.remove("active");
   $("suCameraPlaceholder").style.display = "block";
   $("suCameraStatus").textContent = "Detenida";
   $("suCameraStatus").className = "su-status-pill neutral";
@@ -772,7 +782,43 @@ function filterNotifications(button) {
   qa("#suNotificationList [data-alert-kind]").forEach(item => item.style.display = filter === "all" || item.dataset.alertKind === filter ? "flex" : "none");
 }
 
+// Tarjeta "Conectividad del equipo": qué enlaces de la lámpara están respondiendo.
+function renderConnectivity() {
+  const list = $("suConnList");
+  if (!list) return;
+  const t = serverState.telemetry || {};
+  const online = !!t.esp32_connected;
+  const signal = rssi => rssi == null ? "" : rssi >= -60 ? "señal buena" : rssi >= -72 ? "señal regular" : "señal débil";
+  const rows = {
+    nube: online
+      ? ["ok", t.visto_hace_s != null ? `Enviando datos · última lectura hace ${t.visto_hace_s} s` : "Enviando datos"]
+      : ["off", "Sin conexión. Revisa que la lámpara esté encendida y con internet."],
+    wifi: !online ? ["off", "Sin datos"]
+      : t.rssi == null ? ["warn", "Conectada (el equipo no informó la señal)"]
+      : [t.rssi >= -72 ? "ok" : "warn", `${t.red ? t.red + " · " : ""}${signal(t.rssi)} (${t.rssi} dBm)`],
+    esclavo: !online ? ["off", "Sin datos"]
+      : t.slave === true ? ["ok", "Conectado"]
+      : t.slave === false ? ["bad", "Sin respuesta: los actuadores y el panel no están enlazados"] : ["warn", "Sin datos"],
+    cuna: !online ? ["off", "Sin datos"]
+      : t.peso_g != null ? ["ok", `Enviando peso · ${Math.round(t.peso_g)} g`] : ["off", "No conectada"],
+    tecnico: t.acceso_tecnico_s > 0 ? ["warn", `Habilitado desde el panel · quedan ${t.acceso_tecnico_s} s`] : ["off", "Cerrado"],
+  };
+  Object.entries(rows).forEach(([key, [state, text]]) => {
+    const row = list.querySelector(`[data-conn="${key}"]`);
+    if (!row) return;
+    row.dataset.state = state;
+    row.querySelector("small").textContent = text;
+  });
+  const pill = $("suConnStatus");
+  if (pill) {
+    const problem = online && (t.slave === false || (t.rssi != null && t.rssi < -72));
+    pill.className = `su-status-pill ${!online ? "neutral" : problem ? "warning" : "success"}`;
+    pill.textContent = !online ? "Sin conexión" : problem ? "Revisar" : "Todo enlazado";
+  }
+}
+
 function updateSyncStatus() {
+  renderConnectivity();
   const host = $("suSyncStatus");
   if (!host) return;
   const backend = serverState.health?.ok;
