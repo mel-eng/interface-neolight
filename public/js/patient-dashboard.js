@@ -30,8 +30,7 @@ import {
   clearPatientSensorCards,
   isPatientTelemetryVisible,
   renderPatientCharts,
-  updatePatientSensorCards,
-} from "./patient-telemetry.js";
+  updatePatientSensorCards, setRestingCard } from "./patient-telemetry.js";
 
 // =========================================================
 // ESTADO LOCAL DEL DASHBOARD
@@ -545,7 +544,7 @@ function bindSocketStatusUI() {
       kind: st?.open ? "ok" : "warn",
     });
     setText("patientMasterStatus", st?.open ? "Conectada" : "Sin conexión");
-    if (!st?.open) clearPatientSensorCards("Lámpara sin conexión");
+    if (!st?.open) { clearPatientSensorCards("Lámpara sin conexión"); setRestingCard("offline"); }
   });
 
   socket.on("telemetry", payload => {
@@ -555,9 +554,11 @@ function bindSocketStatusUI() {
     if (otherPatient) {
       // La lámpara está en uso con otro paciente: sus lecturas no corresponden a este panel.
       clearPatientSensorCards("Lámpara en uso con otro paciente");
+      setRestingCard("other");
       updateHUD({});
     } else if (!isPatientTelemetryVisible(data, dashboardState.modoActual)) {
       clearPatientSensorCards(data?.esp32_connected === false ? "Lámpara sin conexión" : "Sin terapia activa");
+      setRestingCard(data?.esp32_connected === false ? "offline" : "resting");
       updateHUD({});
       updateTemps({});
     } else {

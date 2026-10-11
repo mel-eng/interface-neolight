@@ -25,9 +25,11 @@ export function updatePatientSensorCards(data = {}, { getCurrentMode, onModeChan
 
   if (!isPatientTelemetryVisible(data, currentMode)) {
     clearPatientSensorCards(data?.esp32_connected === false ? "Lámpara sin conexión" : "Sin terapia activa");
+    setRestingCard(data?.esp32_connected === false ? "offline" : data?.pausado ? "paused" : "resting");
     renderPatientCharts();
     return;
   }
+  setRestingCard(null);
 
   // null significa "sin lectura": Number(null) daría 0 y mostraría un valor falso.
   const num = value => (value == null || value === "" ? NaN : Number(value));
@@ -57,6 +59,49 @@ export function isPatientTelemetryVisible(data = {}, currentMode = "reposo") {
   return data?.esp32_connected !== false
     && data?.terapiaActiva !== false
     && THERAPY_MODES.has(mode);
+}
+
+// Con la lámpara en reposo (o sin conexión) las cuatro tarjetas se reemplazan por una sola,
+// con unos ojitos dormidos, para que se entienda de un vistazo que no hay luz encendida.
+const RESTING = {
+  resting: { title: "Lámpara en reposo", text: "La luz está apagada. Las mediciones aparecen cuando inicia la terapia." },
+  paused:  { title: "Terapia en pausa", text: "La luz está apagada por un momento. Las mediciones vuelven al reanudar." },
+  offline: { title: "Lámpara sin conexión", text: "Cuando la lámpara se encienda y tenga internet, verás aquí sus mediciones." },
+  other:   { title: "Lámpara en uso", text: "La lámpara está atendiendo a otro paciente en este momento." },
+};
+const SLEEPY_EYES = `
+  <svg class="pt-rest-eyes" viewBox="0 0 160 70" aria-hidden="true">
+    <path d="M18 34 Q42 54 66 34" />
+    <path d="M94 34 Q118 54 142 34" />
+    <path class="lash" d="M26 41 l-5 7 M38 46 l-2 8 M50 46 l2 8 M62 41 l5 7" />
+    <path class="lash" d="M102 41 l-5 7 M114 46 l-2 8 M126 46 l2 8 M138 41 l5 7" />
+    <text class="z z1" x="138" y="18">z</text><text class="z z2" x="148" y="9">z</text>
+  </svg>`;
+const OFFLINE_ICON = `
+  <svg class="pt-rest-eyes is-offline" viewBox="0 0 160 70" aria-hidden="true">
+    <path d="M58 22 v14 M74 22 v14 M50 36 h32 v8 a16 16 0 0 1 -32 0 z M66 60 v8" />
+    <path d="M96 30 l24 24 M120 30 l-24 24" />
+  </svg>`;
+
+export function setRestingCard(kind) {
+  const grid = document.querySelector("#view-dashboard-patient .pt-side-metric-grid");
+  if (!grid) return;
+  let card = grid.querySelector(".pt-rest-card");
+  if (!kind) { grid.classList.remove("is-resting"); card?.remove(); return; }
+  if (!card) {
+    card = document.createElement("div");
+    card.className = "pt-rest-card";
+    card.setAttribute("role", "status");
+    grid.appendChild(card);
+  }
+  if (card.dataset.kind !== kind) {
+    const t = RESTING[kind];
+    card.dataset.kind = kind;
+    card.innerHTML = `${kind === "offline" ? OFFLINE_ICON : SLEEPY_EYES}<strong></strong><span></span>`;
+    card.querySelector("strong").textContent = t.title;
+    card.querySelector("span").textContent = t.text;
+  }
+  grid.classList.add("is-resting");
 }
 
 export function clearPatientSensorCards(reason = "Sin terapia activa") {

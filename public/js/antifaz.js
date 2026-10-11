@@ -19,7 +19,7 @@ const FAMILY_TEXT = {
   ok: "Antifaz verificado", revisando: "Revisando antifaz", en_espera: "Supervisión de antifaz lista",
   ojos_expuestos: "Revisar antifaz: lámpara apagada", antifaz_ausente: "Revisar antifaz: lámpara apagada",
   desplazado: "Revisar antifaz: lámpara apagada", marcador_ausente: "Revisar antifaz: lámpara apagada",
-  nariz_cubierta: "Revisar antifaz: lámpara apagada",
+  nariz_cubierta: "Revisar antifaz: cubre la nariz",
   no_verificable: "No se ve el rostro del bebé", sin_camara: "Cámara sin imagen", sin_verificacion: "Antifaz sin verificar",
 };
 
@@ -87,8 +87,14 @@ function alarmSound(times = 3) {
   } catch (_) {}
 }
 
+// Para no repetir el mismo aviso grande una y otra vez en pocos segundos.
+const lastShown = new Map();
+
 function showAlarm(payload) {
   const apagado = !!payload.apagado;
+  const key = `${payload.motivo || payload.estado || ""}:${apagado}`;
+  const repeated = Date.now() - (lastShown.get(key) || 0) < 60000;
+  lastShown.set(key, Date.now());
   document.getElementById("antifazAlarm")?.remove();
   const box = document.createElement("div");
   box.id = "antifazAlarm";
@@ -105,15 +111,21 @@ function showAlarm(payload) {
       <small></small>
     </div>
     <button type="button" class="antifaz-alarm-btn">Entendido</button>`;
-  box.querySelector("strong").textContent = apagado ? "Lámpara apagada por seguridad" : "Revisar al bebé";
+  box.querySelector("strong").textContent = apagado ? "Luz apagada por seguridad" : payload.critico ? "Revisar al bebé ahora" : "Revisar al bebé";
   box.querySelector("span").textContent = payload.mensaje || payload.etiqueta || "";
   box.querySelector("small").textContent = apagado
-    ? "Acomoda el antifaz. La lámpara no se enciende sola: el personal debe reanudar la terapia."
-    : "La lámpara sigue encendida. Verifica la posición del bebé y del antifaz.";
-  box.querySelector("button").addEventListener("click", () => box.remove());
+    ? "Acomoda el antifaz. La luz no se enciende sola: el personal debe reanudar la terapia."
+    : "La luz sigue encendida. Verifica la posición del bebé y del antifaz.";
+  box.querySelector("button").addEventListener("click", async () => {
+    box.remove();
+    // Doctor y superusuario: "Entendido" marca el apagado como revisado.
+    if (role === "doctor" || role === "superuser") {
+      try { await apiFetch("/api/antifaz/reconocer", { method: "POST" }); refreshAntifaz(); } catch (_) {}
+    }
+  });
   document.body.appendChild(box);
-  alarmSound(apagado ? 4 : 2);
-  if (!apagado) window.setTimeout(() => box.remove(), 20000);
+  if (!repeated) alarmSound(apagado || payload.critico ? 4 : 2);
+  if (!apagado && !payload.critico) window.setTimeout(() => box.remove(), 20000);
 }
 
 // ---------- Inicio ----------

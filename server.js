@@ -88,8 +88,12 @@ const CONFIG = {
   ANTIFAZ_IA_MS:          Number(process.env.ANTIFAZ_IA_MS) || 3000,          // cada cuánto se consulta la IA
   ANTIFAZ_IA_TIMEOUT_MS:  Number(process.env.ANTIFAZ_IA_TIMEOUT_MS) || 8000,
   ANTIFAZ_IA_MAX_DIA:     Number(process.env.ANTIFAZ_IA_MAX_DIA) || 8000,     // tope de consultas por día
-  ANTIFAZ_LECTURAS:       Number(process.env.ANTIFAZ_LECTURAS) || 2,          // lecturas seguidas para actuar
-  ANTIFAZ_CONFIANZA_MIN:  Number(process.env.ANTIFAZ_CONFIANZA_MIN) || 0.5,
+  ANTIFAZ_LECTURAS:       Number(process.env.ANTIFAZ_LECTURAS) || 3,          // lecturas seguidas de la IA para actuar
+  // Nariz cubierta: alarma para enfermería. Apagar la luz no despeja la vía aérea, por eso
+  // por defecto solo avisa. Con ANTIFAZ_NARIZ_APAGA=1 también apaga.
+  ANTIFAZ_NARIZ_APAGA:    process.env.ANTIFAZ_NARIZ_APAGA === '1',
+  ANTIFAZ_MOV_PAUSA_MS:   Number(process.env.ANTIFAZ_MOV_PAUSA_MS) || 2500,   // pausa del marcador mientras se mueve la lámpara
+  ANTIFAZ_CONFIANZA_MIN:  Number(process.env.ANTIFAZ_CONFIANZA_MIN) || 0.7,
   ANTIFAZ_SIN_CAMARA_S:   Number(process.env.ANTIFAZ_SIN_CAMARA_S) || 8,
   ANTIFAZ_SIN_IA_S:       Number(process.env.ANTIFAZ_SIN_IA_S) || 25,
   ANTIFAZ_VIGIA_S:        Number(process.env.ANTIFAZ_VIGIA_S) || 15,
@@ -668,6 +672,7 @@ function commandToText(command = {}) {
   }
   if (type === 'lock') return 'LOCK';
   if (type === 'beep') return 'BEEP';
+  if (type === 'seguro') return 'SEGURO=1';
   if (type === 'mute') return `MUTE=${Math.max(0, Math.round(Number(command.seconds) || 0))}`;
   return null;
 }
@@ -747,7 +752,7 @@ let lastTelemetry = null;      // última lectura completa, sin ocultar nada
 let lastStatus    = null;
 let espOnline     = false;
 let lastEspTs     = 0;
-let offlineSince  = 0;
+let offlineSince = Date.now();   // al arrancar sin lámpara también corre el plazo para cerrar sesiones viejas
 let currentLampMode = 'reposo';
 let lastMedicionAt = 0;
 let activePatientId = null;    // paciente que está usando la lámpara (tabla equipos)
@@ -928,6 +933,8 @@ function parseTelemetryPayload(body) {
     sensor_amb_fail:   Boolean(body.sensor_amb_fail),
     alarms_muted: body.alarms_muted != null ? boolFromEsp(body.alarms_muted) === true : null,
     paciente_id:  toNum(body.paciente_id) || null,
+    fw:           body.fw != null ? String(body.fw) : null,
+    mov:          boolFromEsp(body.mov) === true,
   };
 }
 
@@ -1016,6 +1023,7 @@ async function processEsp32Telemetry(body = {}) {
     ts: Date.now(),
   };
 
+  if (lastTelemetry.mov) lampMovHasta = Date.now() + CONFIG.ANTIFAZ_MOV_PAUSA_MS;
   const { estado, alarms } = evaluateStatusAndAlarms({ ...lastTelemetry });
   lastStatus = { estado: terapiaActiva ? estado : 'sin_datos', esp32_connected: true, terapiaActiva, modo_actual: modo, ts: Date.now() };
 
@@ -1033,8 +1041,8 @@ async function processEsp32Telemetry(body = {}) {
       // Si la terapia lleva un rato detenida, la sesión abierta se cierra sola.
       if (!inactiveSince) inactiveSince = Date.now();
       if (Date.now() - inactiveSince > SESSION_IDLE_FINISH_MS) {
-        const open = await getActiveSession(paciente_id);
-        if (open) await finalizeSession(open.id, { motivo: parsed.pausado ? 'detenida_manual' : 'completada' });
+        // Hay una sola lámpara: cualquier sesión que haya quedado abierta (de este u otro paciente) se cierra.
+        await finishOpenSessions(parsed.pausado ? 'detenida_manual' : 'completada');
         inactiveSince = Date.now();
       }
       return { status: 200, payload: { ok: true, terapiaActiva: false } };
@@ -1409,6 +1417,9 @@ const ANTIFAZ_MENSAJES = {
   sin_verificacion: 'No se pudo verificar el antifaz. La lámpara se apagó por seguridad.',
   no_verificable:   'No se ve el rostro del bebé: no es posible verificar el antifaz. Revisar posición.',
 };
+const ANTIFAZ_MENSAJES_AVISO = {
+  nariz_cubierta: 'El antifaz parece cubrir la nariz del bebé. Revisar de inmediato la vía aérea y la posición del antifaz.',
+};
 const ANTIFAZ_PELIGRO = new Set(['ojos_expuestos', 'antifaz_ausente', 'desplazado', 'marcador_ausente', 'nariz_cubierta']);
 
 const antifaz = {
@@ -1422,6 +1433,7 @@ const antifaz = {
   noVerificables: 0,
   avisoNoVerificable: false,
   bloqueo: null,            // { motivo, capa, ts, evento_id } tras un apagado por seguridad
+  avisos: new Set(),        // avisos ya enviados en este episodio (sin apagar)
   lectura: null,            // última lectura de la IA
   iaEstado: null,           // conclusión confirmada de la IA: ok | <peligro> | no_verificable
   // Capa 1: marcador
@@ -1472,8 +1484,9 @@ Durante la fototerapia el bebé debe llevar un antifaz (protector ocular opaco, 
 Observa la imagen y reporta SOLO lo que se ve, con la herramienta reportar_antifaz:
 - rostro_visible: se ve la cara de frente o casi de frente (aunque parte esté tapada por el antifaz). Es false si está boca abajo, totalmente de lado, tapado, o no hay nadie.
 - antifaz_presente: se ve un antifaz o protector ocular en la cabeza o la cara.
-- ojos_visibles: se ve al menos un ojo, abierto o cerrado, total o parcialmente, sin cubrir por el antifaz. Si tienes una duda razonable, responde true.
-- nariz_visible: la nariz se ve despejada. Es false si el antifaz u otro objeto la tapa.
+- ojos_visibles: true si se distingue al menos un ojo (párpado, pestañas o el ojo abierto) que el antifaz no tapa. Es false si la zona de los ojos está cubierta por el antifaz.
+- nariz_visible: true si se ve la nariz por debajo del antifaz (la punta, las fosas nasales o su forma), aunque sea pequeña, oscura o de piel morena. Es false solo si el material del antifaz baja y cubre claramente la nariz.
+El tono de piel no importa: evalúa igual a bebés de piel clara, morena u oscura. Si la cámara está muy cerca o la cara se ve solo en parte y no alcanzas a ver la zona de los ojos y de la nariz, pon rostro_visible en false.
 - confianza: de 0 a 1, qué tan seguro estás del conjunto.
 - nota: una frase corta en español con lo que ves.
 Si rostro_visible es false, pon ojos_visibles en false y nariz_visible en false.`;
@@ -1570,6 +1583,11 @@ async function lecturaIA() {
 
 // ---------- Capa 1: marcador ArUco ----------
 
+// Si la cámara va en la lámpara, al moverse los actuadores el marcador cambia de lugar en la
+// imagen aunque el antifaz no se haya movido. Mientras tanto la capa del marcador espera.
+let lampMovHasta = 0;
+const lamparaMoviendose = () => Date.now() < lampMovHasta;
+
 const diffAngulo = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 
 // Compara la posición del marcador con la zona guardada al calibrar.
@@ -1592,6 +1610,7 @@ function lecturaMarcador() {
     const l = detectarMarcador(foto.buf);
     l.ts = Date.now(); l.foto_n = foto.n; l.foto_ts = foto.ts;
     l.clase = antifaz.zona ? clasificarMarcador(l) : (l.encontrado ? 'ok' : 'marcador_ausente');
+    if (lamparaMoviendose()) { l.en_movimiento = true; l.clase_real = l.clase; l.clase = 'en_movimiento'; }
     antifaz.m.lectura = l;
     antifaz.m.error = null;
     antifaz.m.ultimoOk = Date.now();
@@ -1632,7 +1651,10 @@ async function apagarPorSeguridad(motivo, capa, { lectura = null, foto = null, i
   if (antifaz.bloqueo && Date.now() - antifaz.bloqueo.ts < 5000) return;     // ya se está apagando
   antifaz.bloqueo = { motivo, capa, ts: Date.now(), evento_id: null };
 
-  const result = await sendCommandToESP({ type: 'mode', mode: 'reposo' });
+  // Firmware 3.2 o más nuevo: apaga solo la luz y deja que los actuadores terminen su movimiento.
+  // Firmware anterior: pasa a reposo con la orden de siempre.
+  const fwNuevo = parseFloat(lastTelemetry?.fw || '0') >= 3.2;
+  const result = await sendCommandToESP(fwNuevo ? { type: 'seguro' } : { type: 'mode', mode: 'reposo' });
   if (result.sent) {
     currentLampMode = 'reposo';
     io.emit('lamp:command', { type: 'mode', mode: 'reposo', paciente_id: activePatientId, motivo: 'antifaz' });
@@ -1654,6 +1676,20 @@ async function apagarPorSeguridad(motivo, capa, { lectura = null, foto = null, i
     await insertAlarmRecord({ sesion_id: sesion?.id || null, paciente_id: activePatientId,
       alarm: { tipo: tipoAlarma, severidad: 'critical', mensaje } }).catch(e => console.error('[ANTIFAZ] alarma:', e.message));
     await logEvent({ paciente_id: activePatientId, tipo: 'alarma_registrada', descripcion: `Antifaz: ${mensaje}`, metadata: { motivo, capa } }).catch(() => {});
+  }
+}
+
+// Alarma para enfermería sin apagar la lámpara (una vez por episodio).
+async function avisarRiesgo(motivo, lectura, foto) {
+  if (antifaz.avisos.has(motivo)) return;
+  antifaz.avisos.add(motivo);
+  const mensaje = ANTIFAZ_MENSAJES_AVISO[motivo] || ANTIFAZ_MENSAJES[motivo];
+  const evento_id = await guardarEventoAntifaz({ tipo: 'aviso', motivo, capa: 'ia', lectura, foto });
+  io.emit('antifaz:alarma', { ...antifazPublico(), paciente_id: activePatientId, mensaje, evento_id, apagado: false, motivo, critico: true });
+  if (activePatientId) {
+    const sesion = await getActiveSession(activePatientId).catch(() => null);
+    await insertAlarmRecord({ sesion_id: sesion?.id || null, paciente_id: activePatientId,
+      alarm: { tipo: 'antifaz_desplazado', severidad: 'critical', mensaje } }).catch(() => {});
   }
 }
 
@@ -1690,7 +1726,11 @@ async function cicloIA() {
       antifaz.ia.proxima = (terapiaEnCurso() && !confirmado) ? 0 : Date.now() + CONFIG.ANTIFAZ_IA_MS;
       if (confirmado) {
         antifaz.iaEstado = lectura.clase;
-        if (terapiaEnCurso()) await apagarPorSeguridad(lectura.clase, 'ia', { lectura, foto, inicio: antifaz.rachaInicio });
+        const soloAviso = lectura.clase === 'nariz_cubierta' && !CONFIG.ANTIFAZ_NARIZ_APAGA;
+        if (terapiaEnCurso()) {
+          if (soloAviso) await avisarRiesgo('nariz_cubierta', lectura, foto);
+          else await apagarPorSeguridad(lectura.clase, 'ia', { lectura, foto, inicio: antifaz.rachaInicio });
+        }
       }
     } else {
       antifaz.racha = 0;
@@ -1702,7 +1742,7 @@ async function cicloIA() {
           if (terapiaEnCurso()) await avisarNoVerificable(lectura, foto);
         }
       } else {
-        antifaz.noVerificables = 0; antifaz.avisoNoVerificable = false;
+        antifaz.noVerificables = 0; antifaz.avisoNoVerificable = false; antifaz.avisos.clear();
         antifaz.iaEstado = 'ok';
       }
     }
@@ -1722,7 +1762,7 @@ async function antifazTick() {
 
     const terapia = terapiaEnCurso();
     // Tras un apagado se sigue mirando unos minutos, para mostrar cuándo el antifaz vuelve a estar bien.
-    const trasBloqueo = antifaz.bloqueo && now - antifaz.bloqueo.ts < 5 * 60_000;
+    const trasBloqueo = antifaz.bloqueo && now - antifaz.bloqueo.ts < 2 * 60_000;
     const vigilar = terapia || trasBloqueo || antifaz.pruebaHasta > now;
 
     if (vigilar && !antifaz.vigilando) {
@@ -1758,7 +1798,9 @@ async function antifazTick() {
       const rm = lecturaMarcador();
       if (rm) {
         const { lectura, foto } = rm;
-        if (lectura.clase === 'ok') {
+        if (lectura.clase === 'en_movimiento') {
+          // no cuenta ni a favor ni en contra
+        } else if (lectura.clase === 'ok') {
           antifaz.m.racha = 0; antifaz.m.estado = 'ok';
         } else {
           if (antifaz.m.racha === 0 || antifaz.m.clasePrev !== lectura.clase) { antifaz.m.racha = 0; antifaz.m.rachaInicio = foto.ts; }
@@ -1819,6 +1861,22 @@ const esClinico = auth => auth?.rol === 'doctor' || auth?.rol === 'admin';
 
 app.get('/api/antifaz/estado', (req, res) => {
   res.json({ ok: true, antifaz: antifazPublico(esClinico(req.auth)) });
+});
+
+// "Entendido": el personal vio el aviso. Se limpia el apagado para que deje de mostrarse.
+app.post('/api/antifaz/reconocer', async (req, res) => {
+  try {
+    if (!esClinico(req.auth)) return res.json({ ok: true, solo_local: true });
+    if (antifaz.bloqueo) {
+      await logEvent({ paciente_id: activePatientId, cuenta_id: req.auth.id, tipo: 'sistema',
+        descripcion: `Apagado por antifaz revisado (${antifaz.bloqueo.motivo})` }).catch(() => {});
+    }
+    antifaz.bloqueo = null; antifaz.racha = 0; antifaz.m.racha = 0; antifaz.avisos.clear();
+    antifaz.iaEstado = null; antifaz.m.estado = null;
+    setAntifazEstado(terapiaEnCurso() ? 'revisando' : 'en_espera');
+    io.emit('antifaz:estado', antifazPublico());
+    res.json({ ok: true, antifaz: antifazPublico(true) });
+  } catch (e) { return sendServerError(res, e, 'ANTIFAZ_RECONOCER'); }
 });
 
 app.post('/api/antifaz/supervision', async (req, res) => {
@@ -3825,6 +3883,7 @@ io.on('connection', socket => {
         return socket.emit('lamp:denied', { action: 'move', reason: denied, message: messages[denied] || lampErrorMessage(denied) });
       }
     }
+    if (dir !== 'stop') lampMovHasta = Date.now() + 4000;
     const result = await sendCommandToESP({ type: 'move', dir });
     if (!result.sent) return socket.emit('lamp:denied', { action: 'move', reason: result.reason, message: lampErrorMessage(result.reason) });
     io.emit('lamp:command', { type: 'move', dir });
