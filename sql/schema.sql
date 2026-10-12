@@ -494,3 +494,18 @@ CREATE TABLE IF NOT EXISTS antifaz_eventos (
   KEY ix_antifaz_paciente (paciente_id, created_at),
   KEY ix_antifaz_sesion (sesion_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- 18. MEDICIONES DE PESO Y TALLA (desde la cuna balanza o ingresadas a mano)
+CREATE TABLE IF NOT EXISTS antropometria (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  paciente_id  INT           NOT NULL,
+  peso_g       DECIMAL(7,1)  NULL,
+  talla_cm     DECIMAL(5,1)  NULL,
+  temp_c       DECIMAL(4,1)  NULL,
+  origen       ENUM('cuna','manual') NOT NULL DEFAULT 'cuna',
+  equipo       VARCHAR(40)   NULL,
+  cuenta_id    INT           NULL,
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_antropometria_paciente (paciente_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

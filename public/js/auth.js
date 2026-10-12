@@ -463,6 +463,7 @@ export async function doLogin() {
 export function doLogout(showMsg = false) {
   stopVoice();
   import("./antifaz.js").then(({ stopAntifaz }) => stopAntifaz()).catch(() => {});
+  import("./cuna.js").then(({ stopCuna }) => stopCuna()).catch(() => {});
   state.currentUserId  = null;
   state.currentRole    = null;
   state.currentTutorId = null;

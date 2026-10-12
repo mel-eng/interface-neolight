@@ -54,6 +54,7 @@ export async function enterFromSession(data) {
   }
   state.currentRole = role;
   import("./antifaz.js").then(({ initAntifaz }) => initAntifaz(role)).catch(() => {});
+  import("./cuna.js").then(({ initCuna }) => initCuna(role, { patientId: () => data?.paciente?.id ?? null })).catch(() => {});
 
 
   if (role === "superuser") {

@@ -345,7 +345,7 @@ const PUBLIC_API = new Set([
   'POST /api/login', 'POST /api/register', 'POST /api/register-doctor',
   'POST /api/doctor/verify-code', 'GET /api/doctors', 'GET /api/health', 'GET /api/client-config',
   'POST /api/esp32-data', 'POST /api/esp32/telemetry', 'POST /api/superuser-access/code',
-  'POST /api/tech-access', 'GET /api/tech-access/status', 'POST /api/cam/frame',          // el equipo usa su propia clave
+  'POST /api/tech-access', 'GET /api/tech-access/status', 'POST /api/cuna-data', 'POST /api/cam/frame',          // el equipo usa su propia clave
 ]);
 
 app.use(async (req, res, next) => {
@@ -996,6 +996,7 @@ function visibleTelemetry() {
     esp32_connected: espOnline,
     cam_online: camOnline(),
     antifaz: antifaz.estado, antifaz_on: antifaz.on,
+    cuna: cunaPublica(),
   };
 }
 
@@ -1007,6 +1008,8 @@ async function processEsp32Telemetry(body = {}) {
 
   noteTechFlag(body);
   const parsed = parseTelemetryPayload(body);
+  if (parsed.tBebe == null && cunaOnline() && cuna.temp_c != null) parsed.tBebe = cuna.temp_c;
+  if (parsed.peso == null && cunaOnline() && cuna.peso_g != null) parsed.peso = cuna.peso_g;
   const paciente_id = await resolveTelemetryPatientId(parsed.paciente_id);
 
   await setEspOnline(paciente_id);
@@ -1984,6 +1987,112 @@ app.get('/api/antifaz/eventos/:id/foto.jpg', async (req, res) => {
   } catch (e) { return sendServerError(res, e, 'ANTIFAZ_FOTO'); }
 });
 
+// ===================== CUNA / BALANZA (equipo propio) ========================
+//
+// La cuna es un equipo aparte (CUNA-01). Se conecta al WiFi de la lámpara, sale a internet
+// a través del maestro y manda sus datos directo aquí, sin pasar por el código del maestro.
+//   POST /api/cuna-data   x-device-key: <DEVICE_KEY>
+//   { "equipo":"CUNA-01", "peso_g":3150, "estable":true, "talla_cm":49.5, "temp_c":36.8 }
+// Todos los campos son opcionales: manda los que tenga.
+
+const CUNA_OFFLINE_MS = 8000;
+let cuna = null;                 // última lectura { equipo, peso_g, estable, talla_cm, temp_c, ts }
+let cunaVistaDb = 0;
+const cunaOnline = () => !!cuna && Date.now() - cuna.ts < CUNA_OFFLINE_MS;
+
+function cunaPublica() {
+  return cunaOnline()
+    ? { online: true, equipo: cuna.equipo, peso_g: cuna.peso_g, estable: cuna.estable, talla_cm: cuna.talla_cm,
+        temp_c: cuna.temp_c, hace_s: Math.round((Date.now() - cuna.ts) / 1000) }
+    : { online: false, equipo: cuna?.equipo || null };
+}
+
+const enRango = (v, min, max) => { const n = toNum(v); return n != null && n >= min && n <= max ? n : null; };
+
+app.post('/api/cuna-data', async (req, res) => {
+  if (CONFIG.DEVICE_KEY && req.headers['x-device-key'] !== CONFIG.DEVICE_KEY)
+    return res.status(401).json({ ok: false, error: 'clave_de_equipo_invalida' });
+  const b = req.body || {};
+  const equipo = String(b.equipo || 'CUNA-01').trim().toUpperCase().slice(0, 40) || 'CUNA-01';
+  const estaba = cunaOnline();
+  cuna = {
+    equipo,
+    peso_g:   enRango(b.peso_g ?? b.peso, 0, 20000),
+    estable:  b.estable != null ? boolFromEsp(b.estable) === true : null,
+    talla_cm: enRango(b.talla_cm ?? b.talla, 20, 80),
+    temp_c:   enRango(b.temp_c ?? b.temp_bebe ?? b.temperatura, 25, 45),
+    ts: Date.now(),
+  };
+  if (!estaba) console.log(`[CUNA] ${equipo} conectada.`);
+  io.emit('cuna', cunaPublica());
+
+  // El equipo aparece solo en la lista de equipos y se marca cada tanto como visto.
+  if (Date.now() - cunaVistaDb > 30_000) {
+    cunaVistaDb = Date.now();
+    pool?.execute(
+      `INSERT INTO equipos (codigo, descripcion, estado, last_seen_at) VALUES (?, 'Cuna balanza neonatal', 'operativo', NOW())
+       ON DUPLICATE KEY UPDATE last_seen_at = NOW()`, [equipo]).catch(e => console.warn('[CUNA] equipos:', e.message));
+  }
+  // Botón PESO de la cuna: guarda la medición en la ficha del paciente que está en la lámpara.
+  if (boolFromEsp(b.guardar) === true) {
+    const r = await guardarDesdeBotonCuna().catch(e => ({ guardado: false, mensaje: 'Error al guardar' , error: e.message }));
+    return res.json({ ok: true, ...r });
+  }
+  res.json({ ok: true });
+});
+
+let cunaUltimoGuardado = 0;
+async function guardarDesdeBotonCuna() {
+  if (Date.now() - cunaUltimoGuardado < 3000) return { guardado: true, mensaje: 'Ya guardado' };
+  if (!activePatientId) return { guardado: false, mensaje: 'Sin paciente asignado' };
+  if (cuna.peso_g == null && cuna.talla_cm == null) return { guardado: false, mensaje: 'Sin datos' };
+  if (cuna.estable === false) return { guardado: false, mensaje: 'Peso no estable' };
+  cunaUltimoGuardado = Date.now();
+  await pool.execute(
+    `INSERT INTO antropometria (paciente_id, peso_g, talla_cm, temp_c, origen, equipo, cuenta_id) VALUES (?, ?, ?, ?, 'cuna', ?, NULL)`,
+    [activePatientId, cuna.peso_g, cuna.talla_cm, cuna.temp_c, cuna.equipo]);
+  if (cuna.peso_g != null) await pool.execute(`UPDATE pacientes SET peso_actual_g = ? WHERE id = ?`, [cuna.peso_g, activePatientId]);
+  await logEvent({ paciente_id: activePatientId, tipo: 'sistema',
+    descripcion: `Medición guardada desde la cuna: ${cuna.peso_g ?? '—'} g · ${cuna.talla_cm ?? '—'} cm` }).catch(() => {});
+  io.emit('antropometria:nueva', { paciente_id: activePatientId, peso_g: cuna.peso_g, talla_cm: cuna.talla_cm, desde: 'cuna' });
+  return { guardado: true, mensaje: 'Guardado en la ficha' };
+}
+
+app.get('/api/cuna/estado', (_req, res) => res.json({ ok: true, cuna: cunaPublica() }));
+
+// Peso y talla en la ficha del paciente (los toma de la cuna si no se envían a mano).
+app.post('/api/patients/:id/antropometria', async (req, res) => {
+  try {
+    const pacienteId = Number(req.params.id);
+    const b = req.body || {};
+    const desdeCuna = b.origen !== 'manual';
+    const peso  = desdeCuna ? (cunaOnline() ? cuna.peso_g : null) : enRango(b.peso_g, 300, 20000);
+    const talla = desdeCuna ? (cunaOnline() ? cuna.talla_cm : null) : enRango(b.talla_cm, 20, 80);
+    const temp  = desdeCuna ? (cunaOnline() ? cuna.temp_c : null) : enRango(b.temp_c, 25, 45);
+    if (peso == null && talla == null)
+      return res.status(409).json({ ok: false, error: 'sin_datos', message: 'La cuna no está enviando peso ni talla.' });
+    if (desdeCuna && cuna.estable === false)
+      return res.status(409).json({ ok: false, error: 'no_estable', message: 'Espera a que el peso se estabilice.' });
+    const [r] = await pool.execute(
+      `INSERT INTO antropometria (paciente_id, peso_g, talla_cm, temp_c, origen, equipo, cuenta_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [pacienteId, peso, talla, temp, desdeCuna ? 'cuna' : 'manual', desdeCuna ? cuna.equipo : null, req.auth.id]);
+    if (peso != null) await pool.execute(`UPDATE pacientes SET peso_actual_g = ? WHERE id = ?`, [peso, pacienteId]);
+    await logEvent({ paciente_id: pacienteId, cuenta_id: req.auth.id, tipo: 'sistema',
+      descripcion: `Medición guardada: ${peso != null ? peso + ' g' : ''}${peso != null && talla != null ? ' · ' : ''}${talla != null ? talla + ' cm' : ''}` }).catch(() => {});
+    io.emit('antropometria:nueva', { paciente_id: pacienteId });
+    res.json({ ok: true, id: r.insertId, peso_g: peso, talla_cm: talla, temp_c: temp });
+  } catch (e) { return sendServerError(res, e, 'ANTROPOMETRIA_GUARDAR'); }
+});
+
+app.get('/api/patients/:id/antropometria', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, peso_g, talla_cm, temp_c, origen, created_at FROM antropometria WHERE paciente_id = ? ORDER BY created_at DESC LIMIT 30`,
+      [Number(req.params.id)]);
+    res.json({ ok: true, mediciones: rows });
+  } catch (e) { return sendServerError(res, e, 'ANTROPOMETRIA_LISTA'); }
+});
+
 // ===================== SALUDO DE BIENVENIDA CON VOZ ========================
 //
 // El texto se arma aquí, con datos reales de la base, y se convierte en audio con
@@ -2646,7 +2755,7 @@ app.get('/api/superuser/workspace', requireSuperuser, async (_req, res) => {
         sessions: i === 0 ? Number(e.sesiones_total) : 0,
         hours: i === 0 ? +(Number(e.duracion_total_s) / 3600).toFixed(1) : 0,
         lastTest: e.ultima_prueba_at, lastSeen: e.last_seen_at,
-        online: i === 0 ? espOnline : false,
+        online: /^CUNA/i.test(e.codigo) ? cunaOnline() : (i === 0 ? espOnline : false),
       })),
       maintenance: mant.map(m => ({ ...parseJson(m.detalle), id: `maint-${m.id}`, createdAt: m.created_at,
         equipmentId: String(m.equipo_id), type: m.tipo, result: m.resultado, responsible: m.responsable || '', notes: m.observaciones || '' })),

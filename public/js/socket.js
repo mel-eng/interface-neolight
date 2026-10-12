@@ -293,6 +293,9 @@ export function initSocket() {
       dispatchRealtimeEvent("esp32-status", payload || {});
     });
 
+    // Cuna balanza (equipo propio)
+    ioSocket.on("cuna", payload => dispatchRealtimeEvent("cuna", payload || {}));
+
     // Verificación del antifaz
     ioSocket.on("antifaz:estado", payload => dispatchRealtimeEvent("antifaz-estado", payload || {}));
     ioSocket.on("antifaz:alarma", payload => {

@@ -145,3 +145,18 @@ funciona como siempre.
 
 Después de un apagado por seguridad nada vuelve a encender la lámpara de forma
 automática: lo hace una persona desde la interfaz o el panel.
+
+
+## Cuna balanza (equipo CUNA-01)
+
+La cuna es un equipo propio. Se conecta al WiFi `NEOLIGHT` con IP fija 192.168.4.60 y DNS
+8.8.8.8, sale a internet a través del maestro y manda sus datos directo, una vez por segundo:
+
+    POST https://neolight.up.railway.app/api/cuna-data
+    x-device-key: <DEVICE_KEY>
+    { "equipo": "CUNA-01", "peso_g": 3150, "estable": true, "talla_cm": 49.5, "temp_c": 36.8 }
+
+Todos los campos son opcionales. La temperatura de la cuna se usa como temperatura del bebé
+(con sus alarmas) cuando la lámpara no la mide. El peso y la talla se guardan en la ficha con
+`POST /api/patients/:id/antropometria` (botón "Guardar en la ficha"). El código de envío está
+en `nube_cuna.h`; el maestro no necesita cambios.

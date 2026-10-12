@@ -919,8 +919,9 @@ function renderConnectivity() {
     esclavo: !online ? ["off", "Sin datos"]
       : t.slave === true ? ["ok", "Conectado"]
       : t.slave === false ? ["bad", "Sin respuesta: los actuadores y el panel no están enlazados"] : ["warn", "Sin datos"],
-    cuna: !online ? ["off", "Sin datos"]
-      : t.peso_g != null ? ["ok", `Enviando peso · ${Math.round(t.peso_g)} g`] : ["off", "No conectada"],
+    cuna: t.cuna?.online
+      ? ["ok", `${t.cuna.equipo || "CUNA-01"} conectada${t.cuna.peso_g != null ? ` · ${Math.round(t.cuna.peso_g)} g` : ""}${t.cuna.temp_c != null ? ` · ${t.cuna.temp_c} °C` : ""}`]
+      : ["off", "No conectada"],
     tecnico: t.acceso_tecnico_s > 0 ? ["warn", `Habilitado desde el panel · quedan ${t.acceso_tecnico_s} s`] : ["off", "Cerrado"],
   };
   Object.entries(rows).forEach(([key, [state, text]]) => {

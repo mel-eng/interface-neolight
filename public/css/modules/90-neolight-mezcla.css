@@ -640,3 +640,28 @@ html body #view-dashboard-patient .pt-rest-card span{max-width:34ch;color:var(--
 .pt-rest-eyes .z2{font-size:12px;animation-delay:.6s}
 @keyframes ptZ{0%,100%{opacity:.25;transform:translateY(3px)}50%{opacity:1;transform:translateY(-3px)}}
 @media (prefers-reduced-motion:reduce){.pt-rest-eyes .z{animation:none}}
+
+/* ---------- L. Cuna balanza (tutor y doctor) ---------- */
+html body .cuna-card{background:var(--nl-surface)!important;border:1px solid var(--nl-line)!important;border-radius:22px!important;padding:16px!important;margin:0 0 14px!important;display:grid!important;gap:12px!important}
+html body .cuna-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+html body .cuna-card h3{display:flex;align-items:center;gap:8px;margin:0;font-size:1.05rem;font-weight:800;color:var(--nl-ink)}
+html body .cuna-card h3 svg{color:var(--nl-accent)}
+html body .cuna-pill{padding:4px 11px;border-radius:999px;font-size:.78rem;font-weight:800;background:var(--nl-surface-2);color:var(--nl-muted)}
+html body .cuna-card[data-online="1"] .cuna-pill{background:var(--nl-ok-soft);color:var(--nl-ok)}
+html body .cuna-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+html body .cuna-grid>div{background:var(--nl-cream-soft);border-radius:14px;padding:10px;display:grid;gap:2px;min-width:0}
+html body .cuna-grid>div:nth-child(2){background:var(--nl-sky-soft)}
+html body .cuna-grid>div:nth-child(3){background:var(--nl-coral-soft)}
+html body .cuna-grid small{font-size:.74rem;color:var(--nl-muted);font-weight:700}
+html body .cuna-grid b{font-size:1.02rem;font-weight:800;color:var(--nl-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html body .cuna-grid b.is-high{color:var(--nl-danger)} html body .cuna-grid b.is-low{color:var(--nl-sky-ink)} html body .cuna-grid b.is-ok{color:var(--nl-ok)}
+html body .cuna-grid em{font-style:normal;font-size:.72rem;color:var(--nl-muted);min-height:1em}
+html body .cuna-save{border:0;border-radius:12px;padding:11px;font:inherit;font-weight:800;cursor:pointer;background:var(--nl-accent);color:#fff}
+html body .cuna-save:disabled{background:var(--nl-surface-2);color:var(--nl-faint);cursor:not-allowed}
+html body .cuna-note{margin:0;font-size:.82rem;color:var(--nl-muted);min-height:0}
+html body .cuna-note:empty{display:none}
+html body .cuna-note[data-ok="1"]{color:var(--nl-ok)} html body .cuna-note[data-ok="0"]{color:var(--nl-danger)}
+/* La cuna va en columnas laterales angostas: una fila por dato */
+html body .cuna-grid{grid-template-columns:1fr!important;gap:6px!important}
+html body .cuna-grid>div{display:grid!important;grid-template-columns:1fr auto!important;grid-template-areas:"lbl val" "est val"!important;align-items:center!important;padding:9px 12px!important}
+html body .cuna-grid small{grid-area:lbl} html body .cuna-grid em{grid-area:est} html body .cuna-grid b{grid-area:val;font-size:1.12rem!important}
