@@ -331,6 +331,15 @@ export function initSocket() {
     ioSocket.on("session:paused",   payload => { console.log("[SESSION] paused",  payload); dispatchRealtimeEvent("session-paused", payload || {}); });
     ioSocket.on("session:finished", payload => { console.log("[SESSION] finished",payload); dispatchRealtimeEvent("session-finished", payload || {}); });
     ioSocket.on("plan:updated", payload => dispatchRealtimeEvent("plan-updated", payload || {}));
+    ioSocket.on("plan:progreso", payload => {
+      if (isPayloadForCurrentPatient(payload || {}) || isPayloadForCurrentDoctor(payload || {}))
+        dispatchRealtimeEvent("plan-progreso", payload || {});
+    });
+    ioSocket.on("plan:completado", payload => {
+      const forPatient = isPayloadForCurrentPatient(payload || {});
+      const forDoctor = isPayloadForCurrentDoctor(payload || {});
+      if (forPatient || forDoctor) dispatchRealtimeEvent("plan-completado", { ...(payload || {}), forPatient, forDoctor });
+    });
     ioSocket.on("doctor-request:new", payload => {
       if (isPayloadForCurrentDoctor(payload || {})) {
         playNotificationSound();

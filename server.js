@@ -27,6 +27,7 @@ import crypto          from 'crypto';
 import { fileURLToPath } from 'url';
 import { Server as SocketIOServer } from 'socket.io';
 import ExcelJS         from 'exceljs';
+import { registrarReportes } from './reportes.js';
 import { detectarMarcador } from './aruco-layer.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -470,6 +471,11 @@ async function ensureSchemaCompatibility() {
   await safe(`ALTER TABLE alarmas ADD INDEX ix_paciente_created_at (paciente_id, created_at)`);
   await safe(`ALTER TABLE alarmas ADD INDEX ix_alarmas_activas (paciente_id, silenciada, tipo)`);
 
+  // Foto del paciente para los reportes.
+  await safe(`ALTER TABLE pacientes ADD COLUMN foto MEDIUMBLOB NULL`);
+  await safe(`ALTER TABLE pacientes ADD COLUMN foto_at DATETIME NULL`);
+  await safe(`ALTER TABLE pacientes ADD COLUMN foto_origen VARCHAR(20) NULL`);
+
   // Firma del doctor para los reportes.
   await safe(`ALTER TABLE cuentas ADD COLUMN firma_png MEDIUMTEXT NULL COMMENT 'Firma dibujada (PNG en base64)'`);
 
@@ -508,17 +514,45 @@ async function getActivePlan(paciente_id, conn = null) {
   );
   if (!rows.length) return null;
   const p = rows[0];
+  // La sesión que está corriendo también cuenta: el avance se ve en vivo, no recién al cerrar la sesión.
+  // Se mide igual que al cerrarla: desde el inicio hasta la última medición guardada.
+  const [[vivo]] = await db.execute(
+    `SELECT s.id AS sesion_id,
+            GREATEST(0, TIMESTAMPDIFF(SECOND, s.started_at,
+              (SELECT MAX(m.created_at) FROM mediciones m WHERE m.sesion_id = s.id))) AS s_en_curso
+     FROM sesiones s
+     WHERE s.paciente_id = ? AND s.status IN ('active','paused') AND (s.plan_id = ? OR s.plan_id IS NULL)
+     ORDER BY s.created_at DESC LIMIT 1`,
+    [paciente_id, p.id]
+  ).catch(() => [[null]]);
+  const enCurso = Number(vivo?.s_en_curso || 0);
+  const total = Math.min(p.meta_total_s, Number(p.tiempo_acumulado_s) + enCurso);
   return {
     ...p,
-    tiempo_restante_s:  Math.max(0, p.meta_total_s - p.tiempo_acumulado_s),
-    porcentaje_avance:  p.meta_total_s ? +(( p.tiempo_acumulado_s / p.meta_total_s) * 100).toFixed(2) : 0,
-    horas_acumuladas:   +(p.tiempo_acumulado_s / 3600).toFixed(2),
+    tiempo_guardado_s:  p.tiempo_acumulado_s,
+    tiempo_en_curso_s:  enCurso,
+    sesion_en_curso_id: vivo?.sesion_id || null,
+    tiempo_acumulado_s: total,
+    meta_cumplida:      total >= p.meta_total_s,
+    tiempo_restante_s:  Math.max(0, p.meta_total_s - total),
+    porcentaje_avance:  p.meta_total_s ? +((total / p.meta_total_s) * 100).toFixed(1) : 0,
+    horas_acumuladas:   +(total / 3600).toFixed(2),
     horas_meta:         +(p.meta_total_s        / 3600).toFixed(2),
     // FIX: calcular progreso real desde sesiones terminadas
     horas_por_dia:      p.horas_por_dia    || null,
     sesiones_por_dia:   p.sesiones_por_dia || null,
     duracion_sesion_min: p.duracion_sesion_min || null,
   };
+}
+
+// Último plan completado, si el doctor todavía no creó otro. Sirve para mostrar la estrellita de fin.
+async function getPlanCompletado(paciente_id) {
+  const [rows] = await pool.execute(
+    `SELECT id, estado, meta_total_s, sesiones_realizadas, fecha_inicio, fecha_fin
+     FROM planes_terapia WHERE paciente_id = ? ORDER BY created_at DESC LIMIT 1`, [paciente_id]);
+  const p = rows[0];
+  if (!p || p.estado !== 'completado') return null;
+  return { ...p, horas_meta: +(p.meta_total_s / 3600).toFixed(2) };
 }
 
 async function getActiveSession(paciente_id, conn = null) {
@@ -673,17 +707,19 @@ function commandToText(command = {}) {
   if (type === 'lock') return 'LOCK';
   if (type === 'beep') return 'BEEP';
   if (type === 'seguro') return 'SEGURO=1';
+  if (type === 'fin') return 'FIN';
   if (type === 'mute') return `MUTE=${Math.max(0, Math.round(Number(command.seconds) || 0))}`;
   return null;
 }
 
 // Traduce el comando a la ruta HTTP del maestro (modo local).
 function commandToLocalPath(text) {
+  if (text === 'SEGURO=1') return `/modo?m=REPOSO`;
   const [name, value = ''] = text.split('=');
   if (name === 'MODO')  return `/modo?m=${encodeURIComponent(value)}`;
   if (name === 'MOVER') return `/mover?dir=${encodeURIComponent(value)}`;
   if (name === 'LOCK')  return `/lock`;
-  if (name === 'BEEP')  return `/beep`;
+  if (name === 'BEEP' || name === 'FIN')  return `/beep`;
   if (name === 'MUTE')  return `/mute?s=${encodeURIComponent(value)}`;
   return null;
 }
@@ -903,6 +939,72 @@ setInterval(async () => {
   }
 }, 5000);
 
+// ===================== META DEL PLAN ========================
+// Cuando el bebé completa las horas que indicó el doctor, la lámpara se apaga sola, suena la
+// melodía de fin (como una lavadora) y se avisa al tutor y al doctor. El doctor decide si da el
+// alta o si actualiza el plan: la lámpara no vuelve a encender sola.
+
+let planRevisadoAt = 0;
+let planProgresoEmitidoAt = 0;
+const planesCerrando = new Set();
+
+async function revisarMetaDelPlan(paciente_id, sesion) {
+  if (Date.now() - planRevisadoAt < 2000) return;
+  planRevisadoAt = Date.now();
+
+  const plan = await getActivePlan(paciente_id);
+  if (!plan || planesCerrando.has(plan.id)) return;
+
+  // Si el plan se creó con la sesión ya corriendo, la sesión se suma a ese plan.
+  if (!sesion.plan_id) {
+    await pool.execute(`UPDATE sesiones SET plan_id = ? WHERE id = ? AND plan_id IS NULL`, [plan.id, sesion.id]);
+    sesion.plan_id = plan.id;
+  }
+
+  if (!plan.meta_cumplida) {
+    if (Date.now() - planProgresoEmitidoAt > 5000) {
+      planProgresoEmitidoAt = Date.now();
+      io.emit('plan:progreso', { paciente_id, plan_id: plan.id, porcentaje: plan.porcentaje_avance,
+        acumulado_s: plan.tiempo_acumulado_s, meta_s: plan.meta_total_s, restante_s: plan.tiempo_restante_s });
+    }
+    return;
+  }
+  await completarPlan(paciente_id, plan, sesion);
+}
+
+async function completarPlan(paciente_id, plan, sesion) {
+  planesCerrando.add(plan.id);
+  try {
+    // 1) Apagar la luz y tocar la melodía de fin. Un maestro sin la orden FIN la ignora y suena el pitido.
+    const r = await sendCommandToESP({ type: 'mode', mode: 'reposo' });
+    if (r.sent) {
+      currentLampMode = 'reposo';
+      io.emit('lamp:command', { type: 'mode', mode: 'reposo', paciente_id, motivo: 'plan_completado' });
+    }
+    await sendCommandToESP({ type: 'fin' });
+    if (parseFloat(lastTelemetry?.fw || '0') < 3.3) sendCommandToESP({ type: 'beep' }).catch(() => {});
+
+    // 2) Cerrar la sesión y marcar el plan como completado.
+    await finalizeSession(sesion.id, { motivo: 'completada', metaCumplida: true,
+      observaciones: 'Sesión cerrada al cumplir la meta del plan' });
+    await pool.execute(
+      `UPDATE planes_terapia SET estado = 'completado', tiempo_acumulado_s = meta_total_s, fecha_fin = COALESCE(fecha_fin, NOW())
+       WHERE id = ? AND estado = 'activo'`, [plan.id]);
+    inactiveSince = Date.now();
+
+    const [[p]] = await pool.execute(
+      `SELECT p.nombre, p.apellidos, p.doctor_id, p.tutor_id FROM pacientes p WHERE p.id = ?`, [paciente_id]);
+    const nombre = `${p?.nombre || ''} ${p?.apellidos || ''}`.trim() || 'el paciente';
+    const horas = +(plan.meta_total_s / 3600).toFixed(2);
+    io.emit('plan:completado', { paciente_id, plan_id: plan.id, doctor_id: p?.doctor_id || null, tutor_id: p?.tutor_id || null,
+      paciente: nombre, horas, sesiones: Number(plan.sesiones_realizadas || 0) + 1, ts: Date.now() });
+    io.emit('plan:updated', { paciente_id, plan_id: plan.id, estado: 'completado' });
+    console.log(`[PLAN] Terapia completada para ${nombre} (${horas} h).`);
+  } finally {
+    setTimeout(() => planesCerrando.delete(plan.id), 60_000);
+  }
+}
+
 async function finishOpenSessions(motivo) {
   const [rows] = await pool.execute(`SELECT id FROM sesiones WHERE status IN ('active','paused')`);
   for (const row of rows) await finalizeSession(row.id, { motivo }).catch(e => console.warn('[SESION]', e.message));
@@ -1055,6 +1157,7 @@ async function processEsp32Telemetry(body = {}) {
     await syncResolvedAutoAlarms(paciente_id, alarms.map(a => a.tipo)).catch(e => console.warn('[ALARMAS] sync:', e.message));
     let sesion = await getActiveSession(paciente_id);
     if (!sesion) sesion = await autoStartSessionForTelemetry(paciente_id, modo);
+    if (sesion) await revisarMetaDelPlan(paciente_id, sesion).catch(e => console.warn('[PLAN] meta:', e.message));
 
     // La lámpara puede informar dos veces por segundo; se guarda una medición por segundo.
     const guardarMedicion = Date.now() - lastMedicionAt >= 900;
@@ -1455,7 +1558,7 @@ function antifazPublico(detalle = false) {
     on: antifaz.on, estado: antifaz.estado, etiqueta: ANTIFAZ_ETIQUETAS[antifaz.estado] || antifaz.estado,
     desde: antifaz.desde, camara: camOnline(),
     bloqueo: antifaz.bloqueo ? { motivo: antifaz.bloqueo.motivo, capa: antifaz.bloqueo.capa, ts: antifaz.bloqueo.ts,
-                                 mensaje: ANTIFAZ_MENSAJES[antifaz.bloqueo.motivo] || '' } : null,
+                                 mensaje: antifaz.bloqueo.mensaje || ANTIFAZ_MENSAJES[antifaz.bloqueo.motivo] || '' } : null,
   };
   if (!detalle) return base;
   return { ...base,
@@ -1482,32 +1585,38 @@ function setAntifazEstado(estado) {
 
 const ANTIFAZ_PROMPT = `Eres parte de un sistema de apoyo a enfermería en fototerapia neonatal. Recibes una foto tomada desde arriba de una cuna. La imagen puede verse azul por la luz de la lámpara, o en escala de grises. El paciente puede ser un bebé o un maniquí de simulación: trátalo igual.
 
-Durante la fototerapia el bebé debe llevar un antifaz (protector ocular opaco, de tela o espuma, sujeto alrededor de la cabeza) que le tape los dos ojos por completo. El antifaz puede llevar pegado un cuadrado con un patrón blanco y negro. En las pruebas el antifaz puede ser casero: cuenta como antifaz cualquier cobertura opaca u oscura que tape los dos ojos, por ejemplo una banda de tela, cinta negra con forma de antifaz o unas gafas de cristales oscuros que no dejen ver los ojos. Unas gafas o lentes transparentes, a través de los que se ven los ojos, NO son un antifaz: en ese caso antifaz_presente es false y ojos_visibles es true.
+Durante la fototerapia el bebé debe llevar un antifaz (protector ocular opaco, de tela o espuma, sujeto alrededor de la cabeza) que le tape LOS DOS ojos por completo. El antifaz puede llevar pegado un cuadrado con un patrón blanco y negro. En las pruebas el antifaz puede ser casero: cuenta como antifaz cualquier cobertura opaca u oscura, por ejemplo una banda de tela, cinta negra o unas gafas de cristales oscuros. Unas gafas o lentes transparentes, a través de los que se ven los ojos, NO tapan nada.
 
-Observa la imagen y reporta SOLO lo que se ve, con la herramienta reportar_antifaz:
+LO MÁS IMPORTANTE: revisa cada ojo POR SEPARADO. Un error frecuente es ver un antifaz en la cara y suponer que tapa los dos ojos. Un antifaz corrido, torcido o en diagonal muchas veces tapa un solo ojo y deja el otro a la vista. Primero ubica dónde estarían los dos ojos (a los lados de la nariz, debajo de las cejas) y mira qué hay encima de cada uno. Si en el lugar de un ojo se ve piel, un párpado, pestañas o el ojo abierto o cerrado, ese ojo está "visible" aunque el otro esté tapado. Un ojo cerrado sigue estando expuesto a la luz: cuenta como "visible".
+
+Usa la herramienta reportar_antifaz, rellenando los campos en este orden:
+- observacion_ojos: una frase describiendo qué hay sobre el ojo izquierdo de la imagen y qué hay sobre el ojo derecho de la imagen.
+- ojo_izquierdo / ojo_derecho (izquierda y derecha de la IMAGEN): "cubierto" si un material opaco lo tapa entero; "visible" si se ve el ojo, el párpado, las pestañas o piel donde debería estar el ojo; "no_se_ve" solo si esa zona queda fuera de la foto o tapada por otra cosa que no permite decidir.
 - rostro_visible: se ve la cara de frente o casi de frente (aunque parte esté tapada por el antifaz). Es false si está boca abajo, totalmente de lado, tapado, o no hay nadie.
-- antifaz_presente: se ve un antifaz o protector ocular en la cabeza o la cara.
-- ojos_visibles: true si se distingue al menos un ojo (párpado, pestañas o el ojo abierto) que el antifaz no tapa. Es false si la zona de los ojos está cubierta por el antifaz.
+- antifaz_presente: se ve un antifaz, cinta o protector ocular en la cara, aunque esté mal puesto.
 - nariz_visible: true si se ve la nariz por debajo del antifaz (la punta, las fosas nasales o su forma), aunque sea pequeña, oscura o de piel morena. Es false solo si el material del antifaz baja y cubre claramente la nariz.
-El tono de piel no importa: evalúa igual a bebés de piel clara, morena u oscura. Si la cámara está muy cerca o la cara se ve solo en parte y no alcanzas a ver la zona de los ojos y de la nariz, pon rostro_visible en false.
 - confianza: de 0 a 1, qué tan seguro estás del conjunto.
-- nota: una frase corta en español con lo que ves.
-Si rostro_visible es false, pon ojos_visibles en false y nariz_visible en false.`;
+- nota: una frase corta en español con lo que ves. Si un solo ojo está tapado, dilo.
+El tono de piel no importa: evalúa igual a bebés de piel clara, morena u oscura. Si la cámara está muy cerca o la cara se ve solo en parte y no alcanzas a ver la zona de los ojos y de la nariz, pon rostro_visible en false.`;
+
+const OJO_VALORES = ['cubierto', 'visible', 'no_se_ve'];
 
 const ANTIFAZ_TOOL = {
   name: 'reportar_antifaz',
-  description: 'Reporta el estado del antifaz ocular del paciente en la imagen.',
+  description: 'Reporta el estado del antifaz ocular del paciente en la imagen, revisando cada ojo por separado.',
   input_schema: {
     type: 'object',
     properties: {
+      observacion_ojos: { type: 'string' },
+      ojo_izquierdo:    { type: 'string', enum: OJO_VALORES },
+      ojo_derecho:      { type: 'string', enum: OJO_VALORES },
       rostro_visible:   { type: 'boolean' },
       antifaz_presente: { type: 'boolean' },
-      ojos_visibles:    { type: 'boolean' },
       nariz_visible:    { type: 'boolean' },
       confianza:        { type: 'number' },
       nota:             { type: 'string' },
     },
-    required: ['rostro_visible', 'antifaz_presente', 'ojos_visibles', 'nariz_visible', 'confianza', 'nota'],
+    required: ['observacion_ojos', 'ojo_izquierdo', 'ojo_derecho', 'rostro_visible', 'antifaz_presente', 'nariz_visible', 'confianza', 'nota'],
   },
 };
 
@@ -1533,9 +1642,18 @@ async function consultarIA(buf) {
   const data = await r.json();
   const out = data?.content?.find(c => c.type === 'tool_use')?.input;
   if (!out || typeof out.rostro_visible !== 'boolean') throw new Error('La IA no devolvió una lectura válida');
+  const ojo = v => OJO_VALORES.includes(v) ? v : 'no_se_ve';
+  const izq = ojo(out.ojo_izquierdo), der = ojo(out.ojo_derecho);
+  // Basta UN ojo a la vista para que haya riesgo. Si un ojo está tapado y el otro no se puede ver,
+  // tampoco se da por bueno: no se puede confirmar que los dos estén protegidos.
+  const unoVisible = izq === 'visible' || der === 'visible';
+  const ambosCubiertos = izq === 'cubierto' && der === 'cubierto';
   return {
     rostro_visible: !!out.rostro_visible, antifaz_presente: !!out.antifaz_presente,
-    ojos_visibles: !!out.ojos_visibles, nariz_visible: !!out.nariz_visible,
+    ojos_visibles: unoVisible, ojo_izquierdo: izq, ojo_derecho: der, ojos_confirmados: ambosCubiertos,
+    un_solo_ojo: unoVisible && (izq === 'cubierto' || der === 'cubierto'),
+    observacion_ojos: String(out.observacion_ojos || '').slice(0, 200),
+    nariz_visible: !!out.nariz_visible,
     confianza: Math.max(0, Math.min(1, Number(out.confianza) || 0)),
     nota: String(out.nota || '').slice(0, 200),
     ms: Date.now() - t0, ts: Date.now(),
@@ -1548,6 +1666,7 @@ function clasificarLecturaIA(l) {
   let clase = 'ok';
   if (l.ojos_visibles) clase = 'ojos_expuestos';
   else if (!l.antifaz_presente) clase = 'antifaz_ausente';
+  else if (l.ojos_confirmados === false) return 'no_verificable';   // un ojo tapado y el otro sin ver
   else if (!l.nariz_visible) clase = 'nariz_cubierta';
   // Una lectura de peligro con muy poca confianza no alcanza para apagar: se trata como dudosa.
   if (clase !== 'ok' && l.confianza < CONFIG.ANTIFAZ_CONFIANZA_MIN) return 'no_verificable';
@@ -1637,13 +1756,13 @@ function estadoCombinado() {
 
 // ---------- Apagado por seguridad ----------
 
-async function guardarEventoAntifaz({ tipo, motivo, capa, lectura = null, foto = null, respuesta_ms = null }) {
+async function guardarEventoAntifaz({ tipo, motivo, capa, lectura = null, foto = null, respuesta_ms = null, mensaje = null }) {
   try {
     const sesion = activePatientId ? await getActiveSession(activePatientId).catch(() => null) : null;
     const [r] = await pool.execute(
       `INSERT INTO antifaz_eventos (paciente_id, sesion_id, tipo, motivo, capa, mensaje, detalle, respuesta_ms, foto)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [activePatientId || null, sesion?.id || null, tipo, motivo, capa, ANTIFAZ_MENSAJES[motivo] || null,
+      [activePatientId || null, sesion?.id || null, tipo, motivo, capa, mensaje || ANTIFAZ_MENSAJES[motivo] || null,
        lectura ? JSON.stringify(lectura) : null, respuesta_ms, foto?.buf || null]
     );
     return r.insertId;
@@ -1652,7 +1771,10 @@ async function guardarEventoAntifaz({ tipo, motivo, capa, lectura = null, foto =
 
 async function apagarPorSeguridad(motivo, capa, { lectura = null, foto = null, inicio = Date.now() } = {}) {
   if (antifaz.bloqueo && Date.now() - antifaz.bloqueo.ts < 5000) return;     // ya se está apagando
-  antifaz.bloqueo = { motivo, capa, ts: Date.now(), evento_id: null };
+  const mensaje = (motivo === 'ojos_expuestos' && lectura?.un_solo_ojo)
+    ? 'Un ojo del bebé quedó descubierto: el antifaz está corrido. La lámpara se apagó por seguridad.'
+    : (ANTIFAZ_MENSAJES[motivo] || 'La lámpara se apagó por seguridad.');
+  antifaz.bloqueo = { motivo, capa, ts: Date.now(), evento_id: null, mensaje };
 
   // Firmware 3.2 o más nuevo: apaga solo la luz y deja que los actuadores terminen su movimiento.
   // Firmware anterior: pasa a reposo con la orden de siempre.
@@ -1666,9 +1788,8 @@ async function apagarPorSeguridad(motivo, capa, { lectura = null, foto = null, i
   sendCommandToESP({ type: 'beep' }).catch(() => {});
   console.warn(`[ANTIFAZ] Lámpara a reposo por seguridad: ${motivo} (capa ${capa}).`);
 
-  const mensaje = ANTIFAZ_MENSAJES[motivo] || 'La lámpara se apagó por seguridad.';
   const respuesta_ms = Date.now() - inicio;
-  antifaz.bloqueo.evento_id = await guardarEventoAntifaz({ tipo: 'apagado', motivo, capa, lectura, foto, respuesta_ms });
+  antifaz.bloqueo.evento_id = await guardarEventoAntifaz({ tipo: 'apagado', motivo, capa, lectura, foto, respuesta_ms, mensaje });
   setAntifazEstado(motivo);
   io.emit('antifaz:alarma', { ...antifazPublico(), paciente_id: activePatientId, mensaje, evento_id: antifaz.bloqueo.evento_id, apagado: true });
 
@@ -2409,7 +2530,7 @@ app.post('/api/login', async (req, res) => {
         genero: c.genero || '', telefono: c.telefono || '', correo: c.correo || '',
         parentesco: c.parentesco
       },
-      plan: plan || null, session: session || null, last_session: lastSession,
+      plan: plan || null, plan_completado: plan ? null : await getPlanCompletado(p.id), session: session || null, last_session: lastSession,
       control, dispositivo: devRows[0] || null, doctor: doctorRows[0] || null,
     });
   } catch (e) { return sendDbError(res, e, 'LOGIN_ERROR'); }
@@ -2516,7 +2637,7 @@ app.get('/api/auth/current', async (req, res) => {
           id: c.id, usuario: c.usuario, nombre: c.nombre, apellidos: c.apellidos,
           genero: c.genero || '', telefono: c.telefono || '', correo: c.correo || '', parentesco: c.parentesco
         },
-        plan: plan || null, session: session || null, last_session: ssRows[0] || null,
+        plan: plan || null, plan_completado: plan ? null : await getPlanCompletado(p.id), session: session || null, last_session: ssRows[0] || null,
         control: ctrlRows[0] ? { ...ctrlRows[0], modo_actual: currentLampMode } : null,
         dispositivo: devRows[0] || null, doctor: doctorRows[0] || null,
       });
@@ -2921,7 +3042,11 @@ app.get('/api/doctor/patients', async (req, res) => {
               (SELECT MAX(finished_at) FROM sesiones s WHERE s.paciente_id = p.id AND s.status = 'finished') AS ultima_sesion,
               pt.id AS plan_id, pt.meta_total_s, pt.tiempo_acumulado_s,
               pt.modo_recomendado, pt.horas_por_dia, pt.sesiones_por_dia, pt.duracion_sesion_min,
-              ROUND((pt.tiempo_acumulado_s / NULLIF(pt.meta_total_s,0)) * 100, 1) AS plan_pct
+              ROUND((pt.tiempo_acumulado_s / NULLIF(pt.meta_total_s,0)) * 100, 1) AS plan_pct,
+              (SELECT pc.fecha_fin FROM planes_terapia pc WHERE pc.paciente_id = p.id
+                ORDER BY pc.created_at DESC LIMIT 1) AS ultimo_plan_fin,
+              (SELECT pc.estado FROM planes_terapia pc WHERE pc.paciente_id = p.id
+                ORDER BY pc.created_at DESC LIMIT 1) AS ultimo_plan_estado
        FROM pacientes p
        LEFT JOIN ${ACCOUNT_TABLE} t ON t.id = p.tutor_id
        LEFT JOIN estado_dispositivo ed ON ed.paciente_id = p.id
@@ -3234,7 +3359,7 @@ app.get('/api/doctor/patients/:id/plan-history', async (req, res) => {
  * duración real, tiempo dentro de la ventana segura y promedios.
  * La usan el botón de la interfaz y los cierres automáticos (lámpara detenida o desconectada).
  */
-async function finalizeSession(sesionId, { motivo = 'completada', cuenta_id = null, duracion_cliente_s = null, observaciones = null } = {}) {
+async function finalizeSession(sesionId, { motivo = 'completada', cuenta_id = null, duracion_cliente_s = null, observaciones = null, metaCumplida = false } = {}) {
   const [sRows] = await pool.execute(
     `SELECT * FROM sesiones WHERE id = ? AND status IN ('active','paused') LIMIT 1`, [sesionId]
   );
@@ -3288,8 +3413,9 @@ async function finalizeSession(sesionId, { motivo = 'completada', cuenta_id = nu
        observaciones || null, sesionId]
     );
 
-    if (s.plan_id && durS > 0) {
-      await updatePlanProgress(s.plan_id, durS, conn);
+    if (s.plan_id && (durS > 0 || metaCumplida)) {
+      // Al cumplir la meta se completa el plan aunque la última medición haya quedado un segundo antes.
+      await updatePlanProgress(s.plan_id, metaCumplida ? 999999 : durS, conn);
       await conn.execute(`UPDATE planes_terapia SET sesiones_realizadas = sesiones_realizadas + 1 WHERE id = ?`, [s.plan_id]);
     }
 
@@ -3785,112 +3911,12 @@ app.get('/api/doctor/alerts/today', async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: 'server_error' }); }
 });
 
-// ===================== EXPORTACIÓN EXCEL ========================
-
-app.get('/api/export/:pacienteId', async (req, res) => {
-  try {
-    const pacienteId = Number(req.params.pacienteId);
-    if (!pacienteId) return res.status(400).json({ error: 'falta_pacienteId' });
-
-    const plantillaPath = path.join(__dirname, 'excel', 'Plantilla_Fototerapia_Neonatal.xlsx');
-    const workbook = new ExcelJS.Workbook();
-    try { await workbook.xlsx.readFile(plantillaPath); }
-    catch { return res.status(500).json({ error: 'plantilla_no_encontrada', path: plantillaPath }); }
-
-    const [pRows] = await pool.execute(
-      `SELECT p.*, d.nombre AS doctor_nombre, d.apellidos AS doctor_apellidos, d.especialidad
-       FROM pacientes p LEFT JOIN ${ACCOUNT_TABLE} d ON d.id = p.doctor_id WHERE p.id = ?`,
-      [pacienteId]
-    );
-    if (!pRows.length) return res.status(404).json({ error: 'paciente_no_encontrado' });
-    const p = pRows[0];
-
-    const [sesiones] = await pool.execute(
-      `SELECT fecha, hora_inicio, hora_fin, modo_programado, modo_final,
-              duracion_s, tiempo_rango_s, intensidad_promedio_pct,
-              temp_bebe_promedio_c, temp_amb_promedio_c, observaciones, status
-       FROM sesiones WHERE paciente_id = ? ORDER BY fecha, hora_inicio, id`,
-      [pacienteId]
-    );
-    const [alarmas] = await pool.execute(
-      `SELECT a.sesion_id, a.tipo, a.severidad, a.valor_medido, a.unidad,
-              a.mensaje, a.accion_tomada, a.created_at
-       FROM alarmas a LEFT JOIN sesiones s ON s.id = a.sesion_id
-       WHERE a.paciente_id = ? ORDER BY a.created_at`,
-      [pacienteId]
-    );
-    const [planes] = await pool.execute(
-      `SELECT meta_total_s, tiempo_acumulado_s, modo_recomendado,
-              horas_por_dia, sesiones_por_dia, duracion_sesion_min,
-              estado, fecha_inicio, fecha_fin
-       FROM planes_terapia WHERE paciente_id = ? ORDER BY created_at`,
-      [pacienteId]
-    );
-
-    const toExcelTime = s => { const n = Number(s); return Number.isFinite(n) && n >= 0 ? n / 86400 : null; };
-
-    const hojaPaciente  = workbook.getWorksheet('Hoja de Vida del Paciente');
-    const hojaHistorial = workbook.getWorksheet('Historial de Terapia');
-    const hojaAlarmas   = workbook.getWorksheet('Alarmas y Eventos');
-
-    if (!hojaPaciente || !hojaHistorial || !hojaAlarmas)
-      return res.status(500).json({ error: 'plantilla_hojas_incorrectas' });
-
-    const nacStr = p.fecha_nac ? (() => { const d = new Date(p.fecha_nac); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })() : '';
-    hojaPaciente.getCell('D13').value = p.codigo || p.id;
-    hojaPaciente.getCell('D14').value = `${p.nombre} ${p.apellidos}`.trim();
-    hojaPaciente.getCell('D15').value = nacStr;
-    hojaPaciente.getCell('D16').value = p.fecha_nac ? daysBetween(p.fecha_nac) : '';
-    hojaPaciente.getCell('D17').value = `${p.doctor_nombre || ''} ${p.doctor_apellidos || ''}`.trim();
-    hojaPaciente.getCell('D18').value = p.especialidad || '';
-    hojaPaciente.getCell('D19').value = p.diagnostico  || '';
-    hojaPaciente.getCell('D20').value = p.nivel_bilirrubina_actual || '';
-
-    const planActivo = planes.find(pl => pl.estado === 'activo') || planes.at(-1);
-    if (planActivo) {
-      hojaPaciente.getCell('D21').value = +(planActivo.meta_total_s / 3600).toFixed(2);
-      hojaPaciente.getCell('D22').value = +(planActivo.tiempo_acumulado_s / 3600).toFixed(2);
-      hojaPaciente.getCell('D23').value = planActivo.horas_por_dia || '';
-      hojaPaciente.getCell('D24').value = planActivo.sesiones_por_dia || '';
-    }
-
-    hojaHistorial.getColumn('F').numFmt = 'hh:mm:ss';
-    hojaHistorial.getColumn('G').numFmt = 'hh:mm:ss';
-    sesiones.forEach((s, i) => {
-      const row = hojaHistorial.getRow(7 + i);
-      row.getCell('B').value = s.fecha || '';
-      row.getCell('C').value = s.hora_inicio || '';
-      row.getCell('D').value = s.hora_fin    || '';
-      row.getCell('E').value = s.modo_final  || s.modo_programado || '';
-      row.getCell('F').value = toExcelTime(s.duracion_s);
-      row.getCell('G').value = toExcelTime(s.tiempo_rango_s);
-      row.getCell('H').value = s.intensidad_promedio_pct ?? null;
-      row.getCell('I').value = s.temp_bebe_promedio_c    ?? null;
-      row.getCell('J').value = s.temp_amb_promedio_c     ?? null;
-      row.getCell('K').value = s.observaciones           || '';
-    });
-
-    hojaAlarmas.getColumn('G').numFmt = 'hh:mm:ss';
-    alarmas.forEach((a, i) => {
-      const row = hojaAlarmas.getRow(7 + i);
-      const ts = new Date(a.created_at);
-      row.getCell('B').value = ts.toISOString().slice(0,10);
-      row.getCell('C').value = ts.toTimeString().slice(0,8);
-      row.getCell('D').value = a.sesion_id    || '';
-      row.getCell('E').value = a.tipo         || '';
-      row.getCell('F').value = `${a.valor_medido || ''} ${a.unidad || ''}`.trim();
-      row.getCell('G').value = a.severidad    || '';
-      row.getCell('H').value = a.accion_tomada|| '';
-    });
-
-    const permitidas = new Set(['Hoja de Vida del Paciente','Historial de Terapia','Alarmas y Eventos']);
-    workbook.worksheets.slice().forEach(ws => { if (!permitidas.has(ws.name)) workbook.removeWorksheet(ws.id); });
-
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="reporte_${p.codigo || p.id}.xlsx"`);
-    await workbook.xlsx.write(res);
-    res.end();
-  } catch (e) { console.error('EXPORT_ERROR', e); res.status(500).json({ error: 'error_exportando' }); }
+// ===================== FOTO, EXCEL Y REPORTES PDF ========================
+// En reportes.js: versión para la familia y versión médica con firma.
+registrarReportes(app, {
+  pool: { execute: (...a) => pool.execute(...a), query: (...a) => pool.query(...a) },
+  ACCOUNT_TABLE, daysBetween, getActivePlan, logEvent, ExcelJS, baseDir: __dirname,
+  getCamFrame: () => camFrame, camOnline: () => camOnline(),
 });
 
 // ===================== SOCKET.IO ========================

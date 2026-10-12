@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS pacientes (
   fecha_ingreso              DATE            NOT NULL,
   diagnostico                TEXT            NULL,
   observaciones              TEXT            NULL,
+  foto                       MEDIUMBLOB      NULL COMMENT 'Foto para la ficha y los reportes (JPEG)',
+  foto_at                    DATETIME        NULL,
+  foto_origen                VARCHAR(20)     NULL,
 
   nivel_bilirrubina_inicial  DECIMAL(5,2)    NULL,
   nivel_bilirrubina_actual   DECIMAL(5,2)    NULL,

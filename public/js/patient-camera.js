@@ -12,6 +12,7 @@ export async function bindCameraToggle() {
   const heroVideo = document.querySelector("#ptHeroMedia .pt-hero-video");
   const cameraImage = $("ptCameraStream");
   const cameraError = $("ptCamError");
+  const photoBtn = $("ptPhotoBtn");
   if (!button || !cameraImage || button.dataset.bound === "1") return;
   button.dataset.bound = "1";
 
@@ -28,6 +29,7 @@ export async function bindCameraToggle() {
     stopFeed?.();
     stopFeed = null;
     cameraImage.style.display = "none";
+    if (photoBtn) photoBtn.hidden = true;
     showError(false);
     if (heroVideo) heroVideo.style.display = "";
   };
@@ -40,6 +42,7 @@ export async function bindCameraToggle() {
         const live = state === "live";
         // Mientras no llegue una foto se deja la animación del bebé; sin cámara, el aviso.
         cameraImage.style.display = live ? "block" : "none";
+        if (photoBtn) photoBtn.hidden = !live;
         if (heroVideo) heroVideo.style.display = live || state !== "waiting" ? "none" : "";
         showError(state === "offline" || state === "denied");
       },

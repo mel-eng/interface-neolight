@@ -678,7 +678,9 @@ function renderAntifaz(a = getAntifaz()) {
   const set = (key, html) => { const el = document.querySelector(`#suAntifazReading [data-k="${key}"] b`); if (el) el.innerHTML = html; };
   set("rostro_visible", yesNo(l?.rostro_visible, true));
   set("antifaz_presente", yesNo(l?.antifaz_presente, true));
-  set("ojos_visibles", yesNo(l?.ojos_visibles, false));
+  const ojoTxt = v => v === "cubierto" ? "tapado" : v === "visible" ? "a la vista" : "no se ve";
+  set("ojos_visibles", l == null ? "—" : `${yesNo(l.ojos_visibles, false)}${l.ojo_izquierdo
+    ? `<small class="su-ojos-detalle">Izq.: ${ojoTxt(l.ojo_izquierdo)} · Der.: ${ojoTxt(l.ojo_derecho)}</small>` : ""}`);
   set("nariz_visible", yesNo(l?.nariz_visible, true));
   set("confianza", l ? `${Math.round(l.confianza * 100)} %` : "—");
   set("ms", l ? `${(l.ms / 1000).toFixed(1)} s` : "—");

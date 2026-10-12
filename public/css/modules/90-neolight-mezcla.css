@@ -665,3 +665,47 @@ html body .cuna-note[data-ok="1"]{color:var(--nl-ok)} html body .cuna-note[data-
 html body .cuna-grid{grid-template-columns:1fr!important;gap:6px!important}
 html body .cuna-grid>div{display:grid!important;grid-template-columns:1fr auto!important;grid-template-areas:"lbl val" "est val"!important;align-items:center!important;padding:9px 12px!important}
 html body .cuna-grid small{grid-area:lbl} html body .cuna-grid em{grid-area:est} html body .cuna-grid b{grid-area:val;font-size:1.12rem!important}
+
+/* M. Antifaz: detalle por ojo */
+.su-antifaz-grid .su-ojos-detalle{display:block;margin-top:4px;font-size:12px;font-weight:500;color:var(--nl-muted,#6b6475)}
+
+/* N. Fin de terapia: estrellita */
+.nl-fin-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:rgba(40,28,64,.45);backdrop-filter:blur(3px);animation:nlFinFade .25s ease}
+.nl-fin-card{position:relative;max-width:420px;width:100%;background:#fffaf2;border-radius:28px;padding:28px 26px 24px;text-align:center;box-shadow:0 24px 60px rgba(60,30,90,.25);overflow:hidden;animation:nlFinPop .45s cubic-bezier(.2,1.4,.4,1)}
+.nl-fin-card h2{margin:6px 0 8px;font-size:26px;color:#3b2a63}
+.nl-fin-main{margin:0 0 8px;font-size:16px;color:#3b2a63}
+.nl-fin-sub{margin:0 0 18px;font-size:14px;color:#6b6475;line-height:1.45}
+.nl-fin-star{width:116px;height:116px;animation:nlFinSpin 1.2s ease-out, nlFinFloat 2.6s ease-in-out 1.2s infinite}
+.nl-fin-halo{fill:#fff1c9}
+.nl-fin-btn{border:0;border-radius:999px;padding:12px 26px;font-weight:700;font-size:15px;background:var(--nl-accent,#7c4dff);color:#fff;cursor:pointer}
+.nl-fin-sparkles{position:absolute;inset:0;pointer-events:none}
+.nl-fin-sparkles i{position:absolute;top:-10px;width:8px;height:8px;border-radius:2px;background:#ffc94d;animation:nlFinFall 2.4s linear infinite}
+.nl-fin-sparkles i:nth-child(2n){background:#b79cff;width:6px;height:10px}
+.nl-fin-sparkles i:nth-child(3n){background:#ff9fb8}
+.nl-fin-sparkles i:nth-child(1){left:8%;animation-delay:.1s}.nl-fin-sparkles i:nth-child(2){left:18%;animation-delay:.9s}
+.nl-fin-sparkles i:nth-child(3){left:28%;animation-delay:.4s}.nl-fin-sparkles i:nth-child(4){left:39%;animation-delay:1.4s}
+.nl-fin-sparkles i:nth-child(5){left:50%;animation-delay:.2s}.nl-fin-sparkles i:nth-child(6){left:61%;animation-delay:1.1s}
+.nl-fin-sparkles i:nth-child(7){left:71%;animation-delay:.6s}.nl-fin-sparkles i:nth-child(8){left:81%;animation-delay:1.7s}
+.nl-fin-sparkles i:nth-child(9){left:90%;animation-delay:.3s}.nl-fin-sparkles i:nth-child(10){left:95%;animation-delay:1.3s}
+@keyframes nlFinFade{from{opacity:0}}
+@keyframes nlFinPop{from{transform:scale(.7);opacity:0}}
+@keyframes nlFinSpin{from{transform:rotate(-200deg) scale(.2)}}
+@keyframes nlFinFloat{50%{transform:translateY(-6px)}}
+@keyframes nlFinFall{to{transform:translateY(460px) rotate(360deg);opacity:.2}}
+@media (prefers-reduced-motion:reduce){.nl-fin-star,.nl-fin-sparkles i,.nl-fin-card{animation:none}}
+.pt-plan-done{color:#b7791f;font-weight:700}
+.dp-pat-badge.fin{background:#fff1c9;color:#8a4b00}
+
+/* O. Foto del paciente */
+#view-dashboard-patient .pt-photo-btn{left:150px !important}
+#view-dashboard-patient .pt-photo-btn[hidden]{display:none !important}
+.patient-profile-avatar.has-photo,.cr-avatar.has-photo{background-size:cover !important;background-position:center !important;color:transparent !important;text-shadow:none !important}
+.patient-photo-change{display:block;margin:6px auto 2px;border:0;background:none;color:var(--nl-accent,#7c4dff);font-weight:700;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.cr-photo-actions{display:flex;gap:6px;justify-content:center;margin-top:8px}
+.cr-photo-actions button{border:1px solid rgba(124,77,255,.25);background:#fff;color:#5f3fb8;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer}
+.cr-report-btn{display:inline-flex;align-items:center;gap:6px}
+.cr-topbar-actions{flex-wrap:wrap;justify-content:flex-end}
+.cr-avatar-col{display:flex;flex-direction:column;align-items:center}
+html body #view-dashboard-patient .patient-profile-avatar.has-photo,
+html body #view-dashboard-patient .patient-right-rail .patient-profile-card .patient-profile-avatar.has-photo,
+html body .cr-avatar.has-photo{background-image:var(--nl-foto) !important;background-size:cover !important;background-position:center !important;color:transparent !important}

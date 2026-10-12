@@ -224,16 +224,46 @@ export const logoutRequest = () =>
 // EXPORTACIÓN EXCEL
 // =========================================================
 
-export async function exportExcel(pacienteId) {
-  const res = await apiFetch(`/api/export/${pacienteId}`);
+export async function exportExcel(pacienteId, tipo = "") {
+  const res = await apiFetch(`/api/export/${pacienteId}${tipo ? `?tipo=${tipo}` : ""}`);
   if (!res.ok) throw new Error("export_failed");
   const blob = await res.blob();
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") || "")?.[1]
+    || `datos_fototerapia_${pacienteId}.xlsx`;
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
-  a.download = `datos_fototerapia_${pacienteId}.xlsx`;
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+// Reporte PDF: el servidor arma una página imprimible y el navegador la guarda como PDF.
+// La pestaña se abre antes de esperar al servidor para que el navegador no la bloquee.
+export async function openReport(pacienteId, tipo = "familiar") {
+  const win = window.open("", "_blank");
+  if (win) win.document.write('<p style="font-family:sans-serif;padding:24px;color:#555">Preparando el reporte…</p>');
+  try {
+    const res = await apiFetch(`/api/patients/${pacienteId}/reporte?tipo=${tipo}`);
+    if (!res.ok) throw new Error("report_failed");
+    const html = await res.text();
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    if (win) win.location.href = url; else window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    win?.close();
+    throw e;
+  }
+}
+
+export const savePatientPhoto = (pacienteId, body) =>
+  req(`/api/patients/${pacienteId}/foto`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
+
+/** Devuelve un object URL con la foto del paciente, o null si no tiene. */
+export async function fetchPatientPhotoUrl(pacienteId) {
+  const res = await apiFetch(`/api/patients/${pacienteId}/foto`);
+  if (!res.ok) return null;
+  return URL.createObjectURL(await res.blob());
 }

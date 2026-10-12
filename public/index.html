@@ -230,6 +230,10 @@
                 <span class="pt-cam-lbl">Cámara</span>
                 <span class="pt-cam-track" aria-hidden="true"><span class="pt-cam-thumb"></span></span>
               </button>
+              <button class="pt-cam-btn pt-photo-btn" id="ptPhotoBtn" type="button" hidden title="Guarda esta imagen como foto del paciente para los reportes">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="12" cy="12" r="3.2"/><path d="M8 5l1.5-2h5L16 5"/></svg>
+                <span class="pt-cam-lbl">Guardar foto</span>
+              </button>
             </div>
 
               <!-- Timer card -->
@@ -465,6 +469,7 @@
         <!-- Perfil -->
         <div class="patient-profile-card">
           <div class="patient-profile-avatar" id="patientProfileAvatar">BB</div>
+          <button class="patient-photo-change" id="patientPhotoChange" type="button">Cambiar foto</button>
           <h3 id="patientProfileName">—</h3>
           <span id="patientProfileCode">Código —</span>
           <div><b>Edad</b><em id="patientProfileAge">—</em></div>

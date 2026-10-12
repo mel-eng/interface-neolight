@@ -7,6 +7,8 @@ import {
   dischargePatient, archivePatient,
 } from "./api.js";
 import { playNotificationSound, showRealtimeToast } from "./socket.js";
+import { openReport } from "./api.js";
+import { paintPatientPhoto, savePhotoFromCamera, pickPhotoFile } from "./patient-photo.js";
 import { renderDoctorCharts, renderDoctorAlerts } from "./doctor-analytics.js";
 import { renderDoctorPdfData, bindDoctorReportButton } from "./doctor-report.js";
 import { bindDoctorSections, bindPlanCalculator } from "./doctor-navigation.js";
@@ -97,6 +99,13 @@ function bindDoctorRealtimeEvents() {
   window.addEventListener("neolight:session-started", () => scheduleDoctorRealtimeRefresh("session"));
   window.addEventListener("neolight:session-finished", () => scheduleDoctorRealtimeRefresh("session"));
   window.addEventListener("neolight:alarm-new", () => scheduleDoctorRealtimeRefresh("alarm"));
+  window.addEventListener("neolight:plan-completado", event => {
+    const p = event.detail || {};
+    if (!p.forDoctor) return;
+    showRealtimeToast(`⭐ Terapia completada: ${p.paciente || "paciente"}`, "ok");
+    showDoctorFeedback(`${p.paciente || "Un paciente"} completó su plan. Decide si das el alta o indicas un nuevo plan.`, "ok");
+    scheduleDoctorRealtimeRefresh("session");
+  });
 
   window.addEventListener("neolight:telemetry", event => {
     const t = event.detail || {};
@@ -281,6 +290,8 @@ function renderPatients(list) {
     const badge = st.includes("riesgo") || st.includes("peligro") ? "bad" : st.includes("observacion") || st.includes("advertencia") ? "warn" : "ok";
     const tutor = `${p.tutor_nombre || ""} ${p.tutor_apellidos || ""}`.trim() || "—";
     const hasSession = Number(p.sesiones_activas || 0) > 0;
+    // Plan cumplido y sin decisión todavía (ni alta ni plan nuevo).
+    const planDone = !p.plan_id && p.ultimo_plan_estado === "completado" && st !== "alta";
     const pid = escapeAttr(p.id);
     const el = document.createElement("div");
     el.className = "dp-pat-card";
@@ -292,6 +303,7 @@ function renderPatients(list) {
       </div>
       <div class="dp-pat-right">
         ${hasSession ? `<span class="dp-pat-badge session">Activa</span>` : ""}
+        ${planDone ? `<span class="dp-pat-badge fin" title="Decide: alta o nuevo plan">⭐ Terapia completa</span>` : ""}
         <span class="dp-pat-badge ${badge}">${escapeHtml(humanLabel(st))}</span>
         <div class="dp-pat-actions">
           <button class="dp-ficha-btn dp-btn-ficha" data-action="ficha"    data-patient-id="${pid}">Ficha</button>
@@ -429,7 +441,7 @@ function renderDoctorMiniPatients(list = []) {
     const state = p.estado_clinico || "ok";
     return `<div class="doctor-mini-row">
       <div><strong>${escapeHtml(name)}</strong><span>${escapeHtml(p.codigo || "-")} · ${p.dias_nacido ?? "—"}d</span></div>
-      <em>${escapeHtml(humanLabel(state))}</em>
+      <em>${!p.plan_id && p.ultimo_plan_estado === "completado" && state !== "alta" ? "⭐ Terapia completa · " : ""}${escapeHtml(humanLabel(state))}</em>
     </div>`;
   }).join("");
 }
@@ -596,10 +608,12 @@ function showClinicalRecordModal({ patient, plan, sessions, alarms, events }) {
           NEOLIGHT · Ficha Clínica
         </div>
         <div class="cr-topbar-actions">
-          <button class="cr-print-btn" id="crPrintBtn" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            Imprimir / PDF
+          <button class="cr-print-btn" id="crPrintBtn" type="button" title="Respaldo clínico completo con tu firma">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Reporte médico PDF
           </button>
+          <button class="cr-print-btn" id="crExcelBtn" type="button" title="Reporte médico en Excel">Excel médico</button>
+          <button class="cr-print-btn" id="crFamilyBtn" type="button" title="Resumen sencillo para los papás">Para la familia</button>
           <button class="cr-close-btn" data-close="1" aria-label="Cerrar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -608,7 +622,13 @@ function showClinicalRecordModal({ patient, plan, sessions, alarms, events }) {
 
       <div class="cr-hero">
         <div class="cr-hero-left">
-          <div class="cr-avatar">${escapeHtml(initials)}</div>
+          <div class="cr-avatar-col">
+            <div class="cr-avatar" id="crAvatar">${escapeHtml(initials)}</div>
+            <div class="cr-photo-actions">
+              <button type="button" id="crPhotoCam" title="Guarda la imagen actual de la cámara">Foto cámara</button>
+              <button type="button" id="crPhotoFile" title="Subir una foto">Subir</button>
+            </div>
+          </div>
           <div class="cr-hero-info">
             <div class="cr-hero-name">${escapeHtml(fullName)}</div>
             <div class="cr-hero-code">${escapeHtml(patient.codigo || "Sin código")}</div>
@@ -779,7 +799,7 @@ function showClinicalRecordModal({ patient, plan, sessions, alarms, events }) {
 
       <div class="cr-footer">
         <span>NEOLIGHT· ${escapeHtml(fullName)} · ${new Date().toLocaleDateString("es")}</span>
-        <button class="cr-print-btn-sm" id="crPrintBtnFoot" type="button">Imprimir PDF</button>
+        <button class="cr-print-btn-sm" id="crPrintBtnFoot" type="button">Reporte médico PDF</button>
       </div>
     </div>`;
 
@@ -787,11 +807,16 @@ function showClinicalRecordModal({ patient, plan, sessions, alarms, events }) {
 
   modal.querySelectorAll("[data-close]").forEach(el => el.addEventListener("click", () => modal.remove()));
 
-  const doPrint = () => {
-    modal.classList.add("cr-printing");
-    window.print();
-    setTimeout(() => modal.classList.remove("cr-printing"), 1000);
-  };
+  // Reportes del servidor: médico (con firma) y para la familia.
+  const doPrint = () => openReport(patient.id, "medico").catch(() => showDoctorFeedback("No se pudo generar el reporte.", "danger"));
+  document.getElementById("crExcelBtn")?.addEventListener("click", () =>
+    exportExcel(patient.id, "medico").catch(() => showDoctorFeedback("No se pudo exportar Excel.", "danger")));
+  document.getElementById("crFamilyBtn")?.addEventListener("click", () =>
+    openReport(patient.id, "familiar").catch(() => showDoctorFeedback("No se pudo generar el reporte.", "danger")));
+  const avatar = [document.getElementById("crAvatar")];
+  paintPatientPhoto(patient.id, avatar);
+  document.getElementById("crPhotoCam")?.addEventListener("click", () => savePhotoFromCamera(patient.id, avatar));
+  document.getElementById("crPhotoFile")?.addEventListener("click", () => pickPhotoFile(patient.id, avatar));
   document.getElementById("crPrintBtn")?.addEventListener("click", doPrint);
   document.getElementById("crPrintBtnFoot")?.addEventListener("click", doPrint);
 }
@@ -864,7 +889,7 @@ function showPatientDetailModal({ patient, plan, control, sessions, alarms, even
           <div class="mode-row">
             ${["reposo","convencional","intensivo"].map(m => `<button class="btn-mini" data-doctor-mode="${m}">${humanLabel(m)}</button>`).join("")}
           </div>
-          <button class="btn btn-secondary btn-full" id="exportPatientBtn">Exportar Excel</button>
+          <button class="btn btn-secondary btn-full" id="exportPatientBtn">Exportar Excel médico</button>
         </aside>
       </div>
 
@@ -881,7 +906,7 @@ function showPatientDetailModal({ patient, plan, control, sessions, alarms, even
   $("savePlanBtn")?.addEventListener("click", () => savePlan(patient.id, plan?.id || null));
   $("cancelPlanBtn")?.addEventListener("click", () => doCancelPlan(patient.id, plan.id));
   $("saveControlBtn")?.addEventListener("click", () => saveControl(patient.id, patient.tutor_id));
-  $("exportPatientBtn")?.addEventListener("click", () => exportExcel(patient.id).catch(() => showDoctorFeedback("No se pudo exportar Excel.", "danger")));
+  $("exportPatientBtn")?.addEventListener("click", () => exportExcel(patient.id, "medico").catch(() => showDoctorFeedback("No se pudo exportar Excel.", "danger")));
   modal.querySelectorAll("[data-doctor-mode]").forEach(btn =>
     btn.addEventListener("click", () => setDoctorMode(patient.id, btn.dataset.doctorMode))
   );

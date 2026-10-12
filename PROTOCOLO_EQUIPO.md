@@ -49,6 +49,7 @@ Cuerpo (los mismos campos que hoy entrega `/data` en el maestro):
 | `LOCK` | Bloquear el control manual (enviar `LOCK` al esclavo) |
 | `MUTE=300` | Silenciar el buzzer esos segundos; `MUTE=0` lo reactiva |
 | `BEEP` | Hacer sonar el buzzer una vez (prueba técnica) |
+| `FIN` | Se cumplió la meta del plan: luz en reposo y melodía de fin (maestro 3.3). Llega después de `MODO=REPOSO`; un maestro anterior la ignora y suena `BEEP` |
 
 Reglas del servidor:
 

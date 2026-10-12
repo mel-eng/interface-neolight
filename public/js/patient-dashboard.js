@@ -5,7 +5,8 @@
 // =========================================================
 
 import { $, state, STORAGE_KEY, normalizeMode, formatEdad, formatDoctorDisplayName, API_URL, humanLabel } from "./config.js";
-import { fetchControl, fetchCurrentTutorState, tutorRequestMode, exportExcel } from "./api.js";
+import { fetchControl, fetchCurrentTutorState, tutorRequestMode, exportExcel, openReport } from "./api.js";
+import { paintPatientPhoto, savePhotoFromCamera, pickPhotoFile } from "./patient-photo.js";
 import {
   socketEmitMute,
   socketEmitMove,
@@ -91,10 +92,11 @@ export async function initPatientDashboard(sessionSnapshot) {
   setDashboardState({ paciente, tutor, control });
   renderPatientHeader(paciente, doctor);
   renderClinicalData(paciente, tutor, dispositivo, control);
-  renderActivePlan(plan);
+  renderActivePlan(plan, sessionSnapshot.plan_completado);
   renderSessionTimer(paciente, last_session, session);
   renderLastSessionTemps(last_session);
   renderPatientProfileRail(paciente, tutor, doctor);
+  paintPatientPhoto(paciente?.id, [$("patientProfileAvatar")]);
   bindPatientSections();
   renderPatientCharts();
 
@@ -147,7 +149,7 @@ async function refreshTutorState(reason = "realtime") {
     setDashboardState({ paciente: data.paciente, tutor: data.tutor, control: data.control });
     renderPatientHeader(data.paciente, data.doctor);
     renderClinicalData(data.paciente, data.tutor, data.dispositivo, data.control);
-    renderActivePlan(data.plan);
+    renderActivePlan(data.plan, data.plan_completado);
     renderPatientProfileRail(data.paciente, data.tutor, data.doctor);
     applyControlUI(dashboardState.control);
     if (data.paciente?.id) {
@@ -379,9 +381,23 @@ function renderClinicalData(paciente, tutor, dispositivo, control) {
   setText("pacientePermiso", controlLabel(control));
 }
 
-function renderActivePlan(plan) {
-  // Terapia acumulada: lo que el plan lleva cumplido (lo calcula el servidor al cerrar cada sesión).
-  setText("patientTherapyAccumulated", secondsLabel(Number(plan?.tiempo_acumulado_s || 0)));
+function renderActivePlan(plan, planCompletado = null) {
+  // Terapia acumulada: lo que el plan lleva cumplido, incluida la sesión que está corriendo.
+  setText("patientTherapyAccumulated", secondsLabel(Number(plan?.tiempo_acumulado_s ?? planCompletado?.meta_total_s ?? 0)));
+  if (!plan && planCompletado) {
+    // El plan terminó y el doctor todavía no decide: estrellita en vez de "sin plan".
+    const total = planCompletado.horas_meta;
+    const n = Number(planCompletado.sesiones_realizadas || 0);
+    setText("pacientePlan", `${total} h · completado`);
+    setText("pacienteProgreso", `⭐ Terapia completada: ${total} / ${total} h (100%) · ${n} ${n === 1 ? "sesión" : "sesiones"}`);
+    setText("patientTherapyGoal", "⭐ Completada · esperando al doctor");
+    setText("patientTherapyPct", "100%");
+    setText("patientProgressChartText", "100%");
+    setDonut("patientTherapyDonut", 100);
+    setDonut("patientProgressChart", 100);
+    setProgress("patientPlanProgressBar", 100);
+    return;
+  }
   if (!plan) {
     setText("pacientePlan", "Sin plan activo");
     setText("pacienteProgreso", "-");
@@ -773,6 +789,23 @@ function bindControlRefresh() {
   window.addEventListener("neolight:alarm-new", () => {
     if (dashboardState.pacienteId) loadRecentAlarms(dashboardState.pacienteId);
   });
+  // Avance del plan en vivo (el servidor lo manda cada pocos segundos durante la terapia).
+  window.addEventListener("neolight:plan-progreso", event => {
+    const p = event.detail || {};
+    if (p.paciente_id && dashboardState.pacienteId && String(p.paciente_id) !== String(dashboardState.pacienteId)) return;
+    const pct = Math.max(0, Math.min(100, Number(p.porcentaje || 0)));
+    const h = s => +(Number(s || 0) / 3600).toFixed(2);
+    setText("patientTherapyAccumulated", secondsLabel(Number(p.acumulado_s || 0)));
+    setText("patientTherapyGoal", `${h(p.acumulado_s)}h / ${h(p.meta_s)}h`);
+    setText("patientTherapyPct", `${Math.round(pct)}%`);
+    setText("patientProgressChartText", `${Math.round(pct)}%`);
+    setDonut("patientTherapyDonut", pct);
+    setDonut("patientProgressChart", pct);
+    setProgress("patientPlanProgressBar", pct);
+    const prog = $("pacienteProgreso");
+    if (prog) prog.textContent = prog.textContent.replace(/^[\d.,]+ \/ ([\d.,]+) h \([\d.,]+%\)/, `${h(p.acumulado_s)} / $1 h (${pct}%)`);
+  });
+  window.addEventListener("neolight:plan-completado", () => refreshTutorState("plan-completado"));
 }
 
 function bindPatientEvents(pacienteId) {
@@ -807,18 +840,25 @@ function bindPatientEvents(pacienteId) {
     if (!dashboardState.pacienteId) return;
 
     try {
-      await exportExcel(dashboardState.pacienteId);
+      await exportExcel(dashboardState.pacienteId, "familiar");
     } catch (_) {
       alert("Error exportando datos. Intenta de nuevo.");
     }
   });
 
-  $("downloadPatientPdfBtn")?.addEventListener("click", downloadPatientPdfReport);
-  $("downloadPatientPdfBtnTop")?.addEventListener("click", downloadPatientPdfReport);
+  // Reporte para la familia (el reporte médico con firma lo descarga el doctor).
+  const pdfFamilia = () => {
+    if (!dashboardState.pacienteId) return;
+    openReport(dashboardState.pacienteId, "familiar").catch(() => alert("No se pudo generar el reporte. Intenta de nuevo."));
+  };
+  $("downloadPatientPdfBtn")?.addEventListener("click", pdfFamilia);
+  $("downloadPatientPdfBtnTop")?.addEventListener("click", pdfFamilia);
+  $("ptPhotoBtn")?.addEventListener("click", () => savePhotoFromCamera(dashboardState.pacienteId, [$("patientProfileAvatar")]));
+  $("patientPhotoChange")?.addEventListener("click", () => pickPhotoFile(dashboardState.pacienteId, [$("patientProfileAvatar")]));
   $("exportBtnTop")?.addEventListener("click", async () => {
     if (!dashboardState.pacienteId) return;
     try {
-      await exportExcel(dashboardState.pacienteId);
+      await exportExcel(dashboardState.pacienteId, "familiar");
     } catch (_) {
       alert("Error exportando datos. Intenta de nuevo.");
     }
