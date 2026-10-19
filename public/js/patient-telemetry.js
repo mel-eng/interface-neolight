@@ -39,6 +39,7 @@ export function updatePatientSensorCards(data = {}, { getCurrentMode, onModeChan
   const babyTemperature = num(data.temp_bebe ?? data.bebe);
   const ambientTemperature = num(data.temp_ambiente ?? data.ambiente);
 
+  luxActual = data.lux_est || null;
   if (Number.isFinite(pwm)) updatePatientLight(pwm, measuredLight);
   else if (Number.isFinite(measuredLight)) updatePatientLight(measuredLight, NaN);
   if (data.ultraFail) {
@@ -129,12 +130,15 @@ function updatePatientPWM(value) {
   setText("patientHeroPWM", `${percentage} %`);
 }
 
+let luxActual = null;   // estimación en lux (si los LDR están calibrados con un luxómetro)
+const luxTxt = l => `≈ ${Number(l.lux).toLocaleString("es-BO")} lux`;
+
 function updatePatientLight(value, measured) {
   const percentage = clamp(Math.round(value), 0, 100);
   setText("patientLightLevel", `${percentage}%`);
   setText("patientLightStatus", percentage === 0
     ? "LED apagados: la lámpara está fuera de la distancia segura"
-    : Number.isFinite(measured) ? `Luz medida por los sensores: ${Math.round(measured)} %` : "LED encendidos");
+    : Number.isFinite(measured) ? `Luz medida por los sensores: ${Math.round(measured)} %${luxActual ? ` (${luxTxt(luxActual)})` : ""}` : "LED encendidos");
   setProgress("patientLightBar", percentage);
   pushSeries(sensorSeries.light, percentage);
 }

@@ -36,3 +36,15 @@ export const updateDoctorStatus = (doctorId, status, reassignTo = null) =>
 
 export const fetchTelemetry = () => req("/api/telemetry/latest");
 export const fetchHealth = () => req("/api/health");
+
+// Calibración de los LDR contra un luxómetro
+export const fetchLdrCalibracion = () => req("/api/superuser/ldr-calibracion", { headers: superuserHeaders() });
+export const saveLdrPunto = body => req("/api/superuser/ldr-calibracion", { method: "POST", headers: superuserHeaders(JSON_HEADERS), body: JSON.stringify(body) });
+export const deleteLdrPunto = id => req(`/api/superuser/ldr-calibracion/${encodeURIComponent(id)}`, { method: "DELETE", headers: superuserHeaders() });
+export async function downloadLdrCsv() {
+  const res = await apiFetch("/api/superuser/ldr-calibracion.csv", { headers: superuserHeaders() });
+  if (!res.ok) throw new Error("csv");
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a"); a.href = url; a.download = "calibracion_ldr_lux.csv";
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 3000);
+}

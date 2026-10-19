@@ -47,6 +47,44 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const tituloDoctor = d => (/^f/i.test(String(d?.genero || '')) ? 'Dra.' : 'Dr.');
 const nombreDoctor = d => (d?.nombre ? `${tituloDoctor(d)} ${d.nombre} ${d.apellidos || ''}`.trim() : '—');
 
+const hCorta = sec => {
+  const n = Number(sec) || 0;
+  if (n < 60) return `${Math.round(n)} s`;
+  if (n < 3600) return `${Math.round(n / 60)} min`;
+  return `${String(+(n / 3600).toFixed(2)).replace('.', ',')} h`;
+};
+const jsonDe = v => { if (v == null) return null; if (typeof v === 'object') return v; try { return JSON.parse(v); } catch { return null; } };
+
+// Texto de cada indicación del médico: uno técnico (médico) y uno en palabras simples (familia).
+function describirCambio(c) {
+  const a = jsonDe(c.antes) || {}, d = jsonDe(c.despues) || {};
+  const doc = c.doctor || 'El sistema';
+  const partes = [], simple = [];
+  if (c.tipo === 'creado') {
+    partes.push(`Plan indicado: ${hCorta(d.meta_total_s)} · ${MODOS[d.modo] || d.modo || '—'}`);
+    simple.push(`${doc} indicó ${hCorta(d.meta_total_s)} de fototerapia (${(MODOS_FAMILIA[d.modo] || 'luz').toLowerCase()})`);
+  } else if (c.tipo === 'modificado') {
+    if (a.meta_total_s != null && d.meta_total_s != null && Number(a.meta_total_s) !== Number(d.meta_total_s)) {
+      partes.push(`Meta: ${hCorta(a.meta_total_s)} → ${hCorta(d.meta_total_s)}`);
+      simple.push(`${doc} cambió el tiempo de terapia de ${hCorta(a.meta_total_s)} a ${hCorta(d.meta_total_s)}`);
+    }
+    if (a.modo && d.modo && a.modo !== d.modo) {
+      partes.push(`Modo: ${MODOS[a.modo] || a.modo} → ${MODOS[d.modo] || d.modo}`);
+      simple.push(`${doc} cambió el tipo de luz a ${(MODOS_FAMILIA[d.modo] || d.modo).toLowerCase()}`);
+    }
+    if ((a.observaciones || '') !== (d.observaciones || '')) partes.push('Observaciones del plan actualizadas');
+    if (!partes.length) partes.push('Plan actualizado');
+    if (!simple.length) simple.push(`${doc} actualizó las indicaciones de la terapia`);
+  } else if (c.tipo === 'cancelado') {
+    partes.push('Plan cancelado'); simple.push(`${doc} suspendió el plan de terapia`);
+  } else if (c.tipo === 'reemplazado') {
+    partes.push(`Plan de ${hCorta(a.meta_total_s)} reemplazado por uno nuevo`); simple.push(`${doc} reemplazó el plan por uno nuevo`);
+  } else if (c.tipo === 'completado') {
+    partes.push('Meta cumplida: plan completado'); simple.push('Se completó la terapia indicada');
+  }
+  return { resumen: partes.join(' · '), frase: simple.join(' y ') };
+}
+
 export function registrarReportes(app, deps) {
   const { pool, ACCOUNT_TABLE, daysBetween, getActivePlan, getCamFrame, camOnline, ExcelJS, baseDir, logEvent } = deps;
 
@@ -93,6 +131,28 @@ export function registrarReportes(app, deps) {
         descripcion: `Foto del paciente actualizada (${origen === 'camara' ? 'cámara' : 'imagen subida'})` }).catch(() => {});
       res.json({ ok: true, origen, bytes: buf.length });
     } catch (e) { console.error('[FOTO]', e.message); res.status(500).json({ ok: false, error: 'server_error' }); }
+  });
+
+  // ---------------- CAMBIOS DEL PLAN ----------------
+
+  async function cambiosPlan(pacienteId) {
+    const [rows] = await pool.execute(
+      `SELECT c.*, DATE_FORMAT(c.created_at, '%d/%m/%Y %H:%i') AS fecha_txt,
+              d.nombre AS d_nombre, d.apellidos AS d_apellidos, d.genero AS d_genero
+       FROM plan_cambios c LEFT JOIN ${ACCOUNT_TABLE} d ON d.id = c.doctor_id
+       WHERE c.paciente_id = ? ORDER BY c.created_at, c.id`, [pacienteId]).catch(() => [[]]);
+    return rows.map(c => {
+      const doctor = c.d_nombre ? nombreDoctor({ nombre: c.d_nombre, apellidos: c.d_apellidos, genero: c.d_genero }) : null;
+      const base = { ...c, doctor };
+      const { resumen, frase } = describirCambio(base);
+      return { id: c.id, plan_id: c.plan_id, tipo: c.tipo, fecha_txt: c.fecha_txt, doctor, motivo: c.motivo,
+               avance_s: c.avance_s, avance_txt: c.avance_s != null ? hCorta(c.avance_s) : null, resumen, frase };
+    });
+  }
+
+  app.get('/api/patients/:id/plan-cambios', async (req, res) => {
+    try { res.json({ ok: true, cambios: (await cambiosPlan(Number(req.params.id))).reverse() }); }
+    catch (e) { res.status(500).json({ ok: false, error: 'server_error' }); }
   });
 
   // ---------------- DATOS DEL REPORTE ----------------
@@ -143,6 +203,7 @@ export function registrarReportes(app, deps) {
        FROM antifaz_eventos WHERE paciente_id = ? AND tipo <> 'ensayo' ORDER BY created_at`, [pacienteId]).catch(() => [[]]);
 
     const foto = await leerFoto(pacienteId).catch(() => null);
+    const cambios = await cambiosPlan(pacienteId);
     const terminadas = sesiones.filter(s => s.status === 'finished');
     const totalS = terminadas.reduce((a, s) => a + (Number(s.duracion_s) || 0), 0);
     const rangoS = terminadas.reduce((a, s) => a + (Number(s.tiempo_rango_s) || 0), 0);
@@ -152,7 +213,7 @@ export function registrarReportes(app, deps) {
     };
 
     return {
-      p, medida: medida || null, talla_cm: talla?.talla_cm ?? null, planes, plan, avance, sesiones, alarmas, antifaz,
+      p, cambios, medida: medida || null, talla_cm: talla?.talla_cm ?? null, planes, plan, avance, sesiones, alarmas, antifaz,
       foto: foto?.foto || null, foto_txt: p.foto_txt,
       doctor: { nombre: p.d_nombre, apellidos: p.d_apellidos, genero: p.d_genero, especialidad: p.d_especialidad,
                 matricula: p.d_matricula, firma: p.d_firma },
@@ -395,6 +456,26 @@ export function registrarReportes(app, deps) {
     } else {
       wb.removeWorksheet(h3.id);
     }
+    // Hoja de indicaciones del médico (ambas versiones).
+    const hp = wb.addWorksheet(medico ? 'Cambios del plan' : 'Indicaciones del médico', { views: [{ showGridLines: false }] });
+    hp.getColumn(1).width = 3;
+    (medico ? [17, 22, 44, 14, 50] : [17, 60, 50]).forEach((w, i) => { hp.getColumn(i + 2).width = w; });
+    hp.getCell('B2').value = medico ? 'Plan de fototerapia: indicaciones y cambios' : 'Indicaciones del médico';
+    hp.getCell('B2').font = { bold: true, size: 16, color: { argb: 'FF3B2A63' } };
+    hp.getCell('B3').value = medico ? 'Registro de cada vez que el médico indicó, cambió, canceló o dio por cumplido el plan.'
+      : 'Aquí aparece cada vez que el médico indicó o cambió la terapia de tu bebé, y el motivo.';
+    hp.getCell('B3').font = { italic: true, size: 9, color: { argb: 'FF6B6475' } };
+    const hcab = medico ? ['Fecha', 'Indicado por', 'Cambio', 'Avance en ese momento', 'Motivo'] : ['Fecha', 'Qué cambió', 'Motivo'];
+    hcab.forEach((t, i) => {
+      const c = hp.getRow(5).getCell(i + 2);
+      c.value = t; c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF8E7CC3' } };
+    });
+    if (!d.cambios.length) hp.getCell('B6').value = 'Sin indicaciones registradas.';
+    d.cambios.forEach((c, i) => filaDatos(hp, 6 + i, medico
+      ? [c.fecha_txt, c.doctor || 'Sistema', c.resumen, c.avance_txt || '—', c.motivo || '—']
+      : [c.fecha_txt, c.frase, c.motivo || '—']));
+
     // Que al imprimir cada hoja entre a lo ancho de la página.
     wb.worksheets.forEach(ws => {
       ws.pageSetup = { ...(ws.pageSetup || {}), paperSize: 9, orientation: ws === h1 ? 'portrait' : 'landscape',
@@ -500,6 +581,17 @@ export function registrarReportes(app, deps) {
       ${d.plan ? `<p class="plan">Plan: ${horas(d.plan.meta_total_s)} h · modo ${esc(MODOS[d.plan.modo_recomendado] || '—')} · ${esc(ESTADO_PLAN[d.plan.estado] || d.plan.estado)}${d.plan.inicio_txt ? ` · desde ${esc(d.plan.inicio_txt)}` : ''}${d.plan.fin_txt ? ` · cumplido ${esc(d.plan.fin_txt)}` : ''}</p>` : ''}
       ${p.observaciones ? `<p class="plan"><b>Observaciones:</b> ${esc(p.observaciones)}</p>` : ''}` : '';
 
+    const cambiosHtml = `
+      <section><h2>${medico ? 'Plan: indicaciones y cambios' : 'Indicaciones del médico'}</h2>
+      ${d.cambios.length ? (medico
+        ? `<table><thead><tr><th>Fecha</th><th>Indicado por</th><th>Cambio</th><th>Avance</th><th>Motivo</th></tr></thead><tbody>
+            ${d.cambios.map(c => `<tr class="${c.tipo === 'modificado' || c.tipo === 'cancelado' ? 'cambio' : ''}"><td>${esc(c.fecha_txt)}</td><td>${esc(c.doctor || 'Sistema')}</td>
+              <td><b>${esc(c.resumen)}</b></td><td>${esc(c.avance_txt || '—')}</td><td>${esc(c.motivo || '—')}</td></tr>`).join('')}
+          </tbody></table>`
+        : `<ul class="linea-tiempo">${d.cambios.map(c => `<li><span>${esc(c.fecha_txt)}</span><b>${esc(c.frase)}.</b>${c.motivo ? `<em>Motivo: ${esc(c.motivo)}</em>` : ''}</li>`).join('')}</ul>`)
+        : '<p class="vacio">Sin indicaciones registradas.</p>'}
+      </section>`;
+
     const pie = medico ? `
       <section class="firma">
         <div class="firma-caja">${firma ? `<img src="${firma}" alt="Firma">` : '<div class="sin-firma">Sin firma registrada</div>'}
@@ -544,6 +636,11 @@ export function registrarReportes(app, deps) {
   .firma-caja{display:flex;flex-direction:column;align-items:center;min-width:280px} .firma img{height:80px;max-width:280px;object-fit:contain}
   .sin-firma{height:80px;display:grid;place-items:center;color:#aaa} .linea{width:280px;border-top:1.5px solid #3b2a63;margin:2px 0 6px}
   .firma span{color:#6b6475;font-size:11px}
+  tr.cambio td{background:#f7f3ff}
+  .linea-tiempo{list-style:none;margin:0;padding:0 0 0 14px;border-left:3px solid #d9d2e9}
+  .linea-tiempo li{position:relative;margin:0 0 10px;padding-left:8px}
+  .linea-tiempo li::before{content:'';position:absolute;left:-22px;top:4px;width:11px;height:11px;border-radius:50%;background:#8e7cc3}
+  .linea-tiempo span{display:block;color:#7a7385;font-size:10.5px} .linea-tiempo em{display:block;color:#4a4060}
   .barra-imprimir{position:sticky;top:0;display:flex;gap:10px;justify-content:center;padding:10px;background:#3b2a63}
   .barra-imprimir button{border:0;border-radius:99px;padding:9px 18px;font:600 13px Poppins,sans-serif;cursor:pointer;background:#fff;color:#3b2a63}
   @media print{body{background:#fff}.hoja{padding:0;max-width:none}.barra-imprimir{display:none}
@@ -568,6 +665,7 @@ export function registrarReportes(app, deps) {
       : '<th>Fecha</th><th>Horario</th><th>Tipo de luz</th><th></th><th>Duración</th>'}</tr></thead><tbody>${filasSesiones}</tbody></table>`
       : '<p class="vacio">Todavía no hay sesiones.</p>'}
   </section>
+  ${cambiosHtml}
   ${alarmas}
   ${pie}
 </div>

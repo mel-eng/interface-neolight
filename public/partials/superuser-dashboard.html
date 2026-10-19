@@ -235,6 +235,27 @@
 
         <div class="su-diagnostic-panel active" data-diagnostic-panel="sensors">
           <div class="su-diagnostic-grid" id="suSensorGrid"></div>
+          <article class="su-card su-ldr-card" id="suLdrCard">
+            <div class="su-card-head"><div><span class="su-card-kicker">Validación</span><h3>Calibración de luz: LDR → lux</h3></div><span class="su-status-pill neutral" id="suLdrEstado">Sin calibrar</span></div>
+            <p class="su-ldr-help">Pon el luxómetro junto a los LDR, a la misma altura. Escribe lo que marca y toca «Guardar punto»: se guarda junto con el % que están leyendo los LDR en ese momento. Mide en varios niveles de luz (apagada, baja, media y máxima).</p>
+            <div class="su-ldr-layout">
+              <div class="su-form su-ldr-form">
+                <div class="su-ldr-now"><span>Los LDR leen ahora</span><b id="suLdrAhora">—</b></div>
+                <label><span>Luxómetro (lux)</span><input id="suLdrLux" type="number" min="0" step="1" inputmode="decimal" placeholder="Ej.: 1250"></label>
+                <label><span>% de los LDR (vacío = lectura actual)</span><input id="suLdrPct" type="number" min="0" max="100" step="0.1" inputmode="decimal" placeholder="Automático"></label>
+                <label><span>Nota (opcional)</span><input id="suLdrNota" type="text" maxlength="120" placeholder="Ej.: convencional, 30 cm"></label>
+                <button class="su-button primary" id="suLdrGuardar" type="button">Guardar punto</button>
+                <p class="su-ldr-msg" id="suLdrMsg" role="status"></p>
+              </div>
+              <div class="su-ldr-result">
+                <svg id="suLdrChart" viewBox="0 0 360 220" role="img" aria-label="Curva de calibración"></svg>
+                <div class="su-ldr-fit" id="suLdrFit">Necesitas al menos 2 niveles de luz distintos.</div>
+              </div>
+            </div>
+            <div class="su-ldr-table-wrap"><table class="su-ldr-table"><thead><tr><th>#</th><th>LDR %</th><th>Luxómetro</th><th>Estimado*</th><th>Error</th><th>Nota</th><th></th></tr></thead><tbody id="suLdrRows"></tbody></table></div>
+            <div class="su-ldr-foot"><small>* Estimado con la curva hecha sin ese punto (validación dejando uno fuera). El error en % se calcula desde 20 lux.</small>
+              <div><button class="su-button ghost" id="suLdrCsv" type="button">Descargar tabla (CSV)</button><button class="su-button ghost" id="suLdrBorrar" type="button">Borrar todo</button></div></div>
+          </article>
           <div class="su-test-footer"><div><strong>Prueba conjunta de sensores</strong><span>Actualiza las lecturas y comprueba respuesta, conexión y rango.</span></div><button class="su-button primary" id="suTestAllSensors" type="button"><span data-icon="play"></span>Iniciar prueba</button></div>
         </div>
 

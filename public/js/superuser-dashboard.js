@@ -23,6 +23,7 @@ import {
   addAssignment,
 } from "./superuser-store.js";
 import { hydrateIcons, icon } from "./superuser-icons.js";
+import { initLdrCalibracion } from "./ldr-calibracion.js";
 import { getSocket, socketEmitMode, socketEmitMove } from "./socket.js";
 
 let initialized = false;
@@ -373,7 +374,8 @@ function sensorDefinitions() {
   return [
     { name:"Distancia", icon:"ruler", value:t.ultraFail ? "Sin eco" : reading(t.cm ?? t.distance_cm, 0, "cm"), ok:online && !t.ultraFail && Number.isFinite(num(t.cm ?? t.distance_cm)), meta:"Ultrasonido HC-SR04" },
     { name:"Temp. ambiente", icon:"thermometer", value:reading(t.temp_ambiente, 1, "°C"), ok:online && Number.isFinite(num(t.temp_ambiente)), meta:"Termistor NTC" },
-    { name:"Luz medida", icon:"sun", value:reading(t.pct ?? t.illumination_pct, 0, "%"), ok:online && Number.isFinite(num(t.pct ?? t.illumination_pct)), meta:"Promedio de los dos LDR" },
+    { name:"Luz medida", icon:"sun", value:reading(t.pct ?? t.illumination_pct, 0, "%"), ok:online && Number.isFinite(num(t.pct ?? t.illumination_pct)), meta:"Promedio de los dos LDR",
+      sub: t.lux_est ? `≈ ${Number(t.lux_est.lux).toLocaleString("es-BO")} lux estimados${t.lux_est.fuera_rango ? " (fuera del rango calibrado)" : ""}` : "" },
     { name:"Intensidad LED", icon:"activity", value:reading(t.pwm, 0, "%"), ok:online && Number.isFinite(num(t.pwm)), meta:"Salida PWM a la matriz" },
     { name:"Actuadores", icon:"activity", value:t.slave === true ? "Conectados" : t.slave === false ? "Sin respuesta" : "Sin lectura", ok:online && t.slave === true, meta:"ESP32 esclavo" },
     { name:"Control manual", icon:"ruler", value:!online ? "Sin lectura" : t.manual ? "Activo (clave ingresada)" : "Bloqueado", ok:online, meta:"Clave física en el equipo" },
@@ -385,7 +387,7 @@ function renderSensors() {
   if (!host) return;
   const available = isPrimaryEquipment(workspace, selectedEquipment());
   const defs = sensorDefinitions().map(sensor => available ? sensor : { ...sensor, value:"No verificado", ok:false });
-  host.innerHTML = defs.map(sensor => `<article class="su-sensor-card ${sensor.ok ? "" : "error"}"><div class="su-sensor-card-head"><span class="su-sensor-icon">${icon(sensor.icon)}</span><span class="su-sensor-state"><i></i>${sensor.ok ? "Detectado" : "Sin dato"}</span></div><h3>${escapeHtml(sensor.name)}</h3><strong class="su-sensor-value">${escapeHtml(sensor.value)}</strong><div class="su-sensor-meta"><span>${escapeHtml(sensor.meta)}</span><span>${sensor.ok ? "Correcto" : "Pendiente"}</span></div></article>`).join("");
+  host.innerHTML = defs.map(sensor => `<article class="su-sensor-card ${sensor.ok ? "" : "error"}"><div class="su-sensor-card-head"><span class="su-sensor-icon">${icon(sensor.icon)}</span><span class="su-sensor-state"><i></i>${sensor.ok ? "Detectado" : "Sin dato"}</span></div><h3>${escapeHtml(sensor.name)}</h3><strong class="su-sensor-value">${escapeHtml(sensor.value)}</strong>${sensor.sub ? `<small class="su-sensor-sub">${escapeHtml(sensor.sub)}</small>` : ""}<div class="su-sensor-meta"><span>${escapeHtml(sensor.meta)}</span><span>${sensor.ok ? "Correcto" : "Pendiente"}</span></div></article>`).join("");
   $("suLedAverage").textContent = defs.find(item => item.name === "Luz medida")?.value || "—";
   $("suLedPwm").textContent = defs.find(item => item.name === "Intensidad LED")?.value || "—";
   const temp = defs.find(item => item.name === "Temp. ambiente");
@@ -1006,6 +1008,7 @@ export async function initSuperuserDashboard(data) {
     setupEquipmentSelector();
     bindEvents();
     setSection("inicio"); setUsersTab("doctors"); setDiagnosticTab("sensors");
+    initLdrCalibracion();
   }
   workspace = loadWorkspace();
   setupEquipmentSelector();

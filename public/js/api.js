@@ -136,12 +136,15 @@ export const updatePlan = (patientId, planId, payload) =>
     body: JSON.stringify(payload),
   });
 
-export const cancelPlan = (patientId, planId) =>
+export const cancelPlan = (patientId, planId, motivo = null) =>
   req(`/api/doctor/patients/${patientId}/plan/${planId}/cancel`, {
     method: "POST",
     headers: doctorHeaders(JSON_HEADERS),
-    body: JSON.stringify({}),
+    body: JSON.stringify({ motivo }),
   });
+
+export const fetchPlanCambios = patientId =>
+  req(`/api/patients/${patientId}/plan-cambios`);
 
 // =========================================================
 // SESIONES

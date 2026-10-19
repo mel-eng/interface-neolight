@@ -3,7 +3,7 @@ import {
   fetchRequests, decideRequest, fetchModeRequests, decideModeRequest,
   fetchPatients, fetchAlertsToday, searchPatients, fetchPatientDetail,
   updatePatient, updatePatientClinical, createPlan, updatePlan, cancelPlan,
-  doctorSetMode, updateControl, fetchSessions, fetchAlarms, fetchEvents, exportExcel,
+  doctorSetMode, updateControl, fetchSessions, fetchAlarms, fetchEvents, exportExcel, fetchPlanCambios,
   dischargePatient, archivePatient,
 } from "./api.js";
 import { playNotificationSound, showRealtimeToast } from "./socket.js";
@@ -877,8 +877,11 @@ function showPatientDetailModal({ patient, plan, control, sessions, alarms, even
             ${select("planModo", "Modo recomendado", ["convencional","intensivo"], plan?.modo_recomendado || "convencional")}
           </div>
           ${textarea("planObs", "Observaciones del plan", plan?.observaciones)}
+          ${textarea("planMotivo", plan ? "Motivo del cambio (obligatorio si cambias la meta o el modo)" : "Motivo de la indicación (opcional)", "")}
           <button class="btn btn-primary btn-full" id="savePlanBtn">${plan ? "Actualizar plan" : "Crear plan"}</button>
           ${plan ? `<button class="btn btn-secondary btn-full" id="cancelPlanBtn">Cancelar plan</button>` : ""}
+          <div class="panel-title spaced">Cambios del plan</div>
+          <div class="plan-cambios" id="planCambiosList"><small>Cargando…</small></div>
 
           <div class="panel-title spaced">Permisos del tutor</div>
           ${select("controlMode", "Permiso tutor", ["bloqueado","manual","automatico"], control?.modo_control || "bloqueado")}
@@ -904,6 +907,7 @@ function showPatientDetailModal({ patient, plan, control, sessions, alarms, even
   modal.querySelectorAll("[data-close]").forEach(el => el.addEventListener("click", () => modal.remove()));
   $("savePatientClinicalBtn")?.addEventListener("click", () => savePatientClinical(patient.id));
   $("savePlanBtn")?.addEventListener("click", () => savePlan(patient.id, plan?.id || null));
+  renderPlanCambios(patient.id);
   $("cancelPlanBtn")?.addEventListener("click", () => doCancelPlan(patient.id, plan.id));
   $("saveControlBtn")?.addEventListener("click", () => saveControl(patient.id, patient.tutor_id));
   $("exportPatientBtn")?.addEventListener("click", () => exportExcel(patient.id, "medico").catch(() => showDoctorFeedback("No se pudo exportar Excel.", "danger")));
@@ -945,6 +949,7 @@ async function savePlan(patientId, planId) {
     hours_target: numberOrNull("planHoras"),
     modo_recomendado: value("planModo"),
     observaciones: value("planObs") || null,
+    motivo: value("planMotivo") || null,
   };
   if (!payload.hours_target || payload.hours_target <= 0) return showDoctorFeedback("Define una meta de horas válida.", "warn");
   const res = planId ? await updatePlan(patientId, planId, payload) : await createPlan(patientId, payload);
@@ -953,8 +958,23 @@ async function savePlan(patientId, planId) {
   loadDoctorDashboard();
 }
 
+async function renderPlanCambios(patientId) {
+  const box = $("planCambiosList");
+  if (!box) return;
+  const res = await fetchPlanCambios(patientId).catch(() => null);
+  const list = res?.data?.cambios || [];
+  box.innerHTML = list.length ? list.map(c => `
+    <div class="plan-cambio">
+      <b>${escapeHtml(c.resumen)}</b>
+      <span>${escapeHtml(c.fecha_txt)} · ${escapeHtml(c.doctor || "Sistema")}${c.avance_txt ? ` · avance ${escapeHtml(c.avance_txt)}` : ""}</span>
+      ${c.motivo ? `<em>Motivo: ${escapeHtml(c.motivo)}</em>` : ""}
+    </div>`).join("") : `<small>Todavía no hay cambios registrados.</small>`;
+}
+
 async function doCancelPlan(patientId, planId) {
-  const res = await cancelPlan(patientId, planId);
+  const motivo = value("planMotivo") || window.prompt("Motivo para cancelar el plan:") || "";
+  if (!motivo.trim()) return showDoctorFeedback("Escribe el motivo para cancelar el plan.", "warn");
+  const res = await cancelPlan(patientId, planId, motivo.trim());
   if (!res.ok) return showDoctorFeedback(res.data?.message || "No se pudo cancelar el plan.", "danger");
   $("doctorPatientModal")?.remove();
   loadDoctorDashboard();

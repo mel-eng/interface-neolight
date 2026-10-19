@@ -709,3 +709,33 @@ html body .cuna-grid small{grid-area:lbl} html body .cuna-grid em{grid-area:est}
 html body #view-dashboard-patient .patient-profile-avatar.has-photo,
 html body #view-dashboard-patient .patient-right-rail .patient-profile-card .patient-profile-avatar.has-photo,
 html body .cr-avatar.has-photo{background-image:var(--nl-foto) !important;background-size:cover !important;background-position:center !important;color:transparent !important}
+
+/* P. Cambios del plan (ficha del doctor) */
+.plan-cambios{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto}
+.plan-cambio{border-left:3px solid var(--nl-accent,#7c4dff);background:rgba(124,77,255,.06);border-radius:8px;padding:7px 10px;display:flex;flex-direction:column;gap:2px}
+.plan-cambio b{font-size:13px}.plan-cambio span{font-size:11px;color:#6b6475}.plan-cambio em{font-size:12px;color:#3b2a63}
+
+/* Q. Calibración LDR → lux (superusuario) */
+.su-sensor-sub{display:block;margin-top:2px;color:var(--nl-accent);font-size:.66rem;font-weight:700}
+.su-ldr-card{margin-top:14px}
+.su-ldr-help{margin:4px 0 12px;color:var(--nl-muted);font-size:.68rem;line-height:1.5}
+.su-ldr-layout{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:16px;align-items:start}
+.su-ldr-now{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:rgb(var(--nl-accent-rgb) / 0.08)}
+.su-ldr-now span{color:var(--nl-muted);font-size:.62rem;font-weight:700}.su-ldr-now b{color:var(--nl-accent);font-size:.9rem}
+.su-ldr-msg{margin:0;min-height:1em;font-size:.64rem;color:var(--nl-muted)}.su-ldr-msg[data-kind=ok]{color:#15803d}.su-ldr-msg[data-kind=warn]{color:#b4560d}
+.su-ldr-result svg{width:100%;height:auto;max-height:260px;background:var(--nl-surface);border:1px solid var(--nl-line);border-radius:12px}
+.su-ldr-grid{stroke:var(--nl-line);stroke-width:1}.su-ldr-axis{fill:var(--nl-faint);font-size:9px}
+.su-ldr-line{fill:none;stroke:var(--nl-accent);stroke-width:2}.su-ldr-pot{fill:none;stroke:#e3b23c;stroke-width:1.5;stroke-dasharray:5 4}
+.su-ldr-dot{fill:#fff;stroke:var(--nl-accent);stroke-width:2}.su-ldr-now-line{stroke:#15803d;stroke-width:1.5;stroke-dasharray:3 3}
+.su-ldr-empty{fill:var(--nl-faint);font-size:12px}
+.su-ldr-fit{display:flex;flex-direction:column;gap:3px;margin-top:8px;font-size:.64rem;color:var(--nl-muted)}.su-ldr-fit b{color:var(--nl-text)}
+.su-ldr-table-wrap{margin-top:14px;overflow-x:auto}
+.su-ldr-table{width:100%;border-collapse:collapse;font-size:.64rem}
+.su-ldr-table th{text-align:left;color:var(--nl-faint);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--nl-line)}
+.su-ldr-table td{padding:6px 8px;border-bottom:1px solid var(--nl-line)}
+.su-ldr-del{border:0;background:none;color:#c0152a;font-size:1rem;cursor:pointer;line-height:1}
+.su-ldr-empty-row{text-align:center;color:var(--nl-faint)}
+.su-ldr-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.su-ldr-foot small{color:var(--nl-faint);font-size:.58rem}.su-ldr-foot div{display:flex;gap:8px}
+@media (max-width:760px){.su-ldr-layout{grid-template-columns:1fr}}
+.su-ldr-exp{fill:none;stroke:#15803d;stroke-width:1.8;stroke-dasharray:2 3}

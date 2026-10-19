@@ -28,6 +28,7 @@ import { fileURLToPath } from 'url';
 import { Server as SocketIOServer } from 'socket.io';
 import ExcelJS         from 'exceljs';
 import { registrarReportes } from './reportes.js';
+import { registrarLdrLux } from './ldr-lux.js';
 import { detectarMarcador } from './aruco-layer.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -471,6 +472,13 @@ async function ensureSchemaCompatibility() {
   await safe(`ALTER TABLE alarmas ADD INDEX ix_paciente_created_at (paciente_id, created_at)`);
   await safe(`ALTER TABLE alarmas ADD INDEX ix_alarmas_activas (paciente_id, silenciada, tipo)`);
 
+  await safe(`CREATE TABLE IF NOT EXISTS plan_cambios (
+      id INT AUTO_INCREMENT PRIMARY KEY, plan_id INT NOT NULL, paciente_id INT NOT NULL, doctor_id INT NULL,
+      tipo ENUM('creado','modificado','cancelado','reemplazado','completado') NOT NULL,
+      antes JSON NULL, despues JSON NULL, avance_s INT UNSIGNED NULL, motivo VARCHAR(500) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      KEY ix_plan_cambios_paciente (paciente_id, created_at), KEY ix_plan_cambios_plan (plan_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
   // Foto del paciente para los reportes.
   await safe(`ALTER TABLE pacientes ADD COLUMN foto MEDIUMBLOB NULL`);
   await safe(`ALTER TABLE pacientes ADD COLUMN foto_at DATETIME NULL`);
@@ -491,6 +499,11 @@ async function ensureSchemaCompatibility() {
       'antifaz_desplazado','ojos_expuestos','antifaz_no_verificable','antifaz_sin_verificacion'
     ) NOT NULL`);
   await loadAntifazSettings();
+  await safe(`CREATE TABLE IF NOT EXISTS calibracion_ldr (
+      id INT AUTO_INCREMENT PRIMARY KEY, pct DECIMAL(5,1) NOT NULL, lux DECIMAL(9,1) NOT NULL,
+      nota VARCHAR(120) NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  await ldrLux.recargar();
 
   // El sistema parte con una lámpara registrada.
   const [[eq]] = await pool.query(`SELECT COUNT(*) AS n FROM equipos`);
@@ -543,6 +556,19 @@ async function getActivePlan(paciente_id, conn = null) {
     sesiones_por_dia:   p.sesiones_por_dia || null,
     duracion_sesion_min: p.duracion_sesion_min || null,
   };
+}
+
+// Deja constancia de cada indicación del médico sobre el plan (sale en los reportes).
+const planResumen = p => p ? { meta_total_s: Number(p.meta_total_s), modo: p.modo_recomendado || null,
+  observaciones: p.observaciones || null } : null;
+async function registrarCambioPlan({ plan_id, paciente_id, doctor_id = null, tipo, antes = null, despues = null, avance_s = null, motivo = null }, conn = null) {
+  const db = conn || pool;
+  await db.execute(
+    `INSERT INTO plan_cambios (plan_id, paciente_id, doctor_id, tipo, antes, despues, avance_s, motivo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [plan_id, paciente_id, doctor_id, tipo, antes ? JSON.stringify(antes) : null, despues ? JSON.stringify(despues) : null,
+     avance_s != null ? Math.round(avance_s) : null, motivo ? String(motivo).trim().slice(0, 500) : null]
+  ).catch(e => console.warn('[PLAN] no se pudo registrar el cambio:', e.message));
 }
 
 // Último plan completado, si el doctor todavía no creó otro. Sirve para mostrar la estrellita de fin.
@@ -991,6 +1017,8 @@ async function completarPlan(paciente_id, plan, sesion) {
       `UPDATE planes_terapia SET estado = 'completado', tiempo_acumulado_s = meta_total_s, fecha_fin = COALESCE(fecha_fin, NOW())
        WHERE id = ? AND estado = 'activo'`, [plan.id]);
     inactiveSince = Date.now();
+    await registrarCambioPlan({ plan_id: plan.id, paciente_id, tipo: 'completado', avance_s: plan.meta_total_s,
+      motivo: 'Se cumplió la meta: la lámpara se apagó sola' });
 
     const [[p]] = await pool.execute(
       `SELECT p.nombre, p.apellidos, p.doctor_id, p.tutor_id FROM pacientes p WHERE p.id = ?`, [paciente_id]);
@@ -1082,6 +1110,7 @@ function visibleTelemetry() {
     paciente_id: t?.paciente_id ?? activePatientId ?? null,
     cm: visible ? t.cm : null, distance_cm: visible ? t.cm : null,
     pct: visible ? t.pct : null, illumination_pct: visible ? t.pct : null,
+    lux_est: visible && t.pct != null ? luxEstimado(t.pct) : null,
     pwm: visible ? t.pwm : null,
     temp_bebe: visible ? t.tBebe : null,
     temp_ambiente: visible ? t.tAmb : null,
@@ -3251,6 +3280,8 @@ app.post('/api/doctor/patients/:id/plan', async (req, res) => {
     const sesiones_por_dia = toNum(req.body.sesiones_por_dia);
     const duracion_sesion_min = toNum(req.body.duracion_sesion_min);
 
+    const motivo = String(req.body.motivo || '').trim() || null;
+    const anterior = await getActivePlan(patientId).catch(() => null);
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -3258,6 +3289,9 @@ app.post('/api/doctor/patients/:id/plan', async (req, res) => {
         `UPDATE planes_terapia SET estado = 'pausado' WHERE paciente_id = ? AND estado = 'activo'`,
         [patientId]
       );
+      if (anterior) await registrarCambioPlan({ plan_id: anterior.id, paciente_id: patientId, doctor_id: doctorId,
+        tipo: 'reemplazado', antes: planResumen(anterior), avance_s: anterior.tiempo_acumulado_s,
+        motivo: motivo || 'Reemplazado por un plan nuevo' }, conn);
       const [r] = await conn.execute(
         `INSERT INTO planes_terapia
            (paciente_id, doctor_id, meta_total_s, modo_recomendado, observaciones,
@@ -3271,7 +3305,10 @@ app.post('/api/doctor/patients/:id/plan', async (req, res) => {
                        metadata: { plan_id: r.insertId, meta_total_s,
                                    horas: +(meta_total_s/3600).toFixed(2), modo,
                                    horas_por_dia, sesiones_por_dia, duracion_sesion_min } }, conn);
+      await registrarCambioPlan({ plan_id: r.insertId, paciente_id: patientId, doctor_id: doctorId, tipo: 'creado',
+        despues: { meta_total_s, modo, observaciones }, avance_s: 0, motivo }, conn);
       await conn.commit();
+      io.emit('plan:updated', { paciente_id: patientId, plan_id: r.insertId, estado: 'activo' });
       const plan = await getActivePlan(patientId);
       res.json({ ok: true, plan });
     } catch (e) { await conn.rollback(); throw e; }
@@ -3289,19 +3326,62 @@ app.put('/api/doctor/patients/:id/plan/:planId', async (req, res) => {
     const planId    = Number(req.params.planId);
     await ensurePatientBelongsToDoctor(patientId, doctorId);
 
+    const [[antes]] = await pool.execute(`SELECT * FROM planes_terapia WHERE id = ? AND paciente_id = ?`, [planId, patientId]);
+    if (!antes) return res.status(404).json({ ok: false, error: 'plan_no_encontrado' });
+    const vivo = await getActivePlan(patientId).catch(() => null);
+    const avance = vivo?.id === planId ? vivo.tiempo_acumulado_s : antes.tiempo_acumulado_s;
+
+    let meta = null;
+    if (req.body.hours_target) meta = Math.round(Number(req.body.hours_target) * 3600);
+    else if (req.body.meta_total_s) meta = Math.round(Number(req.body.meta_total_s));
+    if (meta != null && !(meta > 0)) return res.status(400).json({ ok: false, error: 'meta_invalida' });
+    const modo = req.body.modo_recomendado ? normalizeMode(req.body.modo_recomendado) : null;
+
     const sets = [], vals = [];
-    if (req.body.meta_total_s)        { sets.push('meta_total_s = ?');        vals.push(Number(req.body.meta_total_s)); }
-    if (req.body.hours_target)        { sets.push('meta_total_s = ?');        vals.push(Math.round(Number(req.body.hours_target)*3600)); }
-    if (req.body.modo_recomendado)    { sets.push('modo_recomendado = ?');     vals.push(normalizeMode(req.body.modo_recomendado)); }
-    if (req.body.observaciones != null){ sets.push('observaciones = ?');       vals.push(req.body.observaciones); }
+    if (meta != null && meta !== Number(antes.meta_total_s)) {
+      // El acumulado nunca puede pasar la meta (si la meta baja, se recorta).
+      sets.push('meta_total_s = ?', 'tiempo_acumulado_s = LEAST(tiempo_acumulado_s, meta_total_s)'); vals.push(meta);
+    }
+    if (modo && modo !== antes.modo_recomendado) { sets.push('modo_recomendado = ?'); vals.push(modo); }
+    if (req.body.observaciones != null && String(req.body.observaciones) !== String(antes.observaciones || '')) {
+      sets.push('observaciones = ?'); vals.push(req.body.observaciones || null);
+    }
     if (req.body.horas_por_dia != null){ sets.push('horas_por_dia = ?');       vals.push(toNum(req.body.horas_por_dia)); }
     if (req.body.sesiones_por_dia != null){ sets.push('sesiones_por_dia = ?');  vals.push(toNum(req.body.sesiones_por_dia)); }
     if (req.body.duracion_sesion_min != null){ sets.push('duracion_sesion_min = ?'); vals.push(toNum(req.body.duracion_sesion_min)); }
-    if (!sets.length) return res.status(400).json({ ok: false, error: 'sin_campos' });
+    if (!sets.length) return res.json({ ok: true, plan: vivo, sin_cambios: true });
+
+    // Cambiar la meta o el modo es una indicación médica: queda escrito el porqué.
+    const motivo = String(req.body.motivo || '').trim();
+    const cambioClinico = sets.some(x => x.startsWith('meta_total_s') || x.startsWith('modo_recomendado'));
+    if (cambioClinico && motivo.length < 3)
+      return res.status(400).json({ ok: false, error: 'falta_motivo', message: 'Escribe el motivo del cambio (por ejemplo: mejoría clínica, nuevo control de bilirrubina).' });
+
     vals.push(planId);
     await pool.execute(`UPDATE planes_terapia SET ${sets.join(', ')} WHERE id = ?`, vals);
+    const [[despues]] = await pool.execute(`SELECT * FROM planes_terapia WHERE id = ?`, [planId]);
+    await registrarCambioPlan({ plan_id: planId, paciente_id: patientId, doctor_id: doctorId, tipo: 'modificado',
+      antes: planResumen(antes), despues: planResumen(despues), avance_s: avance, motivo: motivo || null });
+    const horasTxt = s => `${+(Number(s) / 3600).toFixed(2)} h`;
     await logEvent({ paciente_id: patientId, cuenta_id: doctorId, tipo: 'plan_actualizado',
-                     metadata: { plan_id: planId } });
+      descripcion: meta != null && meta !== Number(antes.meta_total_s)
+        ? `Meta del plan: ${horasTxt(antes.meta_total_s)} → ${horasTxt(meta)}${motivo ? `. Motivo: ${motivo}` : ''}`
+        : `Plan actualizado${motivo ? `. Motivo: ${motivo}` : ''}`,
+      metadata: { plan_id: planId, antes: planResumen(antes), despues: planResumen(despues), motivo } });
+
+    // Si con la meta nueva ya se cumplió y no hay sesión corriendo, el plan se da por completado aquí.
+    // Con la lámpara encendida lo completa el control de la terapia (apaga la luz y toca la melodía).
+    const sesion = await getActiveSession(patientId);
+    if (antes.estado === 'activo' && meta != null && avance >= meta && !sesion) {
+      await pool.execute(`UPDATE planes_terapia SET estado = 'completado', tiempo_acumulado_s = meta_total_s, fecha_fin = NOW()
+                          WHERE id = ? AND estado = 'activo'`, [planId]);
+      await registrarCambioPlan({ plan_id: planId, paciente_id: patientId, doctor_id: doctorId, tipo: 'completado',
+        avance_s: meta, motivo: 'Con la meta nueva, la terapia ya estaba cumplida' });
+      const [[p]] = await pool.execute(`SELECT nombre, apellidos, doctor_id FROM pacientes WHERE id = ?`, [patientId]);
+      io.emit('plan:completado', { paciente_id: patientId, plan_id: planId, doctor_id: p?.doctor_id || null,
+        paciente: `${p?.nombre || ''} ${p?.apellidos || ''}`.trim(), horas: +(meta / 3600).toFixed(2), ts: Date.now() });
+    }
+    io.emit('plan:updated', { paciente_id: patientId, plan_id: planId });
     const plan = await getActivePlan(patientId);
     res.json({ ok: true, plan });
   } catch (e) {
@@ -3316,12 +3396,17 @@ app.post('/api/doctor/patients/:id/plan/:planId/cancel', async (req, res) => {
     const patientId = Number(req.params.id);
     const planId    = Number(req.params.planId);
     await ensurePatientBelongsToDoctor(patientId, doctorId);
+    const motivo = String(req.body?.motivo || '').trim() || null;
+    const antes = await getActivePlan(patientId).catch(() => null);
     await pool.execute(
       `UPDATE planes_terapia SET estado = 'cancelado', fecha_fin = NOW() WHERE id = ? AND paciente_id = ?`,
       [planId, patientId]
     );
+    await registrarCambioPlan({ plan_id: planId, paciente_id: patientId, doctor_id: doctorId, tipo: 'cancelado',
+      antes: antes?.id === planId ? planResumen(antes) : null, avance_s: antes?.id === planId ? antes.tiempo_acumulado_s : null, motivo });
     await logEvent({ paciente_id: patientId, cuenta_id: doctorId, tipo: 'plan_cancelado',
-                     descripcion: 'Plan cancelado por el doctor', metadata: { plan_id: planId } });
+                     descripcion: `Plan cancelado por el doctor${motivo ? `. Motivo: ${motivo}` : ''}`, metadata: { plan_id: planId, motivo } });
+    io.emit('plan:updated', { paciente_id: patientId, plan_id: planId, estado: 'cancelado' });
     res.json({ ok: true });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ ok: false, error: e.error });
@@ -3910,6 +3995,18 @@ app.get('/api/doctor/alerts/today', async (req, res) => {
     });
   } catch (e) { res.status(500).json({ ok: false, error: 'server_error' }); }
 });
+
+// ===================== CALIBRACIÓN LDR → LUX ========================
+// Con pares (% de los LDR, lux del luxómetro) se estima la luz en lux.
+const ldrLux = registrarLdrLux(app, {
+  pool: { execute: (...a) => pool.execute(...a), query: (...a) => pool.query(...a) },
+  ldrActual: () => (espOnline && lastTelemetry?.pct != null ? Number(lastTelemetry.pct) : null),
+  ldrEnVivo: () => espOnline,
+});
+const luxEstimado = pct => {
+  const e = ldrLux.estimar(pct);
+  return e ? { lux: Math.round(e.lux), fuera_rango: e.fuera_rango } : null;
+};
 
 // ===================== FOTO, EXCEL Y REPORTES PDF ========================
 // En reportes.js: versión para la familia y versión médica con firma.

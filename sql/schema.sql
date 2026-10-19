@@ -512,3 +512,28 @@ CREATE TABLE IF NOT EXISTS antropometria (
   created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_antropometria_paciente (paciente_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Historial de indicaciones del médico sobre el plan (qué cambió, cuándo y por qué).
+CREATE TABLE IF NOT EXISTS plan_cambios (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  plan_id      INT          NOT NULL,
+  paciente_id  INT          NOT NULL,
+  doctor_id    INT          NULL,
+  tipo         ENUM('creado','modificado','cancelado','reemplazado','completado') NOT NULL,
+  antes        JSON         NULL COMMENT 'meta_total_s, modo, observaciones antes del cambio',
+  despues      JSON         NULL,
+  avance_s     INT UNSIGNED NULL COMMENT 'Terapia acumulada en el momento del cambio',
+  motivo       VARCHAR(500) NULL,
+  created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_plan_cambios_paciente (paciente_id, created_at),
+  KEY ix_plan_cambios_plan (plan_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Calibración de los LDR contra un luxómetro (pares % / lux).
+CREATE TABLE IF NOT EXISTS calibracion_ldr (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  pct         DECIMAL(5,1) NOT NULL COMMENT 'Lectura de los LDR en la interfaz',
+  lux         DECIMAL(9,1) NOT NULL COMMENT 'Lectura del luxómetro en el mismo lugar',
+  nota        VARCHAR(120) NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
