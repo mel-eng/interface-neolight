@@ -739,3 +739,19 @@ html body .cr-avatar.has-photo{background-image:var(--nl-foto) !important;backgr
 .su-ldr-foot small{color:var(--nl-faint);font-size:.58rem}.su-ldr-foot div{display:flex;gap:8px}
 @media (max-width:760px){.su-ldr-layout{grid-template-columns:1fr}}
 .su-ldr-exp{fill:none;stroke:#15803d;stroke-width:1.8;stroke-dasharray:2 3}
+
+/* R. Cuna: lecturas y calibración (superusuario) */
+.su-cuna-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:10px}
+.su-cuna-box{border:1px solid var(--nl-line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;background:var(--nl-surface)}
+.su-cuna-box h4{margin:0;font-size:.78rem;color:var(--nl-text)}
+.su-cuna-big{font-size:1.6rem;font-weight:800;color:var(--nl-accent)}
+.su-cuna-box dl{display:grid;grid-template-columns:1fr auto;gap:3px 8px;margin:0;font-size:.62rem}
+.su-cuna-box dt{color:var(--nl-faint)}.su-cuna-box dd{margin:0;font-weight:700;text-align:right}
+.su-cuna-steps{margin:4px 0;padding-left:18px;font-size:.62rem;color:var(--nl-muted);line-height:1.5}
+.su-cuna-row{display:flex;gap:8px}.su-cuna-row .su-button{flex:1}
+.su-cuna-msg{margin:6px 0 4px;padding:10px 12px;border-radius:12px;font-size:.68rem;font-weight:700;background:rgb(var(--nl-accent-rgb) / 0.08);color:var(--nl-accent)}
+.su-cuna-msg[data-tono=ok]{background:#e8f6ee;color:#15803d}.su-cuna-msg[data-tono=warn]{background:#fdf1e6;color:#b4560d}
+[data-cuna-orden]:disabled{opacity:.45;cursor:not-allowed}
+@media (max-width:980px){.su-cuna-grid{grid-template-columns:1fr}}
+.su-device-illustration.su-device-cuna .su-device-arm,.su-device-illustration.su-device-cuna .su-device-light{display:none}
+[data-diagnostic-tab][hidden],.su-test-mode-button[hidden]{display:none !important}

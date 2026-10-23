@@ -213,7 +213,7 @@
       <!-- EQUIPOS -->
       <section class="su-section" data-su-panel="equipos">
         <div class="su-panel-heading su-equipment-heading">
-          <div><span class="su-card-kicker">Inventario técnico</span><h2>Equipos NeoLight</h2><p>Por ahora se registran dos lámparas: una operativa y una pendiente de verificación física.</p></div>
+          <div><span class="su-card-kicker">Inventario técnico</span><h2>Equipos NeoLight</h2><p>Lámparas de fototerapia y cunas balanza. Una cuna aparece conectada sola cuando empieza a mandar datos.</p></div>
           <button class="su-button secondary" id="suRegisterEquipmentBtn" type="button"><span data-icon="plus"></span>Registrar equipo</button>
         </div>
         <div class="su-equipment-list" id="suEquipmentList"></div>
@@ -222,7 +222,7 @@
       <!-- DIAGNÓSTICO -->
       <section class="su-section" data-su-panel="diagnostico">
         <div class="su-diagnostic-banner">
-          <div><span class="su-soft-badge"><span data-icon="activity"></span> Pruebas técnicas</span><h2>Diagnóstico de <b id="suDiagnosticEquipmentName">NEOLIGHT-01</b></h2><p>Las acciones manuales solo se habilitan durante el modo de prueba para evitar movimientos o activaciones accidentales.</p></div>
+          <div><span class="su-soft-badge"><span data-icon="activity"></span> Pruebas técnicas</span><h2>Diagnóstico de <b id="suDiagnosticEquipmentName">NEOLIGHT-01</b></h2><p id="suDiagnosticHint">Las acciones manuales solo se habilitan durante el modo de prueba para evitar movimientos o activaciones accidentales.</p></div>
           <button class="su-test-mode-button" id="suTestModeBtn" type="button"><span data-icon="lock"></span><b>Activar modo de prueba</b><small>Controles bloqueados</small></button>
         </div>
 
@@ -231,6 +231,7 @@
           <button class="su-tab" type="button" data-diagnostic-tab="actuators">Actuadores</button>
           <button class="su-tab" type="button" data-diagnostic-tab="lighting">Matriz LED</button>
           <button class="su-tab" type="button" data-diagnostic-tab="camera">Cámara y alarmas</button>
+          <button class="su-tab" type="button" data-diagnostic-tab="cuna">Cuna</button>
         </div>
 
         <div class="su-diagnostic-panel active" data-diagnostic-panel="sensors">
@@ -295,6 +296,55 @@
               <button class="su-button primary full" id="suAutomaticLedTest" type="button"><span data-icon="play"></span>Prueba automática</button>
             </article>
           </div>
+        </div>
+
+        <div class="su-diagnostic-panel" data-diagnostic-panel="cuna" id="suCunaPanel">
+          <article class="su-card">
+            <div class="su-card-head"><div><span class="su-card-kicker">Equipo CUNA-01</span><h3>Cuna: lecturas y calibración</h3></div><span class="su-status-pill neutral" id="suCunaEstado">Sin conexión</span></div>
+            <p class="su-ldr-help" id="suCunaInfo">La cuna manda sus datos cada segundo. Desde aquí se tara y se calibra; lo que calibres queda guardado en la ESP32 de la cuna.</p>
+            <div class="su-cuna-msg" id="suCunaMsg" role="status" hidden></div>
+            <div class="su-cuna-grid">
+              <section class="su-cuna-box">
+                <h4>Balanza</h4>
+                <div class="su-cuna-big" id="suCunaPeso">—</div>
+                <dl><dt>Estado</dt><dd id="suCunaPesoEst">—</dd><dt>Cuentas netas</dt><dd id="suCunaNeto">—</dd><dt>Factor (cuentas/g)</dt><dd id="suCunaFactor">—</dd></dl>
+                <ol class="su-cuna-steps">
+                  <li>Deja la cuna <b>vacía</b> y toca <b>Tarar</b>.</li>
+                  <li>Pon un peso conocido (mejor pesado antes en otra balanza) y escribe los gramos.</li>
+                  <li>Toca <b>Calibrar balanza</b> y comprueba con otro peso.</li>
+                </ol>
+                <div class="su-form"><button class="su-button ghost" type="button" data-cuna-orden="tara">Tarar (cuna vacía)</button>
+                  <label><span>Peso conocido (g)</span><input id="suCunaGramos" type="number" min="50" step="1" placeholder="Ej.: 1000"></label>
+                  <button class="su-button primary" type="button" data-cuna-orden="cal_peso" data-cuna-valor="suCunaGramos">Calibrar balanza</button></div>
+              </section>
+              <section class="su-cuna-box">
+                <h4>Talla (VL53L0X)</h4>
+                <div class="su-cuna-big" id="suCunaTalla">—</div>
+                <dl><dt>Distancia cabeza (d1)</dt><dd id="suCunaD1">—</dd><dt>Distancia pies (d2)</dt><dd id="suCunaD2">—</dd><dt>Largo efectivo</dt><dd id="suCunaLargo">—</dd><dt>Sensores</dt><dd id="suCunaVl">—</dd></dl>
+                <ol class="su-cuna-steps">
+                  <li>Pon entre los sensores un objeto recto de largo conocido (regla o tabla), centrado y a la altura del bebé.</li>
+                  <li>Escribe su largo en mm y toca <b>Calibrar talla</b>.</li>
+                  <li>Prueba con <b>Medir talla</b> y otro objeto.</li>
+                </ol>
+                <div class="su-form"><label><span>Largo del objeto (mm)</span><input id="suCunaMM" type="number" min="100" max="1000" step="1" placeholder="Ej.: 500"></label>
+                  <button class="su-button primary" type="button" data-cuna-orden="cal_talla" data-cuna-valor="suCunaMM">Calibrar talla</button>
+                  <button class="su-button ghost" type="button" data-cuna-orden="medir">Medir talla</button></div>
+              </section>
+              <section class="su-cuna-box">
+                <h4>Temperatura (NTC)</h4>
+                <div class="su-cuna-big" id="suCunaTemp">—</div>
+                <dl><dt>Resistencia NTC</dt><dd id="suCunaR">—</dd><dt>Conexión</dt><dd id="suCunaGnd">—</dd><dt>R25 / Beta</dt><dd id="suCunaRB">—</dd><dt>Puntos de calibración</dt><dd id="suCunaPts">—</dd></dl>
+                <ol class="su-cuna-steps">
+                  <li>Junta la punta del NTC con un termómetro de referencia y espera 2 minutos.</li>
+                  <li>Escribe lo que marca el termómetro y toca <b>Guardar punto</b>.</li>
+                  <li>Repite con otra temperatura (5 °C o más de diferencia, por ejemplo apretándolo con la mano). Con 2 puntos se ajusta solo.</li>
+                </ol>
+                <div class="su-form"><label><span>Termómetro (°C)</span><input id="suCunaC" type="number" min="5" max="55" step="0.1" placeholder="Ej.: 24.5"></label>
+                  <button class="su-button primary" type="button" data-cuna-orden="cal_temp" data-cuna-valor="suCunaC">Guardar punto</button>
+                  <div class="su-cuna-row"><button class="su-button ghost" type="button" data-cuna-orden="invertir_ntc" title="Si al calentar el NTC la temperatura baja">Invertir NTC</button><button class="su-button ghost" type="button" data-cuna-orden="borrar_temp">Borrar</button></div></div>
+              </section>
+            </div>
+          </article>
         </div>
 
         <div class="su-diagnostic-panel" data-diagnostic-panel="camera">

@@ -48,3 +48,8 @@ export async function downloadLdrCsv() {
   const a = document.createElement("a"); a.href = url; a.download = "calibracion_ldr_lux.csv";
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
+
+// Cuna: lecturas crudas y órdenes de calibración
+export const fetchCunaDiagnostico = () => req("/api/superuser/cuna", { headers: superuserHeaders() });
+export const sendCunaOrden = (orden, valor = "") =>
+  req("/api/superuser/cuna/orden", { method: "POST", headers: superuserHeaders(JSON_HEADERS), body: JSON.stringify({ orden, valor }) });

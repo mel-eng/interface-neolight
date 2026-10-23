@@ -24,6 +24,7 @@ import {
 } from "./superuser-store.js";
 import { hydrateIcons, icon } from "./superuser-icons.js";
 import { initLdrCalibracion } from "./ldr-calibracion.js";
+import { initCunaCalibracion } from "./cuna-calibracion.js";
 import { getSocket, socketEmitMode, socketEmitMove } from "./socket.js";
 
 let initialized = false;
@@ -47,7 +48,7 @@ let serverState = {
 const sectionMeta = {
   inicio: ["Panel de control", "Inicio", "Resumen general del sistema NeoLight."],
   usuarios: ["Administración", "Usuarios", "Doctores, pacientes y asignaciones clínicas."],
-  equipos: ["Inventario técnico", "Equipos", "Estado y seguimiento de las lámparas registradas."],
+  equipos: ["Inventario técnico", "Equipos", "Estado y seguimiento de las lámparas y cunas registradas."],
   diagnostico: ["Verificación funcional", "Diagnóstico", "Pruebas controladas de sensores, actuadores y salidas."],
   mantenimiento: ["Trazabilidad técnica", "Mantenimiento", "Revisiones preventivas, correctivas e historial."],
 };
@@ -141,7 +142,16 @@ function setUsersTab(name) {
 }
 
 function setDiagnosticTab(name) {
+  const cuna = isCuna(selectedEquipment());
+  if (cuna) name = "cuna";
+  else if (name === "cuna") name = "sensors";
   currentDiagnosticTab = name;
+  qa("[data-diagnostic-tab]").forEach(button => { button.hidden = cuna ? button.dataset.diagnosticTab !== "cuna" : button.dataset.diagnosticTab === "cuna"; });
+  const testBtn = $("suTestModeBtn"); if (testBtn) testBtn.hidden = cuna;
+  const hint = $("suDiagnosticHint");
+  if (hint) hint.textContent = cuna
+    ? "Lecturas en vivo de la cuna y calibración de balanza, talla y temperatura. Lo que calibres queda guardado en la ESP32 de la cuna."
+    : "Las acciones manuales solo se habilitan durante el modo de prueba para evitar movimientos o activaciones accidentales.";
   qa("[data-diagnostic-tab]").forEach(button => button.classList.toggle("active", button.dataset.diagnosticTab === name));
   qa("[data-diagnostic-panel]").forEach(panel => panel.classList.toggle("active", panel.dataset.diagnosticPanel === name));
 }
@@ -160,6 +170,8 @@ function setSelectedEquipment(id) {
 }
 
 function selectedEquipment() { return getEquipment(workspace); }
+// La cuna es otro tipo de equipo: se reconoce por su código (CUNA-01, CUNA-02…).
+const isCuna = equipment => /^CUNA/i.test(equipment?.name || "");
 
 function statusPresentation(status) {
   const map = {
@@ -181,13 +193,17 @@ function updateSelectedEquipmentUI() {
   $("suSelectedEquipmentLabel").textContent = equipment.name;
   $("suHomeEquipmentName").textContent = equipment.name;
   $("suDiagnosticEquipmentName").textContent = equipment.name;
+  setDiagnosticTab(currentDiagnosticTab);
   $("suMaintenanceEquipment").textContent = equipment.name;
   $("suHomeEquipmentDescription").textContent = equipment.description;
   const status = $("suHomeEquipmentStatus");
   status.textContent = statusLabel;
   status.className = `su-status-pill ${statusClass}`;
   $("suHomeLastTest").textContent = equipment.lastTest ? formatDateTime(equipment.lastTest) : "No registrada";
-  if (isPrimaryEquipment(workspace, equipment)) {
+  if (isCuna(equipment)) {
+    $("suHomeConnection").textContent = equipment.online ? "Conectada" : "Sin conexión";
+    $("suHomeLastSeen").textContent = equipment.lastSeen ? formatDateTime(equipment.lastSeen) : "—";
+  } else if (isPrimaryEquipment(workspace, equipment)) {
     const online = !!serverState.telemetry?.esp32_connected || !!serverState.overview?.equipment?.espOnline;
     $("suHomeConnection").textContent = online ? "Conectado" : "Sin conexión";
     $("suHomeLastSeen").textContent = online ? "Ahora" : "—";
@@ -345,20 +361,26 @@ function filterUserTables() {
   });
 }
 
+function cunaHealthHtml(online) {
+  const item = (ic, t, sub) => `<div class="su-health-item"><span>${icon(ic)}</span><b>${t}</b><small>${sub}</small></div>`;
+  return `<div class="su-equipment-health">${item("activity", "Balanza", online ? "En línea" : "Sin datos")}${item("ruler", "Talla", online ? "En línea" : "Sin datos")}${item("thermometer", "Temperatura", online ? "En línea" : "Sin datos")}${item("wrench", "Calibración", "Desde Diagnóstico")}</div>`;
+}
+
 function renderEquipmentList() {
   const host = $("suEquipmentList");
   if (!host) return;
   host.innerHTML = workspace.equipments.map(equipment => {
     const [label, cls] = statusPresentation(equipment.status);
     const selected = equipment.id === workspace.selectedEquipment;
-    const online = isPrimaryEquipment(workspace, equipment) && (!!serverState.telemetry?.esp32_connected || !!serverState.overview?.equipment?.espOnline);
+    const cuna = isCuna(equipment);
+    const online = cuna ? !!equipment.online : isPrimaryEquipment(workspace, equipment) && (!!serverState.telemetry?.esp32_connected || !!serverState.overview?.equipment?.espOnline);
     return `<article class="su-equipment-card ${selected ? "selected" : ""}">
-      <div class="su-device-illustration"><span class="su-device-light"></span><span class="su-device-arm"></span><span class="su-device-base"></span></div>
+      <div class="su-device-illustration ${cuna ? "su-device-cuna" : ""}"><span class="su-device-light"></span><span class="su-device-arm"></span><span class="su-device-base"></span></div>
       <div class="su-equipment-card-main">
         <h3>${escapeHtml(equipment.name)} <span class="su-status-pill ${cls}">${label}</span></h3>
         <p>${escapeHtml(equipment.description)}</p>
         <div class="su-equipment-detail-grid"><span><small>Ubicación</small><b>${escapeHtml(equipment.location || "Sin definir")}</b></span><span><small>Horas de uso</small><b>${Number(equipment.hours || 0).toLocaleString("es-BO",{maximumFractionDigits:1})} h</b></span><span><small>Sesiones</small><b>${Number(equipment.sessions || 0)}</b></span><span><small>Última prueba</small><b>${equipment.lastTest ? escapeHtml(formatDate(equipment.lastTest)) : "No realizada"}</b></span></div>
-        <div class="su-equipment-health"><div class="su-health-item"><span>${icon("ruler")}</span><b>Sensores</b><small>${isPrimaryEquipment(workspace, equipment) ? (online ? "En línea" : "Sin datos") : "No verificados"}</small></div><div class="su-health-item"><span>${icon("activity")}</span><b>Actuadores</b><small>${isPrimaryEquipment(workspace, equipment) ? "Configurados" : "Pendientes"}</small></div><div class="su-health-item"><span>${icon("sun")}</span><b>Matriz LED</b><small>${isPrimaryEquipment(workspace, equipment) ? "Disponible" : "Pendiente"}</small></div><div class="su-health-item"><span>${icon("camera")}</span><b>Cámara</b><small>${isPrimaryEquipment(workspace, equipment) ? "Configurable" : "Pendiente"}</small></div></div>
+        ${cuna ? cunaHealthHtml(online) : `<div class="su-equipment-health"><div class="su-health-item"><span>${icon("ruler")}</span><b>Sensores</b><small>${isPrimaryEquipment(workspace, equipment) ? (online ? "En línea" : "Sin datos") : "No verificados"}</small></div><div class="su-health-item"><span>${icon("activity")}</span><b>Actuadores</b><small>${isPrimaryEquipment(workspace, equipment) ? "Configurados" : "Pendientes"}</small></div><div class="su-health-item"><span>${icon("sun")}</span><b>Matriz LED</b><small>${isPrimaryEquipment(workspace, equipment) ? "Disponible" : "Pendiente"}</small></div><div class="su-health-item"><span>${icon("camera")}</span><b>Cámara</b><small>${isPrimaryEquipment(workspace, equipment) ? "Configurable" : "Pendiente"}</small></div></div>`}
       </div>
       <div class="su-equipment-card-actions"><button class="su-button primary" type="button" data-select-equipment="${equipment.id}" data-open-diagnostic>Inspeccionar equipo</button><button class="su-button ghost" type="button" data-equipment-details="${equipment.id}">Ver detalles</button></div>
     </article>`;
@@ -811,21 +833,30 @@ function submitMaintenance(event) {
 function openRegisterEquipmentModal() {
   openModal({
     kicker:"Inventario", title:"Registrar equipo",
-    body:`<p class="su-modal-copy">El equipo queda guardado en el sistema, pendiente de verificación.</p><div class="su-form"><label><span>Código del equipo</span><input id="suEquipmentCode" placeholder="NEOLIGHT-02"></label><label><span>Ubicación</span><input id="suEquipmentLocation" placeholder="Laboratorio de pruebas"></label><label><span>Observaciones</span><textarea id="suEquipmentNotes" rows="4"></textarea></label></div>`,
+    body:`<p class="su-modal-copy">El equipo queda guardado en el sistema, pendiente de verificación. Una cuna aparece conectada sola cuando empieza a mandar datos con el mismo código.</p><div class="su-form"><label><span>Tipo de equipo</span><select id="suEquipmentType"><option value="lampara">Lámpara de fototerapia NEOLIGHT</option><option value="cuna">Cuna balanza (peso, talla y temperatura)</option></select></label><label><span>Código del equipo</span><input id="suEquipmentCode" placeholder="NEOLIGHT-02"></label><label><span>Ubicación</span><input id="suEquipmentLocation" placeholder="Laboratorio de pruebas"></label><label><span>Observaciones</span><textarea id="suEquipmentNotes" rows="4"></textarea></label></div>`,
     actions:[
       { label:"Cancelar", onClick:closeModal },
       { label:"Registrar equipo", className:"primary", onClick:async () => {
-        const name = $("suEquipmentCode")?.value.trim().toUpperCase();
+        const tipo = $("suEquipmentType")?.value || "lampara";
+        let name = $("suEquipmentCode")?.value.trim().toUpperCase();
         if (!name) { showToast("Ingresa un código de equipo.", "warn"); return; }
+        if (tipo === "cuna" && !/^CUNA/.test(name)) { showToast("El código de una cuna debe empezar con CUNA (por ejemplo CUNA-01), igual que en su firmware.", "warn"); return; }
+        if (tipo === "lampara" && /^CUNA/.test(name)) { showToast("Ese código es de una cuna: elige el tipo «Cuna balanza».", "warn"); return; }
         const result = await createEquipment(workspace, {
-          name, status:"sin_verificar", description:"Equipo pendiente de verificación.",
+          name, status:"sin_verificar",
+          description: tipo === "cuna" ? "Cuna balanza neonatal: peso, talla y temperatura." : "Equipo pendiente de verificación.",
           location:$("suEquipmentLocation")?.value.trim() || "", notes:$("suEquipmentNotes")?.value.trim() || "",
         });
         if (!result.ok) { showToast(result.data?.message || "No se pudo registrar el equipo.", "error"); return; }
         closeModal(); setupEquipmentSelector(); renderEquipmentList(); updateSelectedEquipmentUI();
-        showToast("Equipo registrado.");
+        showToast(tipo === "cuna" ? "Cuna registrada. Calíbrala en Diagnóstico." : "Equipo registrado.");
       } },
     ],
+  });
+  $("suEquipmentType")?.addEventListener("change", e => {
+    const code = $("suEquipmentCode");
+    if (code) code.placeholder = e.target.value === "cuna" ? "CUNA-01" : "NEOLIGHT-02";
+    if (code && e.target.value === "cuna" && !code.value) code.value = "CUNA-01";
   });
 }
 
@@ -1009,6 +1040,7 @@ export async function initSuperuserDashboard(data) {
     bindEvents();
     setSection("inicio"); setUsersTab("doctors"); setDiagnosticTab("sensors");
     initLdrCalibracion();
+    initCunaCalibracion();
   }
   workspace = loadWorkspace();
   setupEquipmentSelector();

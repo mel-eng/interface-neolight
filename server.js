@@ -2165,8 +2165,15 @@ app.post('/api/cuna-data', async (req, res) => {
   const b = req.body || {};
   const equipo = String(b.equipo || 'CUNA-01').trim().toUpperCase().slice(0, 40) || 'CUNA-01';
   const estaba = cunaOnline();
+  const crudo = b.crudo && typeof b.crudo === 'object' ? b.crudo : null;
   cuna = {
     equipo,
+    simulado: boolFromEsp(b.simulado) === true,
+    fw: b.fw ? String(b.fw).slice(0, 20) : null,
+    estado: b.estado ? String(b.estado).slice(0, 60) : null,
+    crudo,                                   // datos sin procesar para calibrar (firmware cuna-2.0)
+    msg: b.msg ? String(b.msg).slice(0, 160) : (cuna?.msg || null),
+    msg_id: toNum(b.msg_id),
     peso_g:   enRango(b.peso_g ?? b.peso, 0, 20000),
     estable:  b.estable != null ? boolFromEsp(b.estable) === true : null,
     talla_cm: enRango(b.talla_cm ?? b.talla, 20, 80),
@@ -2175,6 +2182,7 @@ app.post('/api/cuna-data', async (req, res) => {
   };
   if (!estaba) console.log(`[CUNA] ${equipo} conectada.`);
   io.emit('cuna', cunaPublica());
+  const cmd = tomarOrdenesCuna();
 
   // El equipo aparece solo en la lista de equipos y se marca cada tanto como visto.
   if (Date.now() - cunaVistaDb > 30_000) {
@@ -2185,10 +2193,42 @@ app.post('/api/cuna-data', async (req, res) => {
   }
   // Botón PESO de la cuna: guarda la medición en la ficha del paciente que está en la lámpara.
   if (boolFromEsp(b.guardar) === true) {
-    const r = await guardarDesdeBotonCuna().catch(e => ({ guardado: false, mensaje: 'Error al guardar' , error: e.message }));
-    return res.json({ ok: true, ...r });
+    const r = cuna.simulado ? { guardado: false, mensaje: 'Datos simulados: no se guardan' }
+      : await guardarDesdeBotonCuna().catch(e => ({ guardado: false, mensaje: 'Error al guardar' , error: e.message }));
+    return res.json({ ok: true, ...r, cmd });
   }
-  res.json({ ok: true });
+  res.json({ ok: true, cmd });
+});
+
+// ---------- Calibración de la cuna desde la interfaz (superusuario) ----------
+// La orden queda en cola y viaja en la respuesta del próximo envío de la cuna (cada ~1 s).
+const cunaOrdenes = [];
+function tomarOrdenesCuna() {
+  const vivas = cunaOrdenes.filter(o => Date.now() - o.ts < 20_000).map(o => o.texto);
+  cunaOrdenes.length = 0;
+  return vivas.join(';');
+}
+const ORDENES_CUNA = {
+  tara: () => 'TARA', medir: () => 'MEDIR', invertir_ntc: () => 'INVERTIRNTC', borrar_temp: () => 'BORRARTEMP',
+  cal_peso:  v => (v >= 50 && v <= 20000 ? `CALPESO=${Math.round(v)}` : null),
+  cal_talla: v => (v >= 100 && v <= 1000 ? `CALTALLA=${Math.round(v)}` : null),
+  cal_temp:  v => (v >= 5 && v <= 55 ? `CALTEMP=${(+v).toFixed(1)}` : null),
+};
+app.get('/api/superuser/cuna', (_req, res) => {
+  res.json({ ok: true, online: cunaOnline(), cuna: cuna ? { ...cuna, hace_s: Math.round((Date.now() - cuna.ts) / 1000) } : null,
+             pendientes: cunaOrdenes.length });
+});
+app.post('/api/superuser/cuna/orden', (req, res) => {
+  const f = ORDENES_CUNA[req.body?.orden];
+  if (!f) return res.status(400).json({ ok: false, message: 'Orden desconocida' });
+  const texto = f(Number(String(req.body?.valor ?? '').replace(',', '.')));
+  if (!texto) return res.status(400).json({ ok: false, message: 'Revisa el valor escrito' });
+  if (!cunaOnline()) return res.status(409).json({ ok: false, message: 'La cuna no está conectada a la interfaz' });
+  if (!cuna.fw)
+    return res.status(409).json({ ok: false, message: 'La cuna tiene un firmware viejo: carga cuna-2.0 para calibrar desde aquí' });
+  cunaOrdenes.push({ texto, ts: Date.now() });
+  console.log(`[CUNA] Orden enviada: ${texto}`);
+  res.json({ ok: true, enviada: texto });
 });
 
 let cunaUltimoGuardado = 0;
@@ -2905,7 +2945,7 @@ app.get('/api/superuser/workspace', requireSuperuser, async (_req, res) => {
         sessions: i === 0 ? Number(e.sesiones_total) : 0,
         hours: i === 0 ? +(Number(e.duracion_total_s) / 3600).toFixed(1) : 0,
         lastTest: e.ultima_prueba_at, lastSeen: e.last_seen_at,
-        online: /^CUNA/i.test(e.codigo) ? cunaOnline() : (i === 0 ? espOnline : false),
+        online: /^CUNA/i.test(e.codigo) ? (cunaOnline() && cuna.equipo === String(e.codigo).toUpperCase()) : (i === 0 ? espOnline : false),
       })),
       maintenance: mant.map(m => ({ ...parseJson(m.detalle), id: `maint-${m.id}`, createdAt: m.created_at,
         equipmentId: String(m.equipo_id), type: m.tipo, result: m.resultado, responsible: m.responsable || '', notes: m.observaciones || '' })),
