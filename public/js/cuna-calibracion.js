@@ -53,9 +53,15 @@ function render(data) {
   // Temperatura (se muestra la lectura sin filtrar para poder calibrar con temperatura ambiente)
   const t = k?.t_cruda ?? c?.temp_c;
   set("suCunaTemp", !online ? "—" : t != null ? `${n(t, 1)} °C` : "Sin lectura");
-  set("suCunaR", k?.r_ntc != null ? `${n(k.r_ntc / 1000, 2)} kΩ` : k ? "NTC suelto o en corto" : "—");
-  set("suCunaGnd", k ? (k.ntc_gnd ? "NTC a GND" : "NTC a 3,3 V") : "—");
-  set("suCunaRB", k ? `${n(k.r25 / 1000, 2)} kΩ / ${n(k.beta)}` : "—");
+  if (k && k.t_a != null) {            // firmware 2.2: corrección lineal sobre tu fórmula
+    set("suCunaR", k.adc != null ? n(k.adc) : "—");
+    set("suCunaGnd", k.t_sin_corr != null ? `${n(k.t_sin_corr, 1)} °C` : "—");
+    set("suCunaRB", `× ${n(k.t_a, 3)} ${k.t_b < 0 ? "−" : "+"} ${n(Math.abs(k.t_b), 1)} °C`);
+  } else {                               // firmware 2.0 / 2.1
+    set("suCunaR", k?.r_ntc != null ? `${n(k.r_ntc / 1000, 2)} kΩ` : k ? "NTC suelto o en corto" : "—");
+    set("suCunaGnd", k ? (k.ntc_gnd ? "NTC a GND" : "NTC a 3,3 V") : "—");
+    set("suCunaRB", k ? `${n(k.r25 / 1000, 2)} kΩ / ${n(k.beta)}` : "—");
+  }
   set("suCunaPts", k ? `${k.tpts} de 2` : "—");
 
   // Respuesta de la cuna a la última orden

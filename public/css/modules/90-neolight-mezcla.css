@@ -755,3 +755,16 @@ html body .cr-avatar.has-photo{background-image:var(--nl-foto) !important;backgr
 @media (max-width:980px){.su-cuna-grid{grid-template-columns:1fr}}
 .su-device-illustration.su-device-cuna .su-device-arm,.su-device-illustration.su-device-cuna .su-device-light{display:none}
 [data-diagnostic-tab][hidden],.su-test-mode-button[hidden]{display:none !important}
+
+/* S. Encuestas (superusuario) */
+.su-enc-grid{display:grid;grid-template-columns:minmax(260px,1fr) 1.4fr;gap:14px}
+.su-enc-prom{display:flex;flex-direction:column;gap:8px;margin:6px 0 12px}
+.su-enc-fila{display:grid;grid-template-columns:1fr 110px 40px;gap:10px;align-items:center;font-size:.64rem;color:var(--nl-muted)}
+.su-enc-fila b{color:var(--nl-text);text-align:right}
+.su-enc-barra{height:9px;border-radius:9px;background:rgb(var(--nl-accent-rgb) / 0.12);overflow:hidden}.su-enc-barra i{display:block;height:100%;background:var(--nl-accent)}
+.su-enc-lista{display:flex;flex-direction:column;gap:8px}
+.su-enc-item{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:12px;border:1px solid var(--nl-line);border-radius:14px}
+.su-enc-info b{display:block;font-size:.76rem}.su-enc-info span{font-size:.62rem;color:var(--nl-faint)}
+.su-enc-acciones{display:flex;gap:6px;align-items:center}.su-enc-acciones a.su-button{text-decoration:none;display:inline-flex;align-items:center}
+.su-enc-borrar{padding:0 12px !important;color:#c0152a !important}
+@media (max-width:860px){.su-enc-grid{grid-template-columns:1fr}.su-enc-item{grid-template-columns:1fr}.su-enc-acciones{flex-wrap:wrap}}

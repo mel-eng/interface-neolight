@@ -29,6 +29,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import ExcelJS         from 'exceljs';
 import { registrarReportes } from './reportes.js';
 import { registrarLdrLux } from './ldr-lux.js';
+import { registrarEncuestas, crearTablasEncuesta } from './encuestas.js';
 import { detectarMarcador } from './aruco-layer.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -353,6 +354,7 @@ const PUBLIC_API = new Set([
 app.use(async (req, res, next) => {
   if (!req.path.startsWith('/api/')) return next();
   if (PUBLIC_API.has(`${req.method} ${req.path}`)) return next();
+  if (/^\/api\/encuesta\/[a-f0-9]{32}$/.test(req.path)) return next();   // encuesta por invitación (sin cuenta)
   try {
     const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     const auth = await resolveToken(bearer || String(req.query.t || ''));
@@ -479,6 +481,9 @@ async function ensureSchemaCompatibility() {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       KEY ix_plan_cambios_paciente (paciente_id, created_at), KEY ix_plan_cambios_plan (plan_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  await crearTablasEncuesta(safe);
+  // Pacientes de demostración (maniquí): el reporte lo indica.
+  await safe(`ALTER TABLE pacientes ADD COLUMN simulado TINYINT(1) NOT NULL DEFAULT 0`);
   // Foto del paciente para los reportes.
   await safe(`ALTER TABLE pacientes ADD COLUMN foto MEDIUMBLOB NULL`);
   await safe(`ALTER TABLE pacientes ADD COLUMN foto_at DATETIME NULL`);
@@ -1139,7 +1144,7 @@ async function processEsp32Telemetry(body = {}) {
 
   noteTechFlag(body);
   const parsed = parseTelemetryPayload(body);
-  if (parsed.tBebe == null && cunaOnline() && cuna.temp_c != null) parsed.tBebe = cuna.temp_c;
+  if (parsed.tBebe == null && cunaOnline() && cuna.temp_c != null && cuna.temp_c >= 30 && cuna.temp_c <= 43) parsed.tBebe = cuna.temp_c;
   if (parsed.peso == null && cunaOnline() && cuna.peso_g != null) parsed.peso = cuna.peso_g;
   const paciente_id = await resolveTelemetryPatientId(parsed.paciente_id);
 
@@ -2177,7 +2182,8 @@ app.post('/api/cuna-data', async (req, res) => {
     peso_g:   enRango(b.peso_g ?? b.peso, 0, 20000),
     estable:  b.estable != null ? boolFromEsp(b.estable) === true : null,
     talla_cm: enRango(b.talla_cm ?? b.talla, 20, 80),
-    temp_c:   enRango(b.temp_c ?? b.temp_bebe ?? b.temperatura, 25, 45),
+    // Se muestra siempre (aunque sea temperatura ambiente); a la ficha y a la lámpara solo va si es corporal.
+    temp_c:   enRango(b.temp_c ?? b.temp_bebe ?? b.temperatura, 0, 60),
     ts: Date.now(),
   };
   if (!estaba) console.log(`[CUNA] ${equipo} conectada.`);
@@ -2240,7 +2246,7 @@ async function guardarDesdeBotonCuna() {
   cunaUltimoGuardado = Date.now();
   await pool.execute(
     `INSERT INTO antropometria (paciente_id, peso_g, talla_cm, temp_c, origen, equipo, cuenta_id) VALUES (?, ?, ?, ?, 'cuna', ?, NULL)`,
-    [activePatientId, cuna.peso_g, cuna.talla_cm, cuna.temp_c, cuna.equipo]);
+    [activePatientId, cuna.peso_g, cuna.talla_cm, enRango(cuna.temp_c, 30, 43), cuna.equipo]);
   if (cuna.peso_g != null) await pool.execute(`UPDATE pacientes SET peso_actual_g = ? WHERE id = ?`, [cuna.peso_g, activePatientId]);
   await logEvent({ paciente_id: activePatientId, tipo: 'sistema',
     descripcion: `Medición guardada desde la cuna: ${cuna.peso_g ?? '—'} g · ${cuna.talla_cm ?? '—'} cm` }).catch(() => {});
@@ -2258,7 +2264,7 @@ app.post('/api/patients/:id/antropometria', async (req, res) => {
     const desdeCuna = b.origen !== 'manual';
     const peso  = desdeCuna ? (cunaOnline() ? cuna.peso_g : null) : enRango(b.peso_g, 300, 20000);
     const talla = desdeCuna ? (cunaOnline() ? cuna.talla_cm : null) : enRango(b.talla_cm, 20, 80);
-    const temp  = desdeCuna ? (cunaOnline() ? cuna.temp_c : null) : enRango(b.temp_c, 25, 45);
+    const temp  = desdeCuna ? (cunaOnline() ? enRango(cuna.temp_c, 30, 43) : null) : enRango(b.temp_c, 25, 45);
     if (peso == null && talla == null)
       return res.status(409).json({ ok: false, error: 'sin_datos', message: 'La cuna no está enviando peso ni talla.' });
     if (desdeCuna && cuna.estable === false)
@@ -4034,6 +4040,12 @@ app.get('/api/doctor/alerts/today', async (req, res) => {
       silenced: Number(rows[0]?.silenced || 0)
     });
   } catch (e) { res.status(500).json({ ok: false, error: 'server_error' }); }
+});
+
+// ===================== ENCUESTA DE SATISFACCIÓN ========================
+registrarEncuestas(app, {
+  pool: { execute: (...a) => pool.execute(...a), query: (...a) => pool.query(...a), getConnection: () => pool.getConnection() },
+  baseDir: __dirname, requireSuperuser,
 });
 
 // ===================== CALIBRACIÓN LDR → LUX ========================

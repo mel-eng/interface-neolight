@@ -24,6 +24,9 @@
       <button class="su-nav-item" type="button" data-su-section="mantenimiento">
         <span class="su-nav-icon" data-icon="wrench"></span><span>Mantenimiento</span>
       </button>
+      <button class="su-nav-item" type="button" data-su-section="encuestas">
+        <span class="su-nav-icon" data-icon="edit"></span><span>Encuestas</span>
+      </button>
     </nav>
 
     <div class="su-sidebar-art" aria-hidden="true">
@@ -333,7 +336,7 @@
               <section class="su-cuna-box">
                 <h4>Temperatura (NTC)</h4>
                 <div class="su-cuna-big" id="suCunaTemp">—</div>
-                <dl><dt>Resistencia NTC</dt><dd id="suCunaR">—</dd><dt>Conexión</dt><dd id="suCunaGnd">—</dd><dt>R25 / Beta</dt><dd id="suCunaRB">—</dd><dt>Puntos de calibración</dt><dd id="suCunaPts">—</dd></dl>
+                <dl><dt>Lectura ADC</dt><dd id="suCunaR">—</dd><dt>Sin corrección</dt><dd id="suCunaGnd">—</dd><dt>Corrección</dt><dd id="suCunaRB">—</dd><dt>Puntos de calibración</dt><dd id="suCunaPts">—</dd></dl>
                 <ol class="su-cuna-steps">
                   <li>Junta la punta del NTC con un termómetro de referencia y espera 2 minutos.</li>
                   <li>Escribe lo que marca el termómetro y toca <b>Guardar punto</b>.</li>
@@ -341,7 +344,7 @@
                 </ol>
                 <div class="su-form"><label><span>Termómetro (°C)</span><input id="suCunaC" type="number" min="5" max="55" step="0.1" placeholder="Ej.: 24.5"></label>
                   <button class="su-button primary" type="button" data-cuna-orden="cal_temp" data-cuna-valor="suCunaC">Guardar punto</button>
-                  <div class="su-cuna-row"><button class="su-button ghost" type="button" data-cuna-orden="invertir_ntc" title="Si al calentar el NTC la temperatura baja">Invertir NTC</button><button class="su-button ghost" type="button" data-cuna-orden="borrar_temp">Borrar</button></div></div>
+                  <button class="su-button ghost" type="button" data-cuna-orden="borrar_temp">Borrar calibración de temperatura</button></div>
               </section>
             </div>
           </article>
@@ -426,6 +429,29 @@
             <div class="su-list su-maintenance-history" id="suMaintenanceHistory"></div>
           </article>
         </div>
+      </section>
+      <!-- ENCUESTAS -->
+      <section class="su-section" data-su-panel="encuestas">
+        <div class="su-enc-grid">
+          <article class="su-card">
+            <div class="su-card-head"><div><span class="su-card-kicker">Invitar</span><h3>Nueva invitación</h3></div></div>
+            <p class="su-ldr-help">Cada persona recibe un link único. Lo abre desde el celular sin cuenta, responde y firma. El link sirve una sola vez.</p>
+            <div class="su-form">
+              <label><span>Nombre completo</span><input id="suEncNombre" placeholder="Ej.: Ana Paola Sosa"></label>
+              <label><span>Rol</span><select id="suEncRol"><option value="tutor">Tutor</option><option value="doctor">Doctor</option><option value="ingeniero">Ingeniero</option></select></label>
+              <button class="su-button primary" id="suEncCrear" type="button">Crear invitación</button>
+            </div>
+          </article>
+          <article class="su-card">
+            <div class="su-card-head"><div><span class="su-card-kicker">Resultados</span><h3>Satisfacción promedio</h3></div><span class="su-status-pill neutral" id="suEncConteo">0 respondidas</span></div>
+            <div id="suEncPromedios" class="su-enc-prom"><p class="su-ldr-help">Todavía no hay respuestas.</p></div>
+            <button class="su-button ghost" id="suEncPdfTodo" type="button">PDF con todas las encuestas y firmas</button>
+          </article>
+        </div>
+        <article class="su-card" style="margin-top:14px">
+          <div class="su-card-head"><div><span class="su-card-kicker">Invitaciones</span><h3>Personas invitadas</h3></div></div>
+          <div id="suEncLista" class="su-enc-lista"><p class="su-ldr-help">Todavía no creaste invitaciones.</p></div>
+        </article>
       </section>
     </main>
   </div>

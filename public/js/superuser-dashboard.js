@@ -25,6 +25,7 @@ import {
 import { hydrateIcons, icon } from "./superuser-icons.js";
 import { initLdrCalibracion } from "./ldr-calibracion.js";
 import { initCunaCalibracion } from "./cuna-calibracion.js";
+import { initEncuestas } from "./encuestas-panel.js";
 import { getSocket, socketEmitMode, socketEmitMove } from "./socket.js";
 
 let initialized = false;
@@ -51,6 +52,7 @@ const sectionMeta = {
   equipos: ["Inventario técnico", "Equipos", "Estado y seguimiento de las lámparas y cunas registradas."],
   diagnostico: ["Verificación funcional", "Diagnóstico", "Pruebas controladas de sensores, actuadores y salidas."],
   mantenimiento: ["Trazabilidad técnica", "Mantenimiento", "Revisiones preventivas, correctivas e historial."],
+  encuestas: ["Evaluación del sistema", "Encuestas", "Encuesta de satisfacción por invitación, con firma."],
 };
 
 const maintenanceItems = {
@@ -1041,6 +1043,7 @@ export async function initSuperuserDashboard(data) {
     setSection("inicio"); setUsersTab("doctors"); setDiagnosticTab("sensors");
     initLdrCalibracion();
     initCunaCalibracion();
+    initEncuestas();
   }
   workspace = loadWorkspace();
   setupEquipmentSelector();

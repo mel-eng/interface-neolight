@@ -53,3 +53,19 @@ export async function downloadLdrCsv() {
 export const fetchCunaDiagnostico = () => req("/api/superuser/cuna", { headers: superuserHeaders() });
 export const sendCunaOrden = (orden, valor = "") =>
   req("/api/superuser/cuna/orden", { method: "POST", headers: superuserHeaders(JSON_HEADERS), body: JSON.stringify({ orden, valor }) });
+
+// Encuesta de satisfacción
+export const fetchEncuestas = () => req("/api/superuser/encuestas", { headers: superuserHeaders() });
+export const crearInvitacion = (nombre, rol) =>
+  req("/api/superuser/encuestas", { method: "POST", headers: superuserHeaders(JSON_HEADERS), body: JSON.stringify({ nombre, rol }) });
+export const borrarInvitacion = id =>
+  req(`/api/superuser/encuestas/${encodeURIComponent(id)}`, { method: "DELETE", headers: superuserHeaders() });
+export async function abrirPdfEncuestas(id = null) {
+  const win = window.open("", "_blank");
+  if (win) win.document.write('<p style="font-family:sans-serif;padding:24px;color:#555">Preparando el PDF…</p>');
+  const res = await apiFetch(`/api/superuser/encuestas/pdf${id ? `?id=${encodeURIComponent(id)}` : ""}`, { headers: superuserHeaders() });
+  if (!res.ok) { win?.close(); throw new Error("pdf"); }
+  const url = URL.createObjectURL(new Blob([await res.text()], { type: "text/html" }));
+  if (win) win.location.href = url; else window.location.href = url;
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}

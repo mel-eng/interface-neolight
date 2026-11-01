@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encuesta de satisfacción · NEOLIGHT</title>
+<link rel="icon" href="/img/logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--ac:#7c4dff;--osc:#3b2a63;--lila:#f4f0fb;--linea:#e6def4;--txt:#2e2442;--suave:#6b6475}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Poppins,system-ui,sans-serif;background:#f6f1f4;color:var(--txt)}
+  .wrap{max-width:720px;margin:0 auto;padding:16px}
+  .card{background:#fff;border-radius:22px;padding:22px 20px;box-shadow:0 10px 30px rgba(59,42,99,.08);margin-bottom:14px}
+  header.card{background:linear-gradient(135deg,#a99bc9,#8e7cc3);color:#fff}
+  header h1{margin:0 0 4px;font-size:1.35rem}header p{margin:0;font-size:.9rem;opacity:.95}
+  .hola{margin-top:12px;background:rgba(255,255,255,.18);border-radius:14px;padding:10px 12px;font-size:.92rem}
+  h2{margin:0 0 4px;font-size:1.05rem;color:var(--osc)}.desc{margin:0 0 14px;color:var(--suave);font-size:.85rem}
+  label.campo{display:block;margin-bottom:12px}label.campo span{display:block;font-size:.8rem;font-weight:600;color:var(--suave);margin-bottom:5px}
+  input[type=text],input[type=date],textarea{width:100%;border:1.5px solid var(--linea);border-radius:12px;padding:11px 12px;font:inherit;font-size:.95rem;color:var(--txt);background:#fff;outline:0}
+  input:focus,textarea:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(124,77,255,.12)}
+  .rol{display:inline-block;padding:9px 14px;border-radius:999px;background:var(--lila);color:var(--osc);font-weight:700}
+  .req{color:#d6336c}
+  .preg{padding:14px 0;border-top:1px solid var(--linea)}.preg:first-of-type{border-top:0}
+  .preg p{margin:0 0 10px;font-weight:500}
+  .escala{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .escala small{font-size:.72rem;color:var(--suave)}
+  .opciones{display:flex;gap:8px}
+  .opciones label{position:relative}
+  .opciones input{position:absolute;opacity:0}
+  .opciones span{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;border:2px solid var(--linea);font-weight:700;color:var(--suave);cursor:pointer;transition:.15s}
+  .opciones input:checked+span{background:var(--ac);border-color:var(--ac);color:#fff;transform:scale(1.05)}
+  .opciones input:focus-visible+span{outline:3px solid rgba(124,77,255,.35)}
+  .decl{display:flex;gap:10px;align-items:flex-start;background:var(--lila);border-radius:14px;padding:12px;font-size:.9rem;cursor:pointer}
+  .decl input{width:22px;height:22px;margin-top:2px;accent-color:var(--ac);flex:0 0 auto}
+  .tabs{display:flex;gap:8px;margin-bottom:10px}
+  .tabs button{flex:1;border:1.5px solid var(--linea);background:#fff;border-radius:12px;padding:10px;font:600 .9rem Poppins,sans-serif;color:var(--suave);cursor:pointer}
+  .tabs button.on{border-color:var(--ac);color:var(--ac);background:rgba(124,77,255,.06)}
+  .pad{width:100%;height:190px;border:2px dashed var(--linea);border-radius:14px;background:#fff;touch-action:none;display:block}
+  .padbar{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:.78rem;color:var(--suave)}
+  .link{border:0;background:none;color:var(--ac);font:600 .85rem Poppins,sans-serif;cursor:pointer;padding:4px}
+  .subir{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:190px;border:2px dashed var(--linea);border-radius:14px;cursor:pointer;color:var(--suave);text-align:center;padding:10px}
+  .subir img{max-height:150px;max-width:100%;object-fit:contain}
+  .enviar{width:100%;border:0;border-radius:16px;padding:16px;font:700 1.05rem Poppins,sans-serif;background:var(--ac);color:#fff;cursor:pointer;box-shadow:0 10px 24px rgba(124,77,255,.25)}
+  .enviar:disabled{opacity:.6;cursor:wait}
+  .msg{margin:10px 0 0;font-weight:600;font-size:.9rem;color:#b4560d;min-height:1.2em;text-align:center}
+  .fin{text-align:center;padding:40px 20px}.fin .ico{font-size:3rem}.fin h2{font-size:1.4rem}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="card">
+    <h1>Encuesta de satisfacción del sistema</h1>
+    <p>NEOLIGHT · Sistema automatizado de fototerapia neonatal</p>
+    <div class="hola" id="hola">Cargando tu invitación…</div>
+  </header>
+
+  <form id="form" hidden novalidate>
+    <section class="card">
+      <h2>Datos del participante</h2>
+      <p class="desc">Marque su nivel de satisfacción en cada aspecto, donde 1 = Muy insatisfecho y 5 = Muy satisfecho.</p>
+      <label class="campo"><span>Nombre completo <b class="req">*</b></span><input type="text" id="nombre" autocomplete="name" required></label>
+      <label class="campo"><span>C.I. <b class="req">*</b></span><input type="text" id="ci" inputmode="numeric" required></label>
+      <div class="campo" style="margin-bottom:12px"><span style="display:block;font-size:.8rem;font-weight:600;color:var(--suave);margin-bottom:5px">Rol <b class="req">*</b></span><span class="rol" id="rol">—</span></div>
+      <label class="campo"><span>Fecha de evaluación <b class="req">*</b></span><input type="date" id="fecha" required></label>
+    </section>
+
+    <section class="card">
+      <h2>Evaluación</h2>
+      <div id="preguntas"></div>
+      <div class="preg">
+        <p>7. ¿Qué aspecto considera que debería mejorarse?</p>
+        <textarea id="mejora" rows="3" maxlength="2000" placeholder="Escriba aquí (opcional)"></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Declaración <b class="req">*</b></h2>
+      <label class="decl"><input type="checkbox" id="declaracion"><span id="declTexto"></span></label>
+    </section>
+
+    <section class="card">
+      <h2>Firma <b class="req">*</b></h2>
+      <p class="desc">Dibuje su firma con el dedo o suba una foto de su firma en papel.</p>
+      <div class="tabs"><button type="button" class="on" data-tab="dibujar">Dibujar</button><button type="button" data-tab="foto">Subir foto</button></div>
+      <div id="tabDibujar">
+        <canvas class="pad" id="pad"></canvas>
+        <div class="padbar"><span>Firme dentro del recuadro</span><button type="button" class="link" id="borrar">Borrar</button></div>
+      </div>
+      <div id="tabFoto" hidden>
+        <label class="subir" id="subir"><input type="file" id="archivo" accept="image/*" hidden><span id="subirTxt">Toque aquí para tomar o elegir una foto de su firma</span><img id="preview" alt="" hidden></label>
+      </div>
+      <label class="campo" style="margin-top:14px"><span>Firma (escriba su nombre completo) <b class="req">*</b></span><input type="text" id="firmaNombre" required></label>
+    </section>
+
+    <button class="enviar" type="submit" id="enviar">Enviar encuesta</button>
+    <p class="msg" id="msg" role="alert"></p>
+  </form>
+
+  <section class="card fin" id="fin" hidden>
+    <div class="ico">💜</div>
+    <h2 id="finTitulo">¡Gracias por su evaluación!</h2>
+    <p id="finTexto">Su encuesta fue enviada correctamente. Ya puede cerrar esta página.</p>
+  </section>
+</div>
+
+<script>
+const token = location.pathname.split("/").filter(Boolean).pop();
+const $ = id => document.getElementById(id);
+let modo = "dibujar", fotoData = null, trazos = 0;
+
+function terminar(titulo, texto) {
+  $("form").hidden = true; $("fin").hidden = false;
+  $("finTitulo").textContent = titulo; $("finTexto").textContent = texto;
+}
+
+async function cargar() {
+  try {
+    const r = await fetch(`/api/encuesta/${token}`);
+    const d = await r.json();
+    if (!r.ok) { $("hola").textContent = d.message || "Link no válido."; return; }
+    if (d.respondida) { $("hola").textContent = `Hola, ${d.nombre}.`; terminar("Esta encuesta ya fue respondida", "¡Gracias por su participación!"); return; }
+    $("hola").textContent = `Hola, ${d.nombre}. Su opinión nos ayuda a mejorar el sistema.`;
+    $("nombre").value = d.nombre; $("firmaNombre").value = d.nombre;
+    $("rol").textContent = d.rol_txt;
+    $("fecha").value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    $("declTexto").textContent = d.declaracion;
+    $("preguntas").innerHTML = d.preguntas.map((p, i) => `
+      <div class="preg"><p>${i + 1}. ${p} <b class="req">*</b></p>
+        <div class="escala"><small>Muy insatisfecho</small><div class="opciones">
+          ${[1,2,3,4,5].map(n => `<label><input type="radio" name="p${i+1}" value="${n}"><span>${n}</span></label>`).join("")}
+        </div><small>Muy satisfecho</small></div></div>`).join("");
+    $("form").hidden = false;
+    prepararPad();
+  } catch (_) { $("hola").textContent = "No se pudo cargar la encuesta. Revise su conexión."; }
+}
+
+// ---------- Firma dibujada ----------
+function prepararPad() {
+  const c = $("pad"), ctx = c.getContext("2d");
+  const ajustar = () => {
+    const r = c.getBoundingClientRect(), k = window.devicePixelRatio || 1;
+    c.width = r.width * k; c.height = r.height * k;
+    ctx.setTransform(k, 0, 0, k, 0, 0); ctx.lineWidth = 2.4; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#1f1a33";
+    trazos = 0;
+  };
+  ajustar();
+  let dib = false, ultimo = null;
+  const pos = e => { const r = c.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  c.addEventListener("pointerdown", e => { dib = true; ultimo = pos(e); c.setPointerCapture(e.pointerId); });
+  c.addEventListener("pointermove", e => {
+    if (!dib) return; const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(ultimo.x, ultimo.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    ultimo = p; trazos++;
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(ev => c.addEventListener(ev, () => { dib = false; }));
+  $("borrar").addEventListener("click", ajustar);
+  window.addEventListener("resize", () => { if (!trazos) ajustar(); });
+}
+
+// ---------- Firma en foto ----------
+$("archivo").addEventListener("change", () => {
+  const f = $("archivo").files[0]; if (!f) return;
+  const img = new Image(), url = URL.createObjectURL(f);
+  img.onload = () => {
+    const k = Math.min(1, 900 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas"); c.width = img.width * k; c.height = img.height * k;
+    const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+    fotoData = c.toDataURL("image/jpeg", 0.8); URL.revokeObjectURL(url);
+    $("preview").src = fotoData; $("preview").hidden = false; $("subirTxt").textContent = "Toque para cambiar la foto";
+  };
+  img.src = url;
+});
+
+document.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => {
+  modo = b.dataset.tab;
+  document.querySelectorAll("[data-tab]").forEach(x => x.classList.toggle("on", x === b));
+  $("tabDibujar").hidden = modo !== "dibujar"; $("tabFoto").hidden = modo !== "foto";
+}));
+
+// ---------- Enviar ----------
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const msg = t => { $("msg").textContent = t; };
+  const body = { nombre: $("nombre").value.trim(), ci: $("ci").value.trim(), fecha: $("fecha").value,
+                 mejora: $("mejora").value.trim(), declaracion: $("declaracion").checked, firma_nombre: $("firmaNombre").value.trim(), firma_tipo: modo };
+  for (let i = 1; i <= 6; i++) {
+    const r = document.querySelector(`input[name=p${i}]:checked`);
+    if (!r) { msg(`Falta responder la pregunta ${i}.`); document.querySelector(`input[name=p${i}]`).closest(".preg").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+    body[`p${i}`] = Number(r.value);
+  }
+  if (body.nombre.length < 3) return msg("Escriba su nombre completo.");
+  if (body.ci.length < 4) return msg("Escriba su C.I.");
+  if (!body.declaracion) return msg("Debe aceptar la declaración.");
+  if (modo === "dibujar") { if (trazos < 8) return msg("Dibuje su firma en el recuadro."); body.firma = $("pad").toDataURL("image/png"); }
+  else { if (!fotoData) return msg("Suba la foto de su firma."); body.firma = fotoData; }
+  if (body.firma_nombre.length < 3) return msg("Escriba su nombre completo junto a la firma.");
+  $("enviar").disabled = true; msg("");
+  try {
+    const r = await fetch(`/api/encuesta/${token}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) { msg(d.message || "No se pudo enviar."); $("enviar").disabled = false; return; }
+    terminar("¡Gracias por su evaluación!", "Su encuesta fue enviada correctamente. Ya puede cerrar esta página.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (_) { msg("Sin conexión. Intente de nuevo."); $("enviar").disabled = false; }
+});
+
+cargar();
+</script>
+</body>
+</html>

@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS pacientes (
   foto                       MEDIUMBLOB      NULL COMMENT 'Foto para la ficha y los reportes (JPEG)',
   foto_at                    DATETIME        NULL,
   foto_origen                VARCHAR(20)     NULL,
+  simulado                   TINYINT(1)      NOT NULL DEFAULT 0 COMMENT '1 = paciente de demostración (maniquí)',
 
   nivel_bilirrubina_inicial  DECIMAL(5,2)    NULL,
   nivel_bilirrubina_actual   DECIMAL(5,2)    NULL,

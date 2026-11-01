@@ -273,7 +273,8 @@ export function registrarReportes(app, deps) {
     const p = d.p;
 
     // ----- Hoja 1 -----
-    h1.getCell('B9').value = medico ? 'Hoja de Vida del Paciente · Reporte médico' : 'Resumen de la terapia · Para la familia';
+    h1.getCell('B9').value = (medico ? 'Hoja de Vida del Paciente · Reporte médico' : 'Resumen de la terapia · Para la familia')
+      + (p.simulado ? ' · CASO DE SIMULACIÓN' : '');
     const filas = medico ? [
       ['ID Paciente', p.codigo || p.id],
       ['Nombre completo', `${p.nombre} ${p.apellidos}`.trim()],
@@ -637,6 +638,7 @@ export function registrarReportes(app, deps) {
   .sin-firma{height:80px;display:grid;place-items:center;color:#aaa} .linea{width:280px;border-top:1.5px solid #3b2a63;margin:2px 0 6px}
   .firma span{color:#6b6475;font-size:11px}
   tr.cambio td{background:#f7f3ff}
+  .simulacion{margin:12px 0 0;padding:7px 12px;border-radius:10px;background:#fff6dc;color:#8a5a00;font-size:10.5px;font-weight:600;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .linea-tiempo{list-style:none;margin:0;padding:0 0 0 14px;border-left:3px solid #d9d2e9}
   .linea-tiempo li{position:relative;margin:0 0 10px;padding-left:8px}
   .linea-tiempo li::before{content:'';position:absolute;left:-22px;top:4px;width:11px;height:11px;border-radius:50%;background:#8e7cc3}
@@ -653,6 +655,7 @@ export function registrarReportes(app, deps) {
     <div><h1>NEOLIGHT · Fototerapia neonatal</h1><p>Clínica Rengel · Centro de Especialidades Médicas</p></div>
     <div class="tipo"><b>${medico ? 'Reporte médico' : 'Resumen para la familia'}</b>${esc(d.generado)}</div>
   </header>
+  ${p.simulado ? '<div class="simulacion">Caso de simulación con maniquí · datos de demostración del sistema NEOLIGHT</div>' : ''}
   <div class="paciente">
     <div class="foto" ${foto ? `style="background-image:url('${foto}')"` : ''}>${foto ? '' : 'Sin foto todavía'}</div>
     <div><h2>${esc(nombre)}${medico ? '' : ''}</h2><div class="datos">${datos.map(([k, v]) => dato(k, v)).join('')}</div></div>
