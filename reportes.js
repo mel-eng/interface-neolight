@@ -606,8 +606,8 @@ export function registrarReportes(app, deps) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  @page{size:A4;margin:12mm}
-  *{box-sizing:border-box}
+  @page{size:A4;margin:0}
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{margin:0;font-family:Poppins,system-ui,sans-serif;color:#2e2442;background:#f4f1fa;font-size:12px}
   .hoja{max-width:820px;margin:0 auto;background:#fff;padding:22px 26px}
   header{display:flex;align-items:center;gap:16px;background:#a99bc9;color:#fff;border-radius:14px;padding:14px 18px}
@@ -643,13 +643,18 @@ export function registrarReportes(app, deps) {
   .linea-tiempo li{position:relative;margin:0 0 10px;padding-left:8px}
   .linea-tiempo li::before{content:'';position:absolute;left:-22px;top:4px;width:11px;height:11px;border-radius:50%;background:#8e7cc3}
   .linea-tiempo span{display:block;color:#7a7385;font-size:10.5px} .linea-tiempo em{display:block;color:#4a4060}
-  .barra-imprimir{position:sticky;top:0;display:flex;gap:10px;justify-content:center;padding:10px;background:#3b2a63}
+  .barra-imprimir{position:sticky;top:0;z-index:5;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:10px;background:#3b2a63}
   .barra-imprimir button{border:0;border-radius:99px;padding:9px 18px;font:600 13px Poppins,sans-serif;cursor:pointer;background:#fff;color:#3b2a63}
-  @media print{body{background:#fff}.hoja{padding:0;max-width:none}.barra-imprimir{display:none}
-    header,th,.progreso,.kpis div,.barra i,tr.crit td,.aviso-familia{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-  @media (max-width:640px){.paciente{grid-template-columns:1fr}.datos{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+  .barra-imprimir button.sec{background:transparent;color:#fff;border:1.5px solid #fff}
+  .barra-imprimir button:disabled{opacity:.6;cursor:wait}
+  .marco{width:100%;border-collapse:collapse} .marco>thead>tr>td,.marco>tfoot>tr>td,.marco>tbody>tr>td{padding:0;border:0;background:none}
+  .marco .esp{display:none}
+  @media print{body{background:#fff}.hoja{padding:0 12mm;max-width:none}.barra-imprimir{display:none}
+    .marco .esp{display:block;height:12mm}}
+  @media (max-width:640px){.hoja:not(.pdf) .paciente{grid-template-columns:1fr}.hoja:not(.pdf) .datos{grid-template-columns:1fr}.hoja:not(.pdf) .kpis{grid-template-columns:repeat(2,1fr)}}
 </style></head><body>
-<div class="barra-imprimir"><button onclick="print()">Guardar como PDF / Imprimir</button></div>
+<div class="barra-imprimir"><button id="btnPdf" type="button">Descargar PDF</button><button class="sec" type="button" onclick="print()">Imprimir</button></div>
+<table class="marco"><thead><tr><td><div class="esp"></div></td></tr></thead><tfoot><tr><td><div class="esp"></div></td></tr></tfoot><tbody><tr><td>
 <div class="hoja">
   <header>${LOGO ? `<img src="${LOGO}" alt="">` : ''}
     <div><h1>NEOLIGHT · Fototerapia neonatal</h1><p>Clínica Rengel · Centro de Especialidades Médicas</p></div>
@@ -672,7 +677,41 @@ export function registrarReportes(app, deps) {
   ${alarmas}
   ${pie}
 </div>
-<script>window.addEventListener('load',()=>setTimeout(()=>{try{print()}catch(e){}},600));</script>
+</td></tr></tbody></table>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+// Descarga el PDF tal como se ve en pantalla (con la foto, los colores y la firma).
+document.getElementById('btnPdf').addEventListener('click', async function () {
+  const btn = this;
+  if (!window.html2pdf) { alert('No se pudo cargar el generador de PDF. Revisa el internet o usa Imprimir.'); return; }
+  btn.disabled = true; btn.textContent = 'Generando PDF…';
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    // Copia de la hoja con el ancho exacto de una A4 (190 mm utiles), sin centrar.
+    const clon = document.querySelector('.hoja').cloneNode(true);
+    clon.style.cssText = 'margin:0;width:718px;max-width:none;padding:0;background:#fff';
+    clon.classList.add('pdf');                    // en el celular tambien sale como en la compu
+    window.scrollTo(0, 0);
+    const titulo = ${JSON.stringify((medico ? 'Reporte médico' : 'Resumen para la familia') + ' - ' + nombre).replace(/</g, '\\u003c')};
+    await html2pdf().set({
+      margin: [10, 10, 14, 10],
+      filename: titulo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\\/:*?"<>|]+/g, '') + '.pdf',
+      image: { type: 'jpeg', quality: 0.96 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.dato', '.kpis', '.progreso', '.firma', 'header', '.paciente', '.aviso-familia', '.linea-tiempo li', 'h2'] },
+    }).from(clon).toPdf().get('pdf').then(pdf => {
+      const n = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= n; i++) {
+        pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(140, 128, 163);
+        pdf.text(titulo, 10, 290);
+        pdf.text('Página ' + i + ' de ' + n, 200, 290, { align: 'right' });
+      }
+    }).save();
+  } catch (e) { alert('No se pudo generar el PDF. Prueba con Imprimir.'); }
+  btn.disabled = false; btn.textContent = 'Descargar PDF';
+});
+</script>
 </body></html>`;
   }
 
