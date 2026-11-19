@@ -535,7 +535,7 @@ export function registrarReportes(app, deps) {
     ];
 
     const filasSesiones = d.sesiones.map(s => medico ? `<tr>
-        <td>${esc(s.fecha_txt)}</td><td>${esc(txt(s.ini))}–${esc(txt(s.fin))}</td><td>${esc(MODOS[s.modo_final || s.modo_programado] || '—')}</td>
+        <td class="n">${esc(s.fecha_txt)}</td><td class="n">${esc(txt(s.ini))}–${esc(txt(s.fin))}</td><td>${esc(MODOS[s.modo_final || s.modo_programado] || '—')}</td>
         <td>${s.duracion_s != null ? hms(s.duracion_s) : 'En curso'}</td><td>${s.tiempo_rango_s != null ? hms(s.tiempo_rango_s) : '—'}</td>
         <td>${coma(s.intensidad_promedio_pct)}</td><td>${s.temp_bebe_promedio_c != null ? coma(s.temp_bebe_promedio_c) : 'Sin sensor'}</td>
         <td>${coma(s.temp_amb_promedio_c)}</td><td>${esc(s.status === 'finished' ? (FIN_SESION[s.motivo_fin] || '—') : 'En curso')}</td></tr>`
@@ -556,12 +556,18 @@ export function registrarReportes(app, deps) {
       </section>`;
 
     const alarmas = medico ? `
-      <section><h2>Alarmas</h2>${d.alarmas.length ? `<table><thead><tr><th>Fecha</th><th>Hora</th><th>Alarma</th><th>Valor</th><th>Severidad</th><th>Detalle</th></tr></thead><tbody>
-        ${d.alarmas.map(a => `<tr class="${a.severidad === 'critical' ? 'crit' : ''}"><td>${esc(a.fecha_txt)}</td><td>${esc(a.hora_txt)}</td><td>${esc(ALARMAS[a.tipo] || a.tipo)}</td>
-          <td>${esc(a.valor_medido != null ? `${a.valor_medido} ${a.unidad || ''}` : '—')}</td><td>${esc(SEVERIDAD[a.severidad] || a.severidad)}</td><td>${esc(a.accion_tomada || a.mensaje || '—')}</td></tr>`).join('')}
+      <section><h2>Alarmas</h2>${d.alarmas.length ? `<table class="t-alarmas"><colgroup><col style="width:13%"><col style="width:11%"><col><col style="width:10%"><col style="width:15%"></colgroup>
+        <thead><tr><th>Fecha</th><th>Hora</th><th>Alarma</th><th>Valor</th><th>Severidad</th></tr></thead><tbody>
+        ${d.alarmas.map(a => {
+          const nombreA = ALARMAS[a.tipo] || a.tipo;
+          const detalle = a.accion_tomada || a.mensaje || '';
+          return `<tr class="${a.severidad === 'critical' ? 'crit' : ''}"><td class="n">${esc(a.fecha_txt)}</td><td class="n">${esc(a.hora_txt)}</td>
+          <td><b class="al-nombre">${esc(nombreA)}</b>${detalle && detalle !== nombreA ? `<span class="al-detalle">${esc(detalle)}</span>` : ''}</td>
+          <td class="n">${esc(a.valor_medido != null ? `${coma(a.valor_medido)} ${a.unidad || ''}` : '—')}</td>
+          <td><span class="sev sev-${esc(a.severidad)}">${esc(SEVERIDAD[a.severidad] || a.severidad)}</span></td></tr>`; }).join('')}
         </tbody></table>` : '<p class="vacio">Sin alarmas registradas.</p>'}</section>
       <section><h2>Verificación del antifaz</h2>${d.antifaz.length ? `<table><thead><tr><th>Fecha</th><th>Hora</th><th>Acción</th><th>Motivo</th><th>Detectó</th><th>Respuesta</th></tr></thead><tbody>
-        ${d.antifaz.map(a => `<tr class="${a.tipo === 'apagado' ? 'crit' : ''}"><td>${esc(a.fecha_txt)}</td><td>${esc(a.hora_txt)}</td><td>${a.tipo === 'apagado' ? 'Luz apagada' : 'Aviso'}</td>
+        ${d.antifaz.map(a => `<tr class="${a.tipo === 'apagado' ? 'crit' : ''}"><td class="n">${esc(a.fecha_txt)}</td><td class="n">${esc(a.hora_txt)}</td><td>${a.tipo === 'apagado' ? 'Luz apagada' : 'Aviso'}</td>
           <td>${esc(ANTIFAZ_MOTIVOS[a.motivo] || a.motivo)}</td><td>${a.capa === 'ia' ? 'IA de visión' : a.capa === 'marcador' ? 'Marcador' : 'Sistema'}</td>
           <td>${a.respuesta_ms != null ? `${coma(a.respuesta_ms / 1000)} s` : '—'}</td></tr>`).join('')}
         </tbody></table>` : '<p class="vacio">Sin eventos del antifaz.</p>'}
@@ -586,7 +592,7 @@ export function registrarReportes(app, deps) {
       <section><h2>${medico ? 'Plan: indicaciones y cambios' : 'Indicaciones del médico'}</h2>
       ${d.cambios.length ? (medico
         ? `<table><thead><tr><th>Fecha</th><th>Indicado por</th><th>Cambio</th><th>Avance</th><th>Motivo</th></tr></thead><tbody>
-            ${d.cambios.map(c => `<tr class="${c.tipo === 'modificado' || c.tipo === 'cancelado' ? 'cambio' : ''}"><td>${esc(c.fecha_txt)}</td><td>${esc(c.doctor || 'Sistema')}</td>
+            ${d.cambios.map(c => `<tr class="${c.tipo === 'modificado' || c.tipo === 'cancelado' ? 'cambio' : ''}"><td class="n">${esc(c.fecha_txt)}</td><td>${esc(c.doctor || 'Sistema')}</td>
               <td><b>${esc(c.resumen)}</b></td><td>${esc(c.avance_txt || '—')}</td><td>${esc(c.motivo || '—')}</td></tr>`).join('')}
           </tbody></table>`
         : `<ul class="linea-tiempo">${d.cambios.map(c => `<li><span>${esc(c.fecha_txt)}</span><b>${esc(c.frase)}.</b>${c.motivo ? `<em>Motivo: ${esc(c.motivo)}</em>` : ''}</li>`).join('')}</ul>`)
@@ -614,20 +620,29 @@ export function registrarReportes(app, deps) {
   header img{width:62px;height:62px}
   header h1{margin:0;font-size:17px;letter-spacing:.3px} header p{margin:2px 0 0;font-size:11px;opacity:.95}
   .tipo{margin-left:auto;text-align:right;font-size:11px} .tipo b{display:block;font-size:13px}
-  .paciente{display:grid;grid-template-columns:170px 1fr;gap:18px;margin:18px 0 6px;align-items:start}
+  .paciente{display:grid;grid-template-columns:170px minmax(0,1fr);gap:18px;margin:18px 0 6px;align-items:start}
   .foto{width:170px;height:170px;border-radius:14px;background:#efeaf8 center/cover no-repeat;display:grid;place-items:center;color:#8a80a3;font-size:11px;text-align:center;padding:10px}
   .paciente h2{margin:0 0 8px;font-size:20px;color:#3b2a63}
-  .datos{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px}
+  .datos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px}
   .dato{border-bottom:1px solid #ece6f6;padding:3px 0;display:flex;justify-content:space-between;gap:10px}
-  .dato span{color:#7a7385} .dato b{text-align:right;font-weight:600}
-  section{margin-top:16px;break-inside:avoid} h2{font-size:14px;color:#3b2a63;margin:0 0 8px}
+  .dato span{color:#7a7385;flex:none} .dato b{text-align:right;font-weight:600;min-width:0;overflow-wrap:anywhere}
+  section{margin-top:18px} h2{font-size:14px;color:#3b2a63;margin:0 0 8px;break-after:avoid}
+  .progreso,.kpis,.firma,.aviso-familia,.paciente{break-inside:avoid}
   .progreso{display:grid;grid-template-columns:1fr auto;gap:8px 16px;align-items:center;background:#f7f3ff;border-radius:14px;padding:14px 16px}
   .progreso.hecho{background:#fff6dc} .progreso p{margin:0;color:#6b6475} .pct{font-size:28px;font-weight:700;color:#5f3fb8}
   .progreso.hecho .pct{color:#b7791f}
   .barra{height:10px;border-radius:99px;background:#ece6f6;overflow:hidden;min-width:90px} .barra i{display:block;height:100%;background:#8e7cc3;border-radius:99px}
   .barra.grande{grid-column:1/-1;height:14px} .progreso.hecho .barra i{background:#f5a524}
-  table{width:100%;border-collapse:collapse;font-size:10.5px} th{background:#8e7cc3;color:#fff;text-align:left;padding:6px;font-weight:600}
-  td{padding:5px 6px;border-bottom:1px solid #ece6f6;vertical-align:middle} tr.crit td{background:#fdf0f2}
+  table{width:100%;border-collapse:separate;border-spacing:0;font-size:10.5px;border:1px solid #e4dcf3;border-radius:10px;overflow:hidden}
+  th{background:#8e7cc3;color:#fff;text-align:left;padding:7px 8px;font-weight:600;white-space:nowrap}
+  td{padding:6px 8px;border-top:1px solid #ece6f6;vertical-align:middle} tbody tr:nth-child(even) td{background:#faf8fe}
+  tr.crit td{background:#fdf2f4} tbody tr.crit:nth-child(even) td{background:#fbeaee}
+  td.n{white-space:nowrap}
+  .pdf .junto{padding-top:12px} .pdf section:has(> .junto){margin-top:6px}
+  .t-alarmas{table-layout:fixed} .al-nombre{display:block;font-weight:600;color:#3b2a63}
+  .al-detalle{display:block;color:#7a7385;font-size:9.5px;line-height:1.35;margin-top:1px}
+  .sev{display:inline-block;padding:2px 8px;border-radius:99px;font-size:9.5px;font-weight:600;white-space:nowrap;background:#ece6f6;color:#5a4b80}
+  .sev-critical{background:#fbd9df;color:#b4233c} .sev-warning{background:#fff0c7;color:#8a5a00}
   .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px} .kpis div{background:#f7f3ff;border-radius:10px;padding:8px}
   .kpis span{display:block;color:#7a7385;font-size:10px} .kpis b{font-size:14px;color:#3b2a63}
   .plan{margin:8px 0 0;color:#4a4060} .vacio{color:#8a80a3;margin:0}
@@ -667,13 +682,13 @@ export function registrarReportes(app, deps) {
   </div>
   ${progreso}
   ${resumenMedico}
+  ${cambiosHtml}
   <section><h2>${medico ? 'Sesiones de fototerapia' : 'Sesiones de luz'}</h2>
     ${d.sesiones.length ? `<table><thead><tr>${medico
       ? '<th>Fecha</th><th>Horario</th><th>Modo</th><th>Duración</th><th>En rango</th><th>LED %</th><th>T. bebé</th><th>T. amb.</th><th>Fin</th>'
       : '<th>Fecha</th><th>Horario</th><th>Tipo de luz</th><th></th><th>Duración</th>'}</tr></thead><tbody>${filasSesiones}</tbody></table>`
       : '<p class="vacio">Todavía no hay sesiones.</p>'}
   </section>
-  ${cambiosHtml}
   ${alarmas}
   ${pie}
 </div>
@@ -691,6 +706,34 @@ document.getElementById('btnPdf').addEventListener('click', async function () {
     const clon = document.querySelector('.hoja').cloneNode(true);
     clon.style.cssText = 'margin:0;width:718px;max-width:none;padding:0;background:#fff';
     clon.classList.add('pdf');                    // en el celular tambien sale como en la compu
+    // Cada titulo viaja con el encabezado y las primeras filas de su tabla (no queda solo al final de una hoja).
+    const vivas = Array.from(document.querySelectorAll('.hoja table'));
+    Array.from(clon.querySelectorAll('table')).forEach((tabla, k) => {
+      const titulo = tabla.previousElementSibling;
+      const filas = tabla.tBodies[0] ? Array.from(tabla.tBodies[0].rows) : [];
+      if (!titulo || titulo.tagName !== 'H2' || !tabla.tHead || filas.length < 2) return;
+      const ths = vivas[k] ? Array.from(vivas[k].tHead.rows[0].cells) : [];
+      const total = ths.reduce((a, c) => a + c.offsetWidth, 0);
+      const cols = total ? '<colgroup>' + ths.map(c => '<col style="width:' + (c.offsetWidth / total * 100).toFixed(2) + '%">').join('') + '</colgroup>' : '';
+      tabla.querySelector('colgroup')?.remove();
+      tabla.style.tableLayout = 'fixed';
+      tabla.insertAdjacentHTML('afterbegin', cols);
+      const cabeza = tabla.cloneNode(false);
+      cabeza.innerHTML = cols;
+      cabeza.appendChild(tabla.tHead);
+      const cuerpo = document.createElement('tbody');
+      filas.slice(0, 2).forEach(f => cuerpo.appendChild(f));
+      cabeza.appendChild(cuerpo);
+      cabeza.style.borderBottomLeftRadius = cabeza.style.borderBottomRightRadius = '0';
+      cabeza.style.borderBottom = '0';
+      tabla.style.borderTopLeftRadius = tabla.style.borderTopRightRadius = '0';
+      tabla.style.borderTop = '0';
+      const grupo = document.createElement('div');
+      grupo.className = 'junto';
+      titulo.parentNode.insertBefore(grupo, titulo);
+      grupo.appendChild(titulo); grupo.appendChild(cabeza);
+      if (!tabla.tBodies[0].rows.length) tabla.remove();
+    });
     window.scrollTo(0, 0);
     const titulo = ${JSON.stringify((medico ? 'Reporte médico' : 'Resumen para la familia') + ' - ' + nombre).replace(/</g, '\\u003c')};
     await html2pdf().set({
@@ -699,7 +742,7 @@ document.getElementById('btnPdf').addEventListener('click', async function () {
       image: { type: 'jpeg', quality: 0.96 },
       html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.dato', '.kpis', '.progreso', '.firma', 'header', '.paciente', '.aviso-familia', '.linea-tiempo li', 'h2'] },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.junto', '.dato', '.kpis', '.progreso', '.firma', 'header', '.paciente', '.aviso-familia', '.linea-tiempo li', 'h2'] },
     }).from(clon).toPdf().get('pdf').then(pdf => {
       const n = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= n; i++) {
