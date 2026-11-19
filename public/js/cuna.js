@@ -73,7 +73,9 @@ function paint() {
     const t = card.querySelector('[data-k="temp"]');
     if (t) t.className = c.online ? tempTone(c.temp_c) : "";
     const btn = card.querySelector('[data-k="guardar"]');
-    if (btn) btn.disabled = !c.online || (c.peso_g == null && c.talla_cm == null) || c.estable === false || !patientId();
+    const m = c.medida;
+    if (btn) btn.disabled = !patientId() || (m ? Number(m.guardada_en) === Number(patientId())
+      : (!c.online || (c.peso_g == null && c.talla_cm == null) || c.estable === false));
   });
 }
 

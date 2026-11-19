@@ -48,20 +48,27 @@ export function bindAntropometriaCuna(patient) {
 
   function paint() {
     const esMio = Number(cuna.paciente_id) === pid;
-    box.dataset.online = cuna.online ? "1" : "0";
-    set("estado", cuna.online ? (cuna.congelado ? "Medido en la cuna" : "Cuna conectada") : "Cuna sin conexión");
-    set("peso", cuna.online && cuna.peso_g != null ? `${fmt(cuna.peso_g / 1000, 3)} kg` : "—");
-    set("talla", cuna.online && cuna.talla_cm != null ? `${fmt(cuna.talla_cm, 1)} cm` : "—");
-    set("temp", cuna.online && cuna.temp_c != null ? `${fmt(cuna.temp_c, 1)} °C` : "—");
+    // Si en la cuna se tocó MEDIR (azul), se muestra esa medida congelada; si no, lo que marca en vivo.
+    const m = cuna.medida || null;
+    const yaGuardada = m && Number(m.guardada_en) === pid;
+    const d = m || (cuna.online ? cuna : {});
+    box.dataset.online = cuna.online || m ? "1" : "0";
+    const hace = s => (s < 60 ? "recién" : `hace ${Math.round(s / 60)} min`);
+    set("estado", m ? (yaGuardada ? "Ya está en la ficha" : `Medida lista · ${hace(m.hace_s || 0)}`)
+      : cuna.online ? "En vivo · toca MEDIR" : "Cuna sin conexión");
+    set("peso", d.peso_g != null ? `${fmt(d.peso_g / 1000, 3)} kg` : "—");
+    set("talla", d.talla_cm != null ? `${fmt(d.talla_cm, 1)} cm` : "—");
+    set("temp", d.temp_c != null ? `${fmt(d.temp_c, 1)} °C` : "—");
     set("asig", esMio
-      ? `La cuna está con ${nombre}. Al tocar MEDIR en la cuna se guarda aquí solo.`
+      ? `La cuna está con ${nombre}. Toca MEDIR (tecla azul) en la cuna y luego Actualizar antropometría.`
       : cuna.paciente_id
         ? "La cuna está con otro paciente. Asígnala aquí para usarla con este."
         : "La cuna no tiene paciente asignado.");
     const asignar = q("asignar");
     asignar.textContent = esMio && cuna.paciente_asignado ? "Liberar cuna" : "Asignar cuna a este paciente";
     asignar.dataset.liberar = esMio && cuna.paciente_asignado ? "1" : "0";
-    q("actualizar").disabled = !cuna.online || (cuna.peso_g == null && cuna.talla_cm == null) || cuna.estable === false;
+    q("actualizar").disabled = m ? (yaGuardada || (m.peso_g == null && m.talla_cm == null))
+      : (!cuna.online || (cuna.peso_g == null && cuna.talla_cm == null) || cuna.estable === false);
   }
 
   async function cargarUltima() {

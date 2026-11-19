@@ -2160,6 +2160,11 @@ const cunaOnline = () => !!cuna && Date.now() - cuna.ts < CUNA_OFFLINE_MS;
 // La doctora asigna la cuna a un paciente desde "Editar ficha". Si no asignó a nadie,
 // la cuna usa el paciente que está en la lámpara.
 let cunaPacienteId = null;
+// Última medida congelada con la tecla AZUL (MEDIR) de la cuna. Se guarda en la ficha
+// recién cuando la doctora toca "Actualizar antropometría" (aunque la cuna ya se haya dormido).
+let cunaMedida = null;            // { id, equipo, peso_g, talla_cm, temp_c, ts, guardada_en }
+const CUNA_MEDIDA_VIGENCIA_MS = 60 * 60 * 1000;
+const medidaVigente = () => (cunaMedida && Date.now() - cunaMedida.ts < CUNA_MEDIDA_VIGENCIA_MS ? cunaMedida : null);
 const nombresPaciente = new Map();          // id -> nombre (para la pantalla de la cuna)
 const pacienteCuna = () => cunaPacienteId || activePatientId || null;
 
@@ -2186,7 +2191,10 @@ const textoOled = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]
 
 function cunaPublica() {
   const pid = pacienteCuna();
-  const base = { paciente_id: pid, paciente_asignado: !!cunaPacienteId };   // el nombre no viaja a todas las pantallas
+  const m = medidaVigente();
+  const base = { paciente_id: pid, paciente_asignado: !!cunaPacienteId,   // el nombre no viaja a todas las pantallas
+    medida: m ? { id: m.id, peso_g: m.peso_g, talla_cm: m.talla_cm, temp_c: m.temp_c,
+                  hace_s: Math.round((Date.now() - m.ts) / 1000), guardada_en: m.guardada_en } : null };
   return cunaOnline()
     ? { online: true, equipo: cuna.equipo, peso_g: cuna.peso_g, estable: cuna.estable, talla_cm: cuna.talla_cm,
         temp_c: cuna.temp_c, congelado: cuna.congelado, hace_s: Math.round((Date.now() - cuna.ts) / 1000), ...base }
@@ -2219,6 +2227,13 @@ app.post('/api/cuna-data', async (req, res) => {
     ts: Date.now(),
   };
   if (!estaba) console.log(`[CUNA] ${equipo} conectada.`);
+  // Medida congelada (firmware cuna-3.0): llega con un número que cambia en cada MEDIR.
+  const med = b.medida && typeof b.medida === 'object' ? b.medida : null;
+  if (med && toNum(med.id) != null && !(cunaMedida && cunaMedida.equipo === equipo && cunaMedida.id === toNum(med.id))) {
+    cunaMedida = { id: toNum(med.id), equipo, ts: Date.now(), guardada_en: null,
+      peso_g: enRango(med.peso_g, 0, 20000), talla_cm: enRango(med.talla_cm, 20, 80), temp_c: enRango(med.temp_c, 0, 60) };
+    console.log(`[CUNA] Medida ${cunaMedida.id}: ${cunaMedida.peso_g ?? '—'} g · ${cunaMedida.talla_cm ?? '—'} cm`);
+  }
   io.emit('cuna', cunaPublica());
   const cmd = tomarOrdenesCuna();
   const paciente = textoOled(nombrePaciente(pacienteCuna()));   // la cuna lo muestra arriba: "Pac: Mel"
@@ -2324,20 +2339,26 @@ app.post('/api/patients/:id/antropometria', async (req, res) => {
     const pacienteId = Number(req.params.id);
     const b = req.body || {};
     const desdeCuna = b.origen !== 'manual';
-    const peso  = desdeCuna ? (cunaOnline() ? cuna.peso_g : null) : enRango(b.peso_g, 300, 20000);
-    const talla = desdeCuna ? (cunaOnline() ? cuna.talla_cm : null) : enRango(b.talla_cm, 20, 80);
-    const temp  = desdeCuna ? (cunaOnline() ? enRango(cuna.temp_c, 30, 43) : null) : enRango(b.temp_c, 25, 45);
+    // Desde la cuna se usa la medida congelada con MEDIR; si no hay, lo que marca en vivo.
+    const m = desdeCuna ? medidaVigente() : null;
+    if (m && m.guardada_en === pacienteId && b.repetir !== true)
+      return res.status(409).json({ ok: false, error: 'ya_guardada', message: 'Esta medida ya está en la ficha. Toca MEDIR en la cuna para una nueva.' });
+    const vivo = desdeCuna && !m && cunaOnline();
+    const peso  = desdeCuna ? (m ? m.peso_g : vivo ? cuna.peso_g : null) : enRango(b.peso_g, 300, 20000);
+    const talla = desdeCuna ? (m ? m.talla_cm : vivo ? cuna.talla_cm : null) : enRango(b.talla_cm, 20, 80);
+    const temp  = desdeCuna ? enRango(m ? m.temp_c : vivo ? cuna.temp_c : null, 30, 43) : enRango(b.temp_c, 25, 45);
     if (peso == null && talla == null)
-      return res.status(409).json({ ok: false, error: 'sin_datos', message: 'La cuna no está enviando peso ni talla.' });
-    if (desdeCuna && cuna.estable === false)
+      return res.status(409).json({ ok: false, error: 'sin_datos', message: 'No hay medida: toca MEDIR (tecla azul) en la cuna.' });
+    if (vivo && cuna.estable === false)
       return res.status(409).json({ ok: false, error: 'no_estable', message: 'Espera a que el peso se estabilice.' });
     const [r] = await pool.execute(
       `INSERT INTO antropometria (paciente_id, peso_g, talla_cm, temp_c, origen, equipo, cuenta_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [pacienteId, peso, talla, temp, desdeCuna ? 'cuna' : 'manual', desdeCuna ? cuna.equipo : null, req.auth.id]);
+      [pacienteId, peso, talla, temp, desdeCuna ? 'cuna' : 'manual', desdeCuna ? (m?.equipo || cuna?.equipo || null) : null, req.auth.id]);
     if (peso != null) await pool.execute(`UPDATE pacientes SET peso_actual_g = ? WHERE id = ?`, [peso, pacienteId]);
     await logEvent({ paciente_id: pacienteId, cuenta_id: req.auth.id, tipo: 'sistema',
       descripcion: `Medición guardada: ${peso != null ? peso + ' g' : ''}${peso != null && talla != null ? ' · ' : ''}${talla != null ? talla + ' cm' : ''}` }).catch(() => {});
-    io.emit('antropometria:nueva', { paciente_id: pacienteId });
+    if (m) { m.guardada_en = pacienteId; io.emit('cuna', cunaPublica()); }
+    io.emit('antropometria:nueva', { paciente_id: pacienteId, peso_g: peso, talla_cm: talla, temp_c: temp, desde: m ? 'medida' : 'manual' });
     res.json({ ok: true, id: r.insertId, peso_g: peso, talla_cm: talla, temp_c: temp });
   } catch (e) { return sendServerError(res, e, 'ANTROPOMETRIA_GUARDAR'); }
 });
