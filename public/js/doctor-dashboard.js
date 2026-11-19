@@ -13,6 +13,7 @@ import { renderDoctorCharts, renderDoctorAlerts } from "./doctor-analytics.js";
 import { renderDoctorPdfData, bindDoctorReportButton } from "./doctor-report.js";
 import { bindDoctorSections, bindPlanCalculator } from "./doctor-navigation.js";
 import { fetchMySignature, openSignatureDialog, signatureBlockHtml } from "./signature.js";
+import { antropometriaCunaHtml, bindAntropometriaCuna } from "./antropometria-cuna.js";
 
 let doctorEventsBound = false;
 let searchTimer = null;
@@ -864,6 +865,7 @@ function showPatientDetailModal({ patient, plan, control, sessions, alarms, even
             ${select("editGrupoSanguineo", "Grupo sanguíneo", ["","A","B","AB","O"], patient.grupo_sanguineo)}
             ${select("editFactorRh", "Factor RH", ["","+","-"], patient.factor_rh)}
           </div>
+          ${antropometriaCunaHtml()}
           <button class="btn btn-primary btn-full" id="savePatientClinicalBtn">Guardar ficha clínica</button>
           <div id="patientEditMsg" class="error" aria-live="polite"></div>
         </section>
@@ -906,6 +908,7 @@ function showPatientDetailModal({ patient, plan, control, sessions, alarms, even
   document.body.appendChild(modal);
   modal.querySelectorAll("[data-close]").forEach(el => el.addEventListener("click", () => modal.remove()));
   $("savePatientClinicalBtn")?.addEventListener("click", () => savePatientClinical(patient.id));
+  bindAntropometriaCuna(patient);
   $("savePlanBtn")?.addEventListener("click", () => savePlan(patient.id, plan?.id || null));
   renderPlanCambios(patient.id);
   $("cancelPlanBtn")?.addEventListener("click", () => doCancelPlan(patient.id, plan.id));

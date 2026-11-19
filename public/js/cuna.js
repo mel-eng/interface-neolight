@@ -6,6 +6,15 @@
 // =========================================================
 
 import { apiFetch } from "./config.js";
+import { setTempCunaProvider, pintarTempCuna } from "./patient-telemetry.js";
+
+// Temperatura de la cuna para el cuadro "temperatura corporal" del tutor
+function tempCunaDelPaciente() {
+  const c = current || {};
+  if (role !== "tutor" || !c.online || c.temp_c == null) return null;
+  const pid = Number(getPatientId());
+  return pid && Number(c.paciente_id) === pid ? Number(c.temp_c) : null;
+}
 
 let role = null;
 let getPatientId = () => null;
@@ -51,6 +60,7 @@ function mount() {
 
 function paint() {
   const c = current || {};
+  if (role === "tutor") pintarTempCuna();
   document.querySelectorAll(".cuna-card").forEach(card => {
     const set = (k, v) => { const el = card.querySelector(`[data-k="${k}"]`); if (el) el.textContent = v; };
     card.dataset.online = c.online ? "1" : "0";
@@ -103,6 +113,7 @@ export function initCuna(currentRole, { patientId: getter } = {}) {
   role = currentRole;
   if (role !== "tutor" && role !== "doctor") return;
   getPatientId = typeof getter === "function" ? getter : () => null;
+  if (role === "tutor") setTempCunaProvider(tempCunaDelPaciente);
   mount();
   if (!bound) {
     bound = true;
@@ -120,5 +131,6 @@ export function initCuna(currentRole, { patientId: getter } = {}) {
 
 export function stopCuna() {
   role = null;
+  setTempCunaProvider(null);
   window.clearInterval(poll);
 }

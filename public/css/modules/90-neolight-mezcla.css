@@ -768,3 +768,21 @@ html body .cr-avatar.has-photo{background-image:var(--nl-foto) !important;backgr
 .su-enc-acciones{display:flex;gap:6px;align-items:center}.su-enc-acciones a.su-button{text-decoration:none;display:inline-flex;align-items:center}
 .su-enc-borrar{padding:0 12px !important;color:#c0152a !important}
 @media (max-width:860px){.su-enc-grid{grid-template-columns:1fr}.su-enc-item{grid-template-columns:1fr}.su-enc-acciones{flex-wrap:wrap}}
+
+/* Antropometría (cuna) en Editar ficha */
+html body .antro-cuna{background:var(--nl-accent-soft);border-radius:16px;padding:14px;margin:6px 0 14px;display:grid;gap:10px}
+html body .antro-cuna-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+html body .antro-cuna-head .panel-title{margin:0}
+html body .antro-pill{font-size:.78rem;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--nl-surface);color:var(--nl-muted,#777)}
+html body .antro-cuna[data-online="1"] .antro-pill{background:var(--nl-ok-soft);color:var(--nl-ok)}
+html body .antro-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+html body .antro-grid>div{background:var(--nl-surface);border-radius:12px;padding:8px 10px;display:grid;gap:2px}
+html body .antro-grid small{font-size:.75rem;color:var(--nl-muted,#777)}
+html body .antro-grid b{font-size:1.05rem;color:var(--nl-ink)}
+html body .antro-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+html body .antro-btns .btn{margin:0;width:100%}
+html body .antro-asig,html body .antro-msg,html body .antro-ultima{margin:0;font-size:.85rem;color:var(--nl-ink)}
+html body .antro-msg:empty,html body .antro-ultima:empty{display:none}
+html body .antro-msg[data-ok="1"]{color:var(--nl-ok)}
+html body .antro-msg[data-ok="0"]{color:#c0392b}
+@media (max-width:560px){html body .antro-btns{grid-template-columns:1fr}}

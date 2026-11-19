@@ -5,6 +5,19 @@
 
 import { $, normalizeMode } from "./config.js";
 
+// Temperatura de la cuna: si la cuna está prendida y es de este paciente, va SIEMPRE
+// al cuadro de temperatura corporal (con o sin terapia).
+let tempCunaFn = () => null;
+export function setTempCunaProvider(fn) { tempCunaFn = typeof fn === "function" ? fn : () => null; }
+export function pintarTempCuna() {
+  const t = Number(tempCunaFn());
+  if (!Number.isFinite(t)) return false;
+  setText("patientBabyTemp", `${t.toFixed(1)}°C`);
+  setText("patientBabyTempStatus", t >= 34.8 && t <= 38.0 ? "Medida por la cuna · en rango" : "Medida por la cuna · revisar");
+  setText("tempBebe", `${t.toFixed(1)} °C`);
+  return true;
+}
+
 const THERAPY_MODES = new Set(["convencional", "intensivo", "automatico"]);
 const sensorSeries = {
   light: [],
@@ -47,7 +60,8 @@ export function updatePatientSensorCards(data = {}, { getCurrentMode, onModeChan
     setText("patientDistanceStatus", "El sensor de distancia no responde");
     setProgress("patientDistanceBar", 0);
   } else if (Number.isFinite(distance)) updatePatientDistance(distance, data.ventana, data.en_ventana);
-  if (Number.isFinite(babyTemperature)) updatePatientBabyTemp(babyTemperature);
+  if (pintarTempCuna()) { /* la cuna manda la temperatura corporal */ }
+  else if (Number.isFinite(babyTemperature)) updatePatientBabyTemp(babyTemperature);
   else { setText("patientBabyTemp", "—"); setText("patientBabyTempStatus", "Sin sensor de temperatura corporal"); }
   if (Number.isFinite(ambientTemperature)) updatePatientAmbientTemp(ambientTemperature);
   if (Number.isFinite(pwm)) updatePatientPWM(pwm);
@@ -117,6 +131,7 @@ export function clearPatientSensorCards(reason = "Sin terapia activa") {
   setText("patientAmbientTempStatus", reason);
   setProgress("patientLightBar", 0);
   setProgress("patientDistanceBar", 0);
+  pintarTempCuna();
 }
 
 export function renderPatientCharts() {

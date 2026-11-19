@@ -520,6 +520,7 @@ async function ensureSchemaCompatibility() {
   }
   const [[first]] = await pool.query(`SELECT paciente_actual_id FROM equipos ORDER BY id ASC LIMIT 1`);
   activePatientId = first?.paciente_actual_id ? Number(first.paciente_actual_id) : null;
+  await cargarPacienteCuna().catch(e => console.warn('[CUNA] paciente:', e.message));
 }
 
 // ===================== HELPERS DE NEGOCIO ========================
@@ -2155,11 +2156,41 @@ let cuna = null;                 // última lectura { equipo, peso_g, estable, t
 let cunaVistaDb = 0;
 const cunaOnline = () => !!cuna && Date.now() - cuna.ts < CUNA_OFFLINE_MS;
 
+// ---------- Paciente de la cuna ----------
+// La doctora asigna la cuna a un paciente desde "Editar ficha". Si no asignó a nadie,
+// la cuna usa el paciente que está en la lámpara.
+let cunaPacienteId = null;
+const nombresPaciente = new Map();          // id -> nombre (para la pantalla de la cuna)
+const pacienteCuna = () => cunaPacienteId || activePatientId || null;
+
+async function cargarPacienteCuna() {
+  const [rows] = await pool.query(
+    `SELECT paciente_actual_id FROM equipos WHERE codigo LIKE 'CUNA%' AND paciente_actual_id IS NOT NULL
+     ORDER BY last_seen_at DESC LIMIT 1`);
+  cunaPacienteId = rows[0]?.paciente_actual_id ? Number(rows[0].paciente_actual_id) : null;
+}
+
+function nombrePaciente(id) {
+  if (!id) return null;
+  if (nombresPaciente.has(id)) return nombresPaciente.get(id);
+  nombresPaciente.set(id, null);            // evita pedirlo muchas veces
+  pool?.execute(`SELECT nombre FROM pacientes WHERE id = ? LIMIT 1`, [id])
+    .then(([r]) => nombresPaciente.set(id, r[0]?.nombre ? String(r[0].nombre).trim() : null))
+    .catch(() => nombresPaciente.delete(id));
+  return null;
+}
+
+// La pantalla de la cuna no tiene tildes ni ñ.
+const textoOled = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^\x20-\x7E]/g, '').replace(/"/g, "'").trim().slice(0, 14);
+
 function cunaPublica() {
+  const pid = pacienteCuna();
+  const base = { paciente_id: pid, paciente_asignado: !!cunaPacienteId };   // el nombre no viaja a todas las pantallas
   return cunaOnline()
     ? { online: true, equipo: cuna.equipo, peso_g: cuna.peso_g, estable: cuna.estable, talla_cm: cuna.talla_cm,
-        temp_c: cuna.temp_c, hace_s: Math.round((Date.now() - cuna.ts) / 1000) }
-    : { online: false, equipo: cuna?.equipo || null };
+        temp_c: cuna.temp_c, congelado: cuna.congelado, hace_s: Math.round((Date.now() - cuna.ts) / 1000), ...base }
+    : { online: false, equipo: cuna?.equipo || null, ...base };
 }
 
 const enRango = (v, min, max) => { const n = toNum(v); return n != null && n >= min && n <= max ? n : null; };
@@ -2184,11 +2215,13 @@ app.post('/api/cuna-data', async (req, res) => {
     talla_cm: enRango(b.talla_cm ?? b.talla, 20, 80),
     // Se muestra siempre (aunque sea temperatura ambiente); a la ficha y a la lámpara solo va si es corporal.
     temp_c:   enRango(b.temp_c ?? b.temp_bebe ?? b.temperatura, 0, 60),
+    congelado: boolFromEsp(b.congelado) === true,
     ts: Date.now(),
   };
   if (!estaba) console.log(`[CUNA] ${equipo} conectada.`);
   io.emit('cuna', cunaPublica());
   const cmd = tomarOrdenesCuna();
+  const paciente = textoOled(nombrePaciente(pacienteCuna()));   // la cuna lo muestra arriba: "Pac: Mel"
 
   // El equipo aparece solo en la lista de equipos y se marca cada tanto como visto.
   if (Date.now() - cunaVistaDb > 30_000) {
@@ -2201,9 +2234,9 @@ app.post('/api/cuna-data', async (req, res) => {
   if (boolFromEsp(b.guardar) === true) {
     const r = cuna.simulado ? { guardado: false, mensaje: 'Datos simulados: no se guardan' }
       : await guardarDesdeBotonCuna().catch(e => ({ guardado: false, mensaje: 'Error al guardar' , error: e.message }));
-    return res.json({ ok: true, ...r, cmd });
+    return res.json({ ok: true, ...r, cmd, paciente });
   }
-  res.json({ ok: true, cmd });
+  res.json({ ok: true, cmd, paciente });
 });
 
 // ---------- Calibración de la cuna desde la interfaz (superusuario) ----------
@@ -2240,21 +2273,50 @@ app.post('/api/superuser/cuna/orden', (req, res) => {
 let cunaUltimoGuardado = 0;
 async function guardarDesdeBotonCuna() {
   if (Date.now() - cunaUltimoGuardado < 3000) return { guardado: true, mensaje: 'Ya guardado' };
-  if (!activePatientId) return { guardado: false, mensaje: 'Sin paciente asignado' };
+  const pid = pacienteCuna();
+  if (!pid) return { guardado: false, mensaje: 'Sin paciente asignado' };
   if (cuna.peso_g == null && cuna.talla_cm == null) return { guardado: false, mensaje: 'Sin datos' };
   if (cuna.estable === false) return { guardado: false, mensaje: 'Peso no estable' };
   cunaUltimoGuardado = Date.now();
   await pool.execute(
     `INSERT INTO antropometria (paciente_id, peso_g, talla_cm, temp_c, origen, equipo, cuenta_id) VALUES (?, ?, ?, ?, 'cuna', ?, NULL)`,
-    [activePatientId, cuna.peso_g, cuna.talla_cm, enRango(cuna.temp_c, 30, 43), cuna.equipo]);
-  if (cuna.peso_g != null) await pool.execute(`UPDATE pacientes SET peso_actual_g = ? WHERE id = ?`, [cuna.peso_g, activePatientId]);
-  await logEvent({ paciente_id: activePatientId, tipo: 'sistema',
+    [pid, cuna.peso_g, cuna.talla_cm, enRango(cuna.temp_c, 30, 43), cuna.equipo]);
+  if (cuna.peso_g != null) await pool.execute(`UPDATE pacientes SET peso_actual_g = ? WHERE id = ?`, [cuna.peso_g, pid]);
+  await logEvent({ paciente_id: pid, tipo: 'sistema',
     descripcion: `Medición guardada desde la cuna: ${cuna.peso_g ?? '—'} g · ${cuna.talla_cm ?? '—'} cm` }).catch(() => {});
-  io.emit('antropometria:nueva', { paciente_id: activePatientId, peso_g: cuna.peso_g, talla_cm: cuna.talla_cm, desde: 'cuna' });
+  io.emit('antropometria:nueva', { paciente_id: pid, peso_g: cuna.peso_g, talla_cm: cuna.talla_cm,
+    temp_c: enRango(cuna.temp_c, 30, 43), desde: 'cuna' });
   return { guardado: true, mensaje: 'Guardado en la ficha' };
 }
 
 app.get('/api/cuna/estado', (_req, res) => res.json({ ok: true, cuna: cunaPublica() }));
+
+// La doctora (o el superusuario) asigna la cuna a este paciente, o la libera.
+app.post('/api/patients/:id/cuna', async (req, res) => {
+  try {
+    if (!['doctor', 'admin'].includes(req.auth.rol))
+      return res.status(403).json({ ok: false, error: 'no_autorizado', message: 'Solo la doctora asigna la cuna.' });
+    const pacienteId = Number(req.params.id);
+    const asignar = req.body?.asignar !== false;
+    const equipo = cuna?.equipo || 'CUNA-01';
+    if (asignar) {
+      await pool.execute(
+        `INSERT INTO equipos (codigo, descripcion, estado, paciente_actual_id) VALUES (?, 'Cuna balanza neonatal', 'operativo', ?)
+         ON DUPLICATE KEY UPDATE paciente_actual_id = VALUES(paciente_actual_id)`, [equipo, pacienteId]);
+      await pool.execute(`UPDATE equipos SET paciente_actual_id = NULL WHERE codigo LIKE 'CUNA%' AND codigo <> ?`, [equipo]);
+      cunaPacienteId = pacienteId;
+    } else if (cunaPacienteId === pacienteId) {
+      await pool.execute(`UPDATE equipos SET paciente_actual_id = NULL WHERE codigo LIKE 'CUNA%'`);
+      cunaPacienteId = null;
+    }
+    nombresPaciente.delete(pacienteId);
+    nombrePaciente(pacienteId);
+    await logEvent({ paciente_id: pacienteId, cuenta_id: req.auth.id, tipo: 'sistema',
+      descripcion: asignar ? `Cuna ${equipo} asignada al paciente` : `Cuna ${equipo} liberada` }).catch(() => {});
+    setTimeout(() => io.emit('cuna', cunaPublica()), 300);   // el nombre llega de la base en un momento
+    res.json({ ok: true, cuna: cunaPublica() });
+  } catch (e) { return sendServerError(res, e, 'CUNA_ASIGNAR'); }
+});
 
 // Peso y talla en la ficha del paciente (los toma de la cuna si no se envían a mano).
 app.post('/api/patients/:id/antropometria', async (req, res) => {

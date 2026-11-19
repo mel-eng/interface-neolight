@@ -295,6 +295,7 @@ export function initSocket() {
 
     // Cuna balanza (equipo propio)
     ioSocket.on("cuna", payload => dispatchRealtimeEvent("cuna", payload || {}));
+    ioSocket.on("antropometria:nueva", payload => dispatchRealtimeEvent("antropometria", payload || {}));
 
     // Verificación del antifaz
     ioSocket.on("antifaz:estado", payload => dispatchRealtimeEvent("antifaz-estado", payload || {}));
