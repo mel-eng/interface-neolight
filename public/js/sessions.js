@@ -9,7 +9,12 @@
 
 import { $, state } from "./config.js";
 
-let startedAtMs = null;
+// El cronómetro muestra el TIEMPO REAL DE TERAPIA (solo con la luz prendida).
+// Si la lámpara pasa a reposo (STOP, antifaz, pausa) se congela y sigue cuando vuelve la luz.
+let baseS = 0;            // segundos de terapia que informó el servidor
+let baseTs = 0;           // cuándo los informó
+let corriendo = false;    // la luz está prendida ahora
+let enSesion = false;
 let tick = null;
 let activeSessionId = null;
 let sessionsBound = false;
@@ -20,11 +25,13 @@ const format = ms => {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
+const segundos = () => baseS + (corriendo ? Math.max(0, (Date.now() - baseTs) / 1000) : 0);
+
 function draw() {
   const el = $("tiempoTerapia");
-  if (el) el.textContent = format(startedAtMs ? Date.now() - startedAtMs : 0);
+  if (el) el.textContent = format(enSesion ? segundos() * 1000 : 0);
   const hero = $("patientHeroTime");
-  if (hero && startedAtMs) hero.textContent = el?.textContent || "";
+  if (hero && enSesion) hero.textContent = el?.textContent || "";
 }
 
 function setHint(text) {
@@ -32,32 +39,43 @@ function setHint(text) {
   if (hint) hint.textContent = text;
 }
 
-function start(startedAt, sessionId) {
-  const parsed = startedAt ? new Date(startedAt).getTime() : Date.now();
-  startedAtMs = Number.isFinite(parsed) ? Math.min(parsed, Date.now()) : Date.now();
-  activeSessionId = sessionId || null;
-  clearInterval(tick);
-  tick = setInterval(draw, 1000);
+function hintActual() {
+  setHint(!enSesion ? "Empieza sola cuando la lámpara inicia la terapia"
+    : corriendo ? "Sesión en curso" : "En pausa: la luz está apagada");
+}
+
+function set(efectivoS, estaCorriendo, sessionId) {
+  enSesion = true;
+  baseS = Math.max(0, Number(efectivoS) || 0);
+  baseTs = Date.now();
+  corriendo = !!estaCorriendo;
+  if (sessionId) activeSessionId = sessionId;
+  if (!tick) tick = setInterval(draw, 1000);
   draw();
-  setHint("Sesión en curso");
+  hintActual();
 }
 
 function stop() {
   clearInterval(tick);
   tick = null;
-  startedAtMs = null;
+  enSesion = false;
+  corriendo = false;
+  baseS = 0;
   activeSessionId = null;
   draw();
-  setHint("Empieza sola cuando la lámpara inicia la terapia");
+  hintActual();
 }
 
 export function getActiveSessionId() { return activeSessionId; }
-export function isRunning() { return !!startedAtMs; }
+export function isRunning() { return enSesion && corriendo; }
 
 /** Sincroniza el cronómetro con la sesión que informa el servidor (o la detiene si no hay). */
 export function initTimer(session = null) {
-  if (session && ["active", "paused"].includes(session.status)) start(session.started_at, session.id);
-  else stop();
+  if (!session || !["active", "paused"].includes(session.status)) { stop(); return; }
+  // Servidor nuevo: manda el tiempo efectivo. Servidor viejo: se cuenta desde el inicio.
+  const ef = session.efectivo_s != null ? session.efectivo_s
+    : session.started_at ? (Date.now() - new Date(session.started_at).getTime()) / 1000 : 0;
+  set(ef, session.corriendo ?? true, session.id);
 }
 
 /** Se conserva por compatibilidad: salir del panel ya no cierra la sesión de la lámpara. */
@@ -71,7 +89,12 @@ export function initSessions() {
 
   window.addEventListener("neolight:session-started", event => {
     const payload = event.detail || {};
-    if (state.currentRole === "tutor" && isMine(payload)) start(null, payload.sesion_id);
+    if (state.currentRole === "tutor" && isMine(payload)) set(0, true, payload.sesion_id);
+  });
+  // Cada segundo el servidor dice cuánto tiempo de luz lleva la sesión y si está corriendo.
+  window.addEventListener("neolight:sesion-tiempo", event => {
+    const p = event.detail || {};
+    if (state.currentRole === "tutor" && isMine(p)) set(p.efectivo_s, p.corriendo, p.sesion_id);
   });
   window.addEventListener("neolight:session-finished", event => {
     if (state.currentRole === "tutor" && isMine(event.detail)) stop();

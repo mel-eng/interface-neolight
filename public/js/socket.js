@@ -330,6 +330,7 @@ export function initSocket() {
     ioSocket.on("alarm:muted", payload => dispatchRealtimeEvent("alarm-muted", payload || {}));
     ioSocket.on("session:started",  payload => { console.log("[SESSION] started", payload); dispatchRealtimeEvent("session-started", payload || {}); });
     ioSocket.on("session:paused",   payload => { console.log("[SESSION] paused",  payload); dispatchRealtimeEvent("session-paused", payload || {}); });
+    ioSocket.on("sesion:tiempo", payload => dispatchRealtimeEvent("sesion-tiempo", payload || {}));
     ioSocket.on("session:finished", payload => { console.log("[SESSION] finished",payload); dispatchRealtimeEvent("session-finished", payload || {}); });
     ioSocket.on("plan:updated", payload => dispatchRealtimeEvent("plan-updated", payload || {}));
     ioSocket.on("plan:progreso", payload => {

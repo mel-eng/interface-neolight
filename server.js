@@ -482,6 +482,8 @@ async function ensureSchemaCompatibility() {
       KEY ix_plan_cambios_paciente (paciente_id, created_at), KEY ix_plan_cambios_plan (plan_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
   await crearTablasEncuesta(safe);
+  // Tiempo de terapia REAL (solo cuando la luz está prendida): no cuenta pausas, reposo ni apagados del antifaz.
+  await safe(`ALTER TABLE sesiones ADD COLUMN tiempo_efectivo_s INT UNSIGNED NOT NULL DEFAULT 0`);
   // Pacientes de demostración (maniquí): el reporte lo indica.
   await safe(`ALTER TABLE pacientes ADD COLUMN simulado TINYINT(1) NOT NULL DEFAULT 0`);
   // Foto del paciente para los reportes.
@@ -536,15 +538,13 @@ async function getActivePlan(paciente_id, conn = null) {
   // La sesión que está corriendo también cuenta: el avance se ve en vivo, no recién al cerrar la sesión.
   // Se mide igual que al cerrarla: desde el inicio hasta la última medición guardada.
   const [[vivo]] = await db.execute(
-    `SELECT s.id AS sesion_id,
-            GREATEST(0, TIMESTAMPDIFF(SECOND, s.started_at,
-              (SELECT MAX(m.created_at) FROM mediciones m WHERE m.sesion_id = s.id))) AS s_en_curso
+    `SELECT s.id AS sesion_id, s.tiempo_efectivo_s AS s_en_curso
      FROM sesiones s
      WHERE s.paciente_id = ? AND s.status IN ('active','paused') AND (s.plan_id = ? OR s.plan_id IS NULL)
      ORDER BY s.created_at DESC LIMIT 1`,
     [paciente_id, p.id]
   ).catch(() => [[null]]);
-  const enCurso = Number(vivo?.s_en_curso || 0);
+  const enCurso = vivo ? efectivoDe(vivo.sesion_id, vivo.s_en_curso) : 0;   // solo tiempo con luz
   const total = Math.min(p.meta_total_s, Number(p.tiempo_acumulado_s) + enCurso);
   return {
     ...p,
@@ -593,7 +593,47 @@ async function getActiveSession(paciente_id, conn = null) {
     `SELECT * FROM sesiones WHERE paciente_id = ? AND status IN ('active','paused') ORDER BY created_at DESC LIMIT 1`,
     [paciente_id]
   );
-  return rows[0] || null;
+  if (!rows[0]) return null;
+  // El cronómetro muestra solo el tiempo con la luz prendida.
+  return { ...rows[0], efectivo_s: efectivoDe(rows[0].id, rows[0].tiempo_efectivo_s),
+           corriendo: !!(espOnline && lastTelemetry?.terapiaActiva) };
+}
+
+// ---------- Tiempo efectivo de terapia ----------
+// Se suma segundo a segundo mientras la lámpara está en terapia. Si la lámpara pasa a
+// reposo (STOP, antifaz, pausa) el conteo se detiene, y sigue cuando vuelve la luz.
+let efectivo = null;                 // { id, paciente_id, s, ts, guardadoTs, emitidoTs }
+const efectivoDe = (sesionId, columna = 0) =>
+  efectivo && efectivo.id === Number(sesionId) ? Math.round(efectivo.s) : Number(columna || 0);
+
+function sumarTiempoEfectivo(sesion, paciente_id) {
+  const ahora = Date.now();
+  if (!efectivo || efectivo.id !== Number(sesion.id))
+    efectivo = { id: Number(sesion.id), paciente_id, s: Number(sesion.tiempo_efectivo_s || 0), ts: ahora, guardadoTs: 0, emitidoTs: 0 };
+  else if (efectivo.ts) {
+    const d = (ahora - efectivo.ts) / 1000;
+    if (d > 0 && d <= 5) efectivo.s += d;          // un hueco largo (lámpara perdida) no se cuenta
+  }
+  efectivo.ts = ahora;
+  if (ahora - efectivo.guardadoTs > 5000) {
+    efectivo.guardadoTs = ahora;
+    pool.execute(`UPDATE sesiones SET tiempo_efectivo_s = ? WHERE id = ?`, [Math.round(efectivo.s), efectivo.id]).catch(() => {});
+  }
+  emitirTiempoEfectivo(true);
+}
+
+function pausarTiempoEfectivo() {
+  if (!efectivo || !efectivo.ts) return;
+  efectivo.ts = 0;                                   // el próximo segundo de luz empieza desde aquí
+  pool.execute(`UPDATE sesiones SET tiempo_efectivo_s = ? WHERE id = ?`, [Math.round(efectivo.s), efectivo.id]).catch(() => {});
+  emitirTiempoEfectivo(false, true);
+}
+
+function emitirTiempoEfectivo(corriendo, forzar = false) {
+  if (!efectivo) return;
+  if (!forzar && Date.now() - efectivo.emitidoTs < 1000) return;
+  efectivo.emitidoTs = Date.now();
+  io.emit('sesion:tiempo', { paciente_id: efectivo.paciente_id, sesion_id: efectivo.id, efectivo_s: Math.round(efectivo.s), corriendo });
 }
 
 const AUTO_ALARM_TYPES = [
@@ -827,7 +867,7 @@ let activePatientId = null;    // paciente que está usando la lámpara (tabla e
 let inactiveSince   = 0;       // desde cuándo la lámpara no está dando terapia
 const alarmCooldown = new Map();
 
-const SESSION_IDLE_FINISH_MS    = Number(process.env.SESSION_IDLE_FINISH_S || 30) * 1000;      // sin terapia 30 s → la sesión se cierra sola
+const SESSION_IDLE_FINISH_MS    = Number(process.env.SESSION_IDLE_FINISH_S || 120) * 1000;     // sin terapia 2 min → la sesión se cierra sola (una pausa corta no la corta)
 const SESSION_OFFLINE_FINISH_MS = Number(process.env.SESSION_OFFLINE_FINISH_S || 60) * 1000;   // sin conexión 60 s → se cierra por desconexión
 
 // Ventanas de distancia segura. Deben coincidir con el firmware del maestro.
@@ -1177,6 +1217,7 @@ async function processEsp32Telemetry(body = {}) {
     await upsertDeviceStatus(paciente_id, true, terapiaActiva ? 'en_sesion' : 'online');
 
     if (!terapiaActiva) {
+      pausarTiempoEfectivo();
       await syncResolvedAutoAlarms(paciente_id, []).catch(e => console.warn('[ALARMAS] sync:', e.message));
       // Si la terapia lleva un rato detenida, la sesión abierta se cierra sola.
       if (!inactiveSince) inactiveSince = Date.now();
@@ -1192,6 +1233,7 @@ async function processEsp32Telemetry(body = {}) {
     await syncResolvedAutoAlarms(paciente_id, alarms.map(a => a.tipo)).catch(e => console.warn('[ALARMAS] sync:', e.message));
     let sesion = await getActiveSession(paciente_id);
     if (!sesion) sesion = await autoStartSessionForTelemetry(paciente_id, modo);
+    if (sesion) sumarTiempoEfectivo(sesion, paciente_id);
     if (sesion) await revisarMetaDelPlan(paciente_id, sesion).catch(e => console.warn('[PLAN] meta:', e.message));
 
     // La lámpara puede informar dos veces por segundo; se guarda una medición por segundo.
@@ -3597,7 +3639,9 @@ async function finalizeSession(sesionId, { motivo = 'completada', cuenta_id = nu
 
   // Duración: lo que realmente midió la lámpara. Sin mediciones se acepta el cronómetro de la interfaz.
   let durS = 0;
-  if (total > 0 && s.started_at && m.ultima)
+  const ef = efectivoDe(sesionId, s.tiempo_efectivo_s);   // tiempo real con la luz prendida
+  if (ef > 0) durS = ef;
+  else if (total > 0 && s.started_at && m.ultima)
     durS = Math.max(0, Math.round((new Date(m.ultima).getTime() - new Date(s.started_at).getTime()) / 1000));
   else if (toNum(duracion_cliente_s) > 0)
     durS = Math.round(toNum(duracion_cliente_s));
@@ -3615,13 +3659,13 @@ async function finalizeSession(sesionId, { motivo = 'completada', cuenta_id = nu
     await conn.execute(
       `UPDATE sesiones SET
          status = 'finished', finished_at = NOW(), hora_fin = CURTIME(),
-         duracion_s = ?, tiempo_rango_s = ?, tiempo_fuera_rango_s = ?,
+         duracion_s = ?, tiempo_efectivo_s = ?, tiempo_rango_s = ?, tiempo_fuera_rango_s = ?,
          modo_final = ?, motivo_fin = ?,
          intensidad_promedio_pct = ?, distancia_promedio_cm = ?,
          temp_bebe_promedio_c = ?, temp_amb_promedio_c = ?,
          observaciones = COALESCE(?, observaciones)
        WHERE id = ?`,
-      [durS, rangoS, rangoS == null ? null : Math.max(0, durS - rangoS),
+      [durS, durS, rangoS, rangoS == null ? null : Math.max(0, durS - rangoS),
        modoRow?.modo_actual || s.modo_programado, motivoFinal,
        round1(m?.led), round1(m?.dist), round1(m?.tbebe), round1(m?.tamb),
        observaciones || null, sesionId]
@@ -3652,6 +3696,7 @@ async function finalizeSession(sesionId, { motivo = 'completada', cuenta_id = nu
   finally { conn.release(); }
 
   await sendCommandToESP({ type: 'lock' });
+  if (efectivo && efectivo.id === Number(sesionId)) efectivo = null;
   io.emit('session:finished', { paciente_id: s.paciente_id, sesion_id: sesionId, duracion_s: durS, motivo: motivoFinal });
   io.emit('control:updated', {
     paciente_id: s.paciente_id, modo_control: 'bloqueado',
