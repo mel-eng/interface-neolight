@@ -1230,6 +1230,20 @@ async function processEsp32Telemetry(body = {}) {
     }
     inactiveSince = 0;
 
+    // Terapia ya completada: aunque la enciendan desde el panel del equipo, se apaga sola
+    // y no se abre sesión (salvo una prueba técnica del superusuario).
+    const cerrada = Date.now() < pruebaTecnicaHasta ? null : await terapiaCerrada(paciente_id);
+    if (cerrada) {
+      if (Date.now() - terapiaBloqueadaAvisoTs > 5000) {
+        terapiaBloqueadaAvisoTs = Date.now();
+        const r = await sendCommandToESP({ type: 'mode', mode: 'reposo' });
+        if (r.sent) { currentLampMode = 'reposo'; io.emit('lamp:command', { type: 'mode', mode: 'reposo', paciente_id, motivo: cerrada }); }
+        io.emit('lamp:denied', { action: 'mode', reason: cerrada, paciente_id, message: lampErrorMessage(cerrada) });
+        console.log(`[TERAPIA] Bloqueada para el paciente ${paciente_id}: ${cerrada}`);
+      }
+      return { status: 200, payload: { ok: true, terapiaActiva: false, bloqueada: cerrada } };
+    }
+
     await syncResolvedAutoAlarms(paciente_id, alarms.map(a => a.tipo)).catch(e => console.warn('[ALARMAS] sync:', e.message));
     let sesion = await getActiveSession(paciente_id);
     if (!sesion) sesion = await autoStartSessionForTelemetry(paciente_id, modo);
@@ -3307,6 +3321,7 @@ app.get('/api/doctor/patients/:id', async (req, res) => {
 
 app.put('/api/doctor/patients/:id', async (req, res) => {
   try {
+    olvidarTerapiaCerrada(req.params.id);   // un plan nuevo o un cambio de estado reabre la terapia
     const doctorId  = getDoctorIdFromReq(req);
     const patientId = Number(req.params.id);
     if (!doctorId || !patientId) return res.status(400).json({ ok: false, error: 'params_invalidos' });
@@ -3434,6 +3449,7 @@ app.get('/api/patients/:id/plan-active', async (req, res) => {
 // FIX [3]: plan ahora acepta horas_por_dia, sesiones_por_dia, duracion_sesion_min
 app.post('/api/doctor/patients/:id/plan', async (req, res) => {
   try {
+    olvidarTerapiaCerrada(req.params.id);   // un plan nuevo o un cambio de estado reabre la terapia
     const doctorId  = getDoctorIdFromReq(req);
     const patientId = Number(req.params.id);
     if (!doctorId) return res.status(400).json({ ok: false, error: 'falta_doctor_id' });
@@ -3492,6 +3508,7 @@ app.post('/api/doctor/patients/:id/plan', async (req, res) => {
 
 app.put('/api/doctor/patients/:id/plan/:planId', async (req, res) => {
   try {
+    olvidarTerapiaCerrada(req.params.id);   // un plan nuevo o un cambio de estado reabre la terapia
     const doctorId  = getDoctorIdFromReq(req);
     const patientId = Number(req.params.id);
     const planId    = Number(req.params.planId);
@@ -3805,8 +3822,38 @@ app.get('/api/sessions/:id/measurements', async (req, res) => {
 
 // ===================== CONTROL Y MODOS ========================
 
+// ---------- Terapia cerrada ----------
+// Si el último plan del paciente ya se completó (o el paciente está de alta), la lámpara
+// NO puede volver a encender la luz para él hasta que el doctor indique un plan nuevo.
+const terapiaCerradaCache = new Map();          // paciente_id -> { motivo, ts }
+async function terapiaCerrada(paciente_id) {
+  const id = Number(paciente_id);
+  if (!id || !pool) return null;
+  const c = terapiaCerradaCache.get(id);
+  if (c && Date.now() - c.ts < 5000) return c.motivo;
+  let motivo = null;
+  try {
+    const [[p]] = await pool.execute(`SELECT estado_clinico FROM pacientes WHERE id = ? LIMIT 1`, [id]);
+    if (p?.estado_clinico === 'alta') motivo = 'paciente_de_alta';
+    else {
+      const [[pl]] = await pool.execute(
+        `SELECT estado FROM planes_terapia WHERE paciente_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`, [id]);
+      if (pl?.estado === 'completado') motivo = 'plan_completado';
+    }
+  } catch { motivo = null; }
+  terapiaCerradaCache.set(id, { motivo, ts: Date.now() });
+  return motivo;
+}
+const olvidarTerapiaCerrada = id => terapiaCerradaCache.delete(Number(id));
+let pruebaTecnicaHasta = 0;                      // el superusuario puede probar la luz en Diagnóstico
+let terapiaBloqueadaAvisoTs = 0;
+
 // Aplica un modo a la lámpara para un paciente y lo deja como paciente activo del equipo.
 async function applyLampMode(paciente_id, modo) {
+  if (isTherapyMode(modo)) {
+    const cerrada = await terapiaCerrada(paciente_id);
+    if (cerrada) return { sent: false, reason: cerrada };
+  }
   await setActivePatient(paciente_id);
   const result = await sendCommandToESP({ type: 'mode', mode: modo });
   if (result.sent) {
@@ -3823,6 +3870,8 @@ const LAMP_ERRORS = {
   limite_de_seguridad: 'El equipo detuvo el movimiento por el límite de distancia segura.',
   equipo_sin_esa_funcion: 'El firmware de la lámpara todavía no tiene esa función.',
   comando_no_compatible: 'La lámpara no reconoce ese comando.',
+  plan_completado: 'La terapia de este paciente ya se completó. Para volver a encender la luz, indica un nuevo plan o da el alta.',
+  paciente_de_alta: 'Este paciente está de alta: la lámpara no inicia terapia para él.',
 };
 const lampErrorMessage = reason => LAMP_ERRORS[reason] || 'La lámpara no aceptó el comando.';
 
@@ -3897,7 +3946,8 @@ app.post('/api/doctor/patients/:id/mode', async (req, res) => {
     await logEvent({ paciente_id: patientId, cuenta_id: doctorId, tipo: 'cambio_modo',
                      descripcion: `Doctor cambió modo a ${modo}`, metadata: { modo, enviado: result.sent, motivo: result.reason || null } });
     if (!result.sent)
-      return res.status(503).json({ ok: false, error: result.reason, message: lampErrorMessage(result.reason) });
+      return res.status(['plan_completado','paciente_de_alta'].includes(result.reason) ? 409 : 503)
+        .json({ ok: false, error: result.reason, message: lampErrorMessage(result.reason) });
     res.json({ ok: true, mode: modo });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ ok: false, error: e.error });
@@ -3926,6 +3976,10 @@ app.post('/api/patient/:id/mode-request', async (req, res) => {
     if (!patientRows.length) return res.status(404).json({ ok: false, error: 'paciente_no_encontrado' });
     const pat = patientRows[0];
 
+    if (!isManual && isTherapyMode(modo)) {
+      const cerrada = await terapiaCerrada(patientId);
+      if (cerrada) return res.status(409).json({ ok: false, error: cerrada, message: lampErrorMessage(cerrada) });
+    }
     // Reposo siempre se permite; el modo que el doctor dejó en el plan no necesita pedir permiso otra vez.
     const activePlan = await getActivePlan(patientId);
     const allowedByPlan = !isManual && modo === normalizeMode(activePlan?.modo_recomendado);
@@ -4261,6 +4315,13 @@ io.on('connection', socket => {
     if (!mode || mode === 'automatico') return;
     if (!['doctor','admin'].includes(auth.rol))
       return socket.emit('lamp:denied', { action: 'mode', reason: 'sin_permiso', message: 'Tu cuenta no puede cambiar el modo directamente.' });
+    if (isTherapyMode(mode)) {
+      if (auth.rol === 'admin') pruebaTecnicaHasta = Date.now() + 10 * 60_000;   // prueba técnica desde Diagnóstico
+      else {
+        const cerrada = await terapiaCerrada(activePatientId);
+        if (cerrada) return socket.emit('lamp:denied', { action: 'mode', reason: cerrada, message: lampErrorMessage(cerrada) });
+      }
+    } else if (auth.rol === 'admin') pruebaTecnicaHasta = 0;
     const result = await sendCommandToESP({ type: 'mode', mode });
     if (!result.sent) return socket.emit('lamp:denied', { action: 'mode', reason: result.reason, message: lampErrorMessage(result.reason) });
     currentLampMode = mode;
