@@ -87,7 +87,7 @@ const CONFIG = {
   // Verificación del antifaz
   ANTHROPIC_API_KEY:      process.env.ANTHROPIC_API_KEY || '',
   ANTHROPIC_BASE_URL:     process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
-  ANTIFAZ_MODEL:          process.env.ANTIFAZ_MODEL || 'claude-haiku-4-5',
+  ANTIFAZ_MODEL:          process.env.ANTIFAZ_MODEL || 'claude-haiku-5-5',     // más rápido, más preciso y más barato que haiku-4-5
   ANTIFAZ_IA_MS:          Number(process.env.ANTIFAZ_IA_MS) || 3000,          // cada cuánto se consulta la IA
   ANTIFAZ_IA_TIMEOUT_MS:  Number(process.env.ANTIFAZ_IA_TIMEOUT_MS) || 8000,
   ANTIFAZ_IA_MAX_DIA:     Number(process.env.ANTIFAZ_IA_MAX_DIA) || 8000,     // tope de consultas por día
@@ -1687,10 +1687,13 @@ Usa la herramienta reportar_antifaz, rellenando los campos en este orden:
 - antifaz_presente: se ve un antifaz, cinta o protector ocular en la cara, aunque esté mal puesto.
 - nariz_visible: true si se ve la nariz por debajo del antifaz (la punta, las fosas nasales o su forma), aunque sea pequeña, oscura o de piel morena. Es false solo si el material del antifaz baja y cubre claramente la nariz.
 - confianza: de 0 a 1, qué tan seguro estás del conjunto.
+- tipo_antifaz: qué protector ves en la cara: "tela" (antifaz o banda de tela), "espuma" (protector acolchado o de espuma), "gafas_oscuras" (gafas o lentes de cristal oscuro), "gafas_transparentes" (lentes por los que se ven los ojos: NO protegen), "latex_silicona" (protector de látex, silicona o plástico opaco), "cinta" (cinta adhesiva o esparadrapo), "otro" (otro material opaco) o "ninguno" (no hay protector).
+- descripcion_antifaz: una frase corta del protector (color, material, cómo está puesto). Vacía si no hay.
 - nota: una frase corta en español con lo que ves. Si un solo ojo está tapado, dilo.
 El tono de piel no importa: evalúa igual a bebés de piel clara, morena u oscura. Si la cámara está muy cerca o la cara se ve solo en parte y no alcanzas a ver la zona de los ojos y de la nariz, pon rostro_visible en false.`;
 
 const OJO_VALORES = ['cubierto', 'visible', 'no_se_ve'];
+const TIPOS_ANTIFAZ = ['tela', 'espuma', 'gafas_oscuras', 'gafas_transparentes', 'latex_silicona', 'cinta', 'otro', 'ninguno'];
 
 const ANTIFAZ_TOOL = {
   name: 'reportar_antifaz',
@@ -1705,9 +1708,11 @@ const ANTIFAZ_TOOL = {
       antifaz_presente: { type: 'boolean' },
       nariz_visible:    { type: 'boolean' },
       confianza:        { type: 'number' },
+      tipo_antifaz:     { type: 'string', enum: TIPOS_ANTIFAZ },
+      descripcion_antifaz: { type: 'string' },
       nota:             { type: 'string' },
     },
-    required: ['observacion_ojos', 'ojo_izquierdo', 'ojo_derecho', 'rostro_visible', 'antifaz_presente', 'nariz_visible', 'confianza', 'nota'],
+    required: ['observacion_ojos', 'ojo_izquierdo', 'ojo_derecho', 'rostro_visible', 'antifaz_presente', 'nariz_visible', 'confianza', 'tipo_antifaz', 'descripcion_antifaz', 'nota'],
   },
 };
 
@@ -1746,6 +1751,8 @@ async function consultarIA(buf) {
     observacion_ojos: String(out.observacion_ojos || '').slice(0, 200),
     nariz_visible: !!out.nariz_visible,
     confianza: Math.max(0, Math.min(1, Number(out.confianza) || 0)),
+    tipo_antifaz: TIPOS_ANTIFAZ.includes(out.tipo_antifaz) ? out.tipo_antifaz : (out.antifaz_presente ? 'otro' : 'ninguno'),
+    descripcion_antifaz: String(out.descripcion_antifaz || '').slice(0, 160),
     nota: String(out.nota || '').slice(0, 200),
     ms: Date.now() - t0, ts: Date.now(),
   };

@@ -710,6 +710,10 @@ function renderAntifaz(a = getAntifaz()) {
   set("nariz_visible", yesNo(l?.nariz_visible, true));
   set("confianza", l ? `${Math.round(l.confianza * 100)} %` : "—");
   set("ms", l ? `${(l.ms / 1000).toFixed(1)} s` : "—");
+  const TIPOS = { tela: "Tela", espuma: "Espuma", gafas_oscuras: "Gafas oscuras", gafas_transparentes: "Gafas transparentes (no protegen)",
+                  latex_silicona: "Látex / silicona", cinta: "Cinta adhesiva", otro: "Otro material", ninguno: "Ninguno" };
+  set("tipo_antifaz", !l || !l.tipo_antifaz ? "—"
+    : `${escapeHtml(TIPOS[l.tipo_antifaz] || l.tipo_antifaz)}${l.descripcion_antifaz ? `<small class="su-ojos-detalle">${escapeHtml(l.descripcion_antifaz)}</small>` : ""}`);
   $("suAntifazNota").textContent = l ? `«${l.nota}» · hace ${Math.max(0, Math.round((Date.now() - l.ts) / 1000))} s` : "Todavía no hay lecturas.";
 
   const ia = a.ia || {};

@@ -786,3 +786,4 @@ html body .antro-msg:empty,html body .antro-ultima:empty{display:none}
 html body .antro-msg[data-ok="1"]{color:var(--nl-ok)}
 html body .antro-msg[data-ok="0"]{color:#c0392b}
 @media (max-width:560px){html body .antro-btns{grid-template-columns:1fr}}
+html body .su-antifaz-grid .su-antifaz-tipo{grid-column:1/-1}
