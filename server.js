@@ -1931,35 +1931,43 @@ async function cicloIA() {
     antifaz.ia.proxima = Date.now() + CONFIG.ANTIFAZ_IA_MS;
   } else {
     const { lectura, foto } = res;
-    if (ANTIFAZ_PELIGRO.has(lectura.clase)) {
-      if (antifaz.racha === 0) antifaz.rachaInicio = lectura.ts - lectura.ms;
+    if (lectura.clase !== 'ok') {
+      // Cualquier lectura que NO sea "ok" (peligro o dudosa) suma a la misma racha.
+      // Antes, una lectura dudosa en medio borraba la racha de peligro y viceversa,
+      // y con lecturas mezcladas la alarma podía tardar casi un minuto.
+      if (antifaz.racha === 0) { antifaz.rachaInicio = lectura.ts - lectura.ms; antifaz.rachaClases = []; }
       antifaz.racha += 1;
-      antifaz.noVerificables = 0;
-      const confirmado = antifaz.racha >= CONFIG.ANTIFAZ_LECTURAS;
-      // Con la lámpara encendida se confirma enseguida con la siguiente foto.
-      // Ya apagada no hay apuro: se vuelve al ritmo normal para no gastar consultas.
+      antifaz.rachaClases = [...(antifaz.rachaClases || []), { clase: lectura.clase, confianza: lectura.confianza }].slice(-6);
+      const peligros = antifaz.rachaClases.filter(x => ANTIFAZ_PELIGRO.has(x.clase));
+      antifaz.noVerificables = antifaz.rachaClases.length - peligros.length;
+      // Dos lecturas seguidas de peligro con confianza alta ya bastan; si no, las de siempre.
+      const ultimas2 = antifaz.rachaClases.slice(-2);
+      const seguro = ultimas2.length === 2 && ultimas2.every(x => ANTIFAZ_PELIGRO.has(x.clase) && x.confianza >= 0.85);
+      const confirmado = seguro || antifaz.racha >= CONFIG.ANTIFAZ_LECTURAS;
+      // Con la lámpara encendida se pide la siguiente foto enseguida; ya apagada, al ritmo normal.
       antifaz.ia.proxima = (terapiaEnCurso() && !confirmado) ? 0 : Date.now() + CONFIG.ANTIFAZ_IA_MS;
       if (confirmado) {
-        antifaz.iaEstado = lectura.clase;
-        const soloAviso = lectura.clase === 'nariz_cubierta' && !CONFIG.ANTIFAZ_NARIZ_APAGA;
-        if (terapiaEnCurso()) {
-          if (soloAviso) await avisarRiesgo('nariz_cubierta', lectura, foto);
-          else await apagarPorSeguridad(lectura.clase, 'ia', { lectura, foto, inicio: antifaz.rachaInicio });
-        }
-      }
-    } else {
-      antifaz.racha = 0;
-      antifaz.ia.proxima = Date.now() + CONFIG.ANTIFAZ_IA_MS;
-      if (lectura.clase === 'no_verificable') {
-        antifaz.noVerificables += 1;
-        if (antifaz.noVerificables >= CONFIG.ANTIFAZ_LECTURAS) {
+        if (peligros.length) {
+          // El peligro que más se repitió en la racha (ojos expuestos, sin antifaz, etc.)
+          const cuenta = {};
+          for (const x of peligros) cuenta[x.clase] = (cuenta[x.clase] || 0) + 1;
+          const clase = Object.entries(cuenta).sort((a, b) => b[1] - a[1])[0][0];
+          antifaz.iaEstado = clase;
+          const soloAviso = clase === 'nariz_cubierta' && !CONFIG.ANTIFAZ_NARIZ_APAGA;
+          if (terapiaEnCurso()) {
+            if (soloAviso) await avisarRiesgo('nariz_cubierta', lectura, foto);
+            else await apagarPorSeguridad(clase, 'ia', { lectura, foto, inicio: antifaz.rachaInicio });
+          }
+        } else {
           antifaz.iaEstado = 'no_verificable';
           if (terapiaEnCurso()) await avisarNoVerificable(lectura, foto);
         }
-      } else {
-        antifaz.noVerificables = 0; antifaz.avisoNoVerificable = false; antifaz.avisos.clear();
-        antifaz.iaEstado = 'ok';
       }
+    } else {
+      antifaz.racha = 0; antifaz.rachaClases = [];
+      antifaz.ia.proxima = Date.now() + CONFIG.ANTIFAZ_IA_MS;
+      antifaz.noVerificables = 0; antifaz.avisoNoVerificable = false; antifaz.avisos.clear();
+      antifaz.iaEstado = 'ok';
     }
   }
     const combinado = estadoCombinado();
